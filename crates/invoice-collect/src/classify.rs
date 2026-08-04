@@ -82,9 +82,14 @@ const INVOICE_KEYWORDS: &[&str] = &[
 /// 发件人域名 → 平台标识。用于文件命名和统计。
 pub fn platform_of_sender(from: &str) -> Option<&'static str> {
     let lower = from.to_lowercase();
+
+    // Find the '@' symbol and extract the domain portion
+    let domain_start = lower.find('@')?;
+    let email_domain = &lower[domain_start + 1..];
+
     SENDER_WHITELIST
         .iter()
-        .find(|(domain, _)| lower.ends_with(domain) || lower.contains(&format!("@{domain}")))
+        .find(|(domain, _)| email_domain.ends_with(domain))
         .map(|(_, platform)| *platform)
 }
 
