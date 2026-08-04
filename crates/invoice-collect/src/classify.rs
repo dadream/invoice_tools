@@ -51,6 +51,7 @@ pub struct Classification {
 /// MVP 阶段先内置 —— 本采集工具只需覆盖常见平台。
 const SENDER_WHITELIST: &[(&str, &str)] = &[
     ("12306.cn", "12306"),
+    ("rails.com.cn", "12306"),
     ("rail.sina.com.cn", "12306"),
     ("ctrip.com", "ctrip"),
     ("trip.com", "ctrip"),
@@ -131,10 +132,21 @@ fn infer_format(filename: &str, platform: Option<&str>, subject: &str) -> Option
         Some(SampleFormat::PdfRail)
     } else if haystack.contains("航空") || haystack.contains("机票") || haystack.contains("行程单")
     {
+        // Ride-hailing platforms never issue flight itineraries
+        if platform == Some("didi") || platform == Some("meituan")
+            || platform == Some("amap") {
+            return Some(SampleFormat::PdfVat);
+        }
         Some(SampleFormat::PdfFlight)
     } else {
         Some(SampleFormat::PdfVat)
     }
+}
+
+fn is_image_extension(filename: &str) -> bool {
+    let lower = filename.to_lowercase();
+    lower.ends_with(".jpg") || lower.ends_with(".jpeg")
+        || lower.ends_with(".png") || lower.ends_with(".gif")
 }
 
 /// 判断一个附件是否为发票，并推断其格式。
@@ -142,6 +154,11 @@ pub fn classify_attachment(
     email: &ExtractedEmail,
     att: &RawAttachment,
 ) -> Option<Classification> {
+    // Reject small images (likely decorations, not scanned invoices)
+    if is_image_extension(&att.filename) && att.data.len() < 50_000 {
+        return None;
+    }
+
     let platform = platform_of_sender(&email.from);
 
     // 第 1 级：发件人在白名单 —— 该发件人的具名附件直接采信
@@ -185,6 +202,14 @@ mod tests {
             filename: filename.into(),
             content_type: content_type.into(),
             data: b"%PDF-1.4".to_vec(),
+        }
+    }
+
+    fn att_with_size(filename: &str, content_type: &str, size: usize) -> RawAttachment {
+        RawAttachment {
+            filename: filename.into(),
+            content_type: content_type.into(),
+            data: vec![0u8; size],
         }
     }
 
@@ -247,7 +272,8 @@ mod tests {
     #[test]
     fn image_attachment_is_classified_as_image() {
         let email = email_from("me@qq.com", "发票照片");
-        let c = classify_attachment(&email, &att("发票.jpg", "image/jpeg")).unwrap();
+        // Use a large enough image (>50KB) to pass the size filter
+        let c = classify_attachment(&email, &att_with_size("发票.jpg", "image/jpeg", 60_000)).unwrap();
         assert_eq!(c.format, SampleFormat::Image);
     }
 

@@ -2,7 +2,7 @@ use anyhow::{bail, Context};
 use invoice_collect::classify::classify_attachment;
 use invoice_collect::config::{DateRange, ImapConfig};
 use invoice_collect::dedupe::Deduper;
-use invoice_collect::extract::extract_email;
+use invoice_collect::extract::{extract_email, extract_zip_if_needed};
 use invoice_collect::imap_client::Session;
 use invoice_collect::manifest_gen::{render, ManifestEntry};
 use invoice_collect::store::save_sample;
@@ -14,6 +14,7 @@ const DEFAULT_BEFORE: &str = "2026-07-01";
 const USAGE: &str = "用法:
   invoice-collect probe   <邮箱地址> [起始日期 结束日期]
   invoice-collect collect <邮箱地址> [起始日期 结束日期]
+  invoice-collect audit   <邮箱地址> [起始日期 结束日期]
 
 日期格式 YYYY-MM-DD，默认 2026-06-01 至 2026-07-01（半开区间）。
 密码从环境变量 INVOICE_IMAP_PASSWORD 读取。QQ 邮箱需填 16 位授权码。";
@@ -23,6 +24,7 @@ fn main() -> anyhow::Result<()> {
     match args.get(1).map(String::as_str) {
         Some("probe") => probe(&parse_target(&args)?),
         Some("collect") => collect(&parse_target(&args)?),
+        Some("audit") => audit(&parse_target(&args)?),
         Some(other) => bail!("未知子命令: {other}\n\n{USAGE}"),
         None => {
             eprintln!("{USAGE}");
@@ -113,7 +115,7 @@ fn collect(target: &Target) -> anyhow::Result<()> {
             }
         };
 
-        let email = match extract_email(&raw) {
+        let mut email = match extract_email(&raw) {
             Ok(e) => e,
             Err(e) => {
                 eprintln!("  UID {uid} MIME 解析失败，跳过: {e}");
@@ -126,6 +128,13 @@ fn collect(target: &Target) -> anyhow::Result<()> {
             continue;
         }
         stats.emails_with_attachments += 1;
+
+        // Extract ZIP files if needed
+        let mut expanded_attachments = Vec::new();
+        for att in &email.attachments {
+            expanded_attachments.extend(extract_zip_if_needed(att));
+        }
+        email.attachments = expanded_attachments;
 
         for att in &email.attachments {
             stats.attachments_seen += 1;
@@ -219,4 +228,107 @@ fn print_format_breakdown(entries: &[ManifestEntry]) {
         let mark = if got >= *need { "✓" } else { "缺" };
         println!("  {mark} {format:<12} {got}/{need}");
     }
+}
+
+fn audit(target: &Target) -> anyhow::Result<()> {
+    let cfg = ImapConfig::from_env(&target.username)?;
+    let range = target.range.clone();
+
+    eprintln!("连接 {}:{} 账号 {}", cfg.host, cfg.port, cfg.username);
+    let mut session = Session::connect(&cfg)?;
+    let uids = session.search_range("INBOX", &range)?;
+    eprintln!("范围内 {} 封邮件，开始审计\n", uids.len());
+
+    // Print TSV header
+    println!("UID\tDate\tFrom\tSubject\tFilename\tContentType\tByteLen\tPlatform\tFormat\tReason\tWouldSave\tNotes");
+
+    for uid in &uids {
+        let raw = match session.fetch_raw(*uid) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("  UID {uid} 拉取失败: {e}");
+                // Log error as a TSV row
+                println!(
+                    "{}\t\t\t\tFETCH_ERROR\t\t\t\t\t\tNO\t{}",
+                    uid,
+                    escape_tsv(&format!("fetch_failed: {e}"))
+                );
+                continue;
+            }
+        };
+
+        let mut email = match extract_email(&raw) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("  UID {uid} MIME 解析失败: {e}");
+                // Log parse error as a TSV row
+                println!(
+                    "{}\t\t\t\tPARSE_ERROR\t\t\t\t\t\tNO\t{}",
+                    uid,
+                    escape_tsv(&format!("parse_failed: {e}"))
+                );
+                continue;
+            }
+        };
+
+        let date = "(from_envelope)";
+        let from = escape_tsv(&email.from);
+        let subject = escape_tsv(&email.subject);
+
+        if email.attachments.is_empty() {
+            println!(
+                "{}\t{}\t{}\t{}\tNO_ATTACHMENTS\t\t\t\t\t\tSKIP_NO_ATTACH\t",
+                uid, date, from, subject
+            );
+            continue;
+        }
+
+        // Extract ZIP files if needed
+        let mut expanded_attachments = Vec::new();
+        for att in &email.attachments {
+            expanded_attachments.extend(extract_zip_if_needed(att));
+        }
+        email.attachments = expanded_attachments;
+
+        for att in &email.attachments {
+            let filename = escape_tsv(&att.filename);
+            let content_type = escape_tsv(&att.content_type);
+            let byte_len = att.data.len();
+
+            match classify_attachment(&email, att) {
+                Some(cls) => {
+                    let platform = escape_tsv(&cls.platform);
+                    let format = cls.format.as_manifest_str();
+                    let reason = match cls.reason {
+                        invoice_collect::classify::MatchReason::SenderWhitelist => {
+                            "sender_whitelist_match"
+                        }
+                        invoice_collect::classify::MatchReason::AttachmentFeature => {
+                            "keyword_match"
+                        }
+                    };
+                    println!(
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\tYES\t{}",
+                        uid, date, from, subject, filename, content_type, byte_len, platform, format, reason, reason
+                    );
+                }
+                None => {
+                    println!(
+                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t\t\t\tNO\trejected_no_invoice_features",
+                        uid, date, from, subject, filename, content_type, byte_len
+                    );
+                }
+            }
+        }
+    }
+
+    eprintln!("\n审计完成");
+    Ok(())
+}
+
+/// Escape tabs and newlines in TSV fields
+fn escape_tsv(s: &str) -> String {
+    s.replace('\t', " ")
+        .replace('\n', " ")
+        .replace('\r', "")
 }

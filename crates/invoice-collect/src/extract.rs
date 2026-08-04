@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use mail_parser::MimeHeaders;
+use std::io::Read;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RawAttachment {
@@ -71,6 +72,86 @@ pub fn extract_email(raw: &[u8]) -> Result<ExtractedEmail> {
         from,
         attachments,
     })
+}
+
+/// Extract ZIP archives if needed. Returns extracted files or original attachment.
+///
+/// If the attachment is a ZIP file (based on extension and content type),
+/// extract all files inside and return them as separate RawAttachments.
+/// Otherwise, return the original attachment unchanged.
+pub fn extract_zip_if_needed(att: &RawAttachment) -> Vec<RawAttachment> {
+    let filename_lower = att.filename.to_lowercase();
+
+    // Check if this is a ZIP file
+    if !filename_lower.ends_with(".zip") {
+        return vec![att.clone()];
+    }
+
+    // Check content type
+    let ct_lower = att.content_type.to_lowercase();
+    if ct_lower != "application/zip" && ct_lower != "application/octet-stream" {
+        return vec![att.clone()];
+    }
+
+    // Try to extract the ZIP
+    let cursor = std::io::Cursor::new(&att.data);
+    let mut archive = match zip::ZipArchive::new(cursor) {
+        Ok(a) => a,
+        Err(_) => {
+            // ZIP extraction failed, return original
+            return vec![att.clone()];
+        }
+    };
+
+    let mut extracted = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut file = match archive.by_index(i) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+
+        // Skip directories
+        if file.is_dir() {
+            continue;
+        }
+
+        let name = match file.enclosed_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        // Read file contents
+        let mut contents = Vec::new();
+        if file.read_to_end(&mut contents).is_err() {
+            continue;
+        }
+
+        // Infer content type from filename
+        let content_type = if name.to_lowercase().ends_with(".pdf") {
+            "application/pdf".to_string()
+        } else if name.to_lowercase().ends_with(".ofd") {
+            "application/ofd".to_string()
+        } else if name.to_lowercase().ends_with(".xml") {
+            "application/xml".to_string()
+        } else {
+            "application/octet-stream".to_string()
+        };
+
+        extracted.push(RawAttachment {
+            filename: name,
+            content_type,
+            data: contents,
+        });
+    }
+
+    // If extraction succeeded and we got files, return them
+    // Otherwise return original attachment
+    if extracted.is_empty() {
+        vec![att.clone()]
+    } else {
+        extracted
+    }
 }
 
 #[cfg(test)]
