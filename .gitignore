@@ -2,3 +2,6 @@
 fixtures/samples/
 .env
 *.eml
+
+# Local environment with real credentials (never commit)
+.env.local
