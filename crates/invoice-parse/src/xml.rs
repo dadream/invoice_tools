@@ -1,7 +1,11 @@
-use crate::model::ParseError;
+use crate::manifest::TagHints;
+use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
+use chrono::NaiveDate;
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use std::path::PathBuf;
+use rust_decimal::Decimal;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// XML 中一个含文本的叶子元素。
 #[derive(Debug, Clone, PartialEq)]
@@ -92,9 +96,217 @@ fn local_name(raw: &[u8]) -> String {
     }
 }
 
+pub fn parse_invoice_xml(
+    bytes: &[u8],
+    path: &Path,
+    hints: &TagHints,
+    ticket_type: TicketType,
+) -> Result<ParsedInvoice, ParseError> {
+    let leaves = collect_leaf_elements(bytes).map_err(|e| match e {
+        // collect_leaf_elements 不知道文件路径，这里补上
+        ParseError::MalformedFormat { format, detail, .. } => ParseError::MalformedFormat {
+            path: path.to_path_buf(),
+            format,
+            detail,
+        },
+        other => other,
+    })?;
+
+    let find = |candidates: &[String]| -> Option<String> {
+        candidates
+            .iter()
+            .find_map(|want| {
+                leaves
+                    .iter()
+                    .find(|leaf| leaf.tag == *want)
+                    .map(|leaf| leaf.text.clone())
+            })
+    };
+
+    let require = |candidates: &[String], field: &str| -> Result<String, ParseError> {
+        find(candidates).ok_or_else(|| ParseError::MissingField {
+            path: path.to_path_buf(),
+            field: field.to_string(),
+        })
+    };
+
+    let invoice_number = require(&hints.invoice_number, "invoice_number")?;
+    let issue_date = parse_date(&require(&hints.issue_date, "issue_date")?)?;
+    let total_amount = parse_amount(&require(&hints.total_amount, "total_amount")?, "total_amount")?;
+
+    let tax_amount = find(&hints.tax_amount)
+        .map(|raw| parse_amount(&raw, "tax_amount"))
+        .transpose()?;
+    let tax_rate = find(&hints.tax_rate)
+        .map(|raw| parse_tax_rate(&raw))
+        .transpose()?;
+
+    Ok(ParsedInvoice {
+        invoice_number,
+        issue_date,
+        total_amount,
+        tax_amount,
+        tax_rate,
+        buyer_name: find(&hints.buyer_name),
+        seller_name: find(&hints.seller_name),
+        ticket_type,
+        parse_level: ParseLevel::L0,
+        confidence: 1.0,
+        source_path: path.to_path_buf(),
+    })
+}
+
+/// 接受 `2026-07-03`、`2026/07/03`、`20260703`、`2026年07月03日`、`2026-06-08 13:18:44`
+pub(crate) fn parse_date(raw: &str) -> Result<NaiveDate, ParseError> {
+    let cleaned: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .collect();
+
+    if cleaned.len() >= 8 {
+        let date_part = &cleaned[..8];
+        if let Ok(d) = NaiveDate::parse_from_str(date_part, "%Y%m%d") {
+            return Ok(d);
+        }
+    }
+    Err(ParseError::UnparseableValue {
+        field: "issue_date".to_string(),
+        raw: raw.to_string(),
+        expected_type: "date",
+    })
+}
+
+/// 去掉货币符号、千分位逗号、空白后转 Decimal
+pub(crate) fn parse_amount(raw: &str, field: &str) -> Result<Decimal, ParseError> {
+    let cleaned: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+        .collect();
+
+    Decimal::from_str(&cleaned).map_err(|_| ParseError::UnparseableValue {
+        field: field.to_string(),
+        raw: raw.to_string(),
+        expected_type: "decimal",
+    })
+}
+
+/// `9%` → 0.09；`0.09` → 0.09。
+/// 判据：含 `%` 则除以 100；否则若值 > 1 也视为百分数（税率不可能超过 100%）。
+pub(crate) fn parse_tax_rate(raw: &str) -> Result<Decimal, ParseError> {
+    let has_percent = raw.contains('%');
+    let value = parse_amount(raw, "tax_rate")?;
+
+    let normalized = if has_percent || value > Decimal::ONE {
+        value / Decimal::from(100)
+    } else {
+        value
+    };
+    Ok(normalized)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::TagHints;
+    use crate::model::{ParseLevel, TicketType};
+    use rust_decimal::prelude::FromStr;
+    use rust_decimal::Decimal;
+    use std::path::Path;
+
+    fn hints() -> TagHints {
+        TagHints {
+            invoice_number: vec!["Fphm".into(), "InvoiceNumber".into()],
+            issue_date: vec!["Kprq".into()],
+            total_amount: vec!["Jshj".into()],
+            tax_amount: vec!["Se".into()],
+            tax_rate: vec!["Sl".into()],
+            buyer_name: vec!["Gfmc".into()],
+            seller_name: vec!["Xfmc".into()],
+        }
+    }
+
+    const SAMPLE_XML: &[u8] = r#"<Invoice>
+        <Head><Fphm>24312000000012345678</Fphm><Kprq>2026-07-03</Kprq></Head>
+        <Sum><Jshj>553.00</Jshj><Se>50.73</Se><Sl>0.09</Sl></Sum>
+        <Party><Gfmc>某某公司</Gfmc><Xfmc>中国铁路</Xfmc></Party>
+    </Invoice>"#.as_bytes();
+
+    #[test]
+    fn parses_all_fields_from_hinted_tags() {
+        let invoice = parse_invoice_xml(
+            SAMPLE_XML,
+            Path::new("samples/rail-01.xml"),
+            &hints(),
+            TicketType::Rail,
+        )
+        .unwrap();
+
+        assert_eq!(invoice.invoice_number, "24312000000012345678");
+        assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
+        assert_eq!(invoice.total_amount, Decimal::from_str("553.00").unwrap());
+        assert_eq!(invoice.tax_amount, Some(Decimal::from_str("50.73").unwrap()));
+        assert_eq!(invoice.buyer_name.as_deref(), Some("某某公司"));
+        assert_eq!(invoice.parse_level, ParseLevel::L0);
+        assert_eq!(invoice.confidence, 1.0);
+    }
+
+    #[test]
+    fn falls_back_to_second_candidate_tag() {
+        let xml = br#"<I><InvoiceNumber>888</InvoiceNumber><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.invoice_number, "888");
+    }
+
+    #[test]
+    fn missing_required_field_errors_with_field_name() {
+        let xml = br#"<I><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
+        let err = parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other)
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("invoice_number"), "错误信息应指出缺失字段: {msg}");
+    }
+
+    #[test]
+    fn absent_optional_fields_become_none() {
+        let xml = br#"<I><Fphm>1</Fphm><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.tax_amount, None);
+        assert_eq!(invoice.buyer_name, None);
+    }
+
+    #[test]
+    fn slash_separated_date_is_accepted() {
+        let xml = br#"<I><Fphm>1</Fphm><Kprq>2026/07/03</Kprq><Jshj>1.00</Jshj></I>"#;
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
+    }
+
+    #[test]
+    fn compact_date_is_accepted() {
+        let xml = br#"<I><Fphm>1</Fphm><Kprq>20260703</Kprq><Jshj>1.00</Jshj></I>"#;
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
+    }
+
+    #[test]
+    fn amount_with_currency_symbol_is_cleaned() {
+        let xml = r#"<I><Fphm>1</Fphm><Kprq>2026-07-03</Kprq><Jshj>￥1,553.00</Jshj></I>"#.as_bytes();
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.total_amount, Decimal::from_str("1553.00").unwrap());
+    }
+
+    #[test]
+    fn percent_tax_rate_is_normalized_to_fraction() {
+        let xml = br#"<I><Fphm>1</Fphm><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj><Sl>9%</Sl></I>"#;
+        let invoice =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
+        assert_eq!(invoice.tax_rate, Some(Decimal::from_str("0.09").unwrap()));
+    }
 
     #[test]
     fn collects_nested_leaf_text() {
