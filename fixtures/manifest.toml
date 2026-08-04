@@ -54,6 +54,15 @@ total_amount = ""
 # buyer_name = ""
 # seller_name = ""
 
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
+
 # 原始文件名: dzfp_26312000003445962271_上海中 核科创园发展有 限公司_202 60603070745.pdf
 # 邮件主题: 您收到一张【上海中核科创园发展有限公司】开具的数电发票【发票号码：26312000003445962271】，请查收
 # 平台: unknown · 大小: 105943 字节
@@ -158,6 +167,15 @@ total_amount = ""
 # tax_rate = ""
 # buyer_name = ""
 # seller_name = ""
+
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
 
 # 原始文件名: 上海三快智送科技有限 公司_发票金额0.3 0元.ofd_查阅需OFD阅读器.ofd
 # 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：0.30元）
@@ -444,6 +462,15 @@ total_amount = ""
 # buyer_name = ""
 # seller_name = ""
 
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
+
 # 原始文件名: 发票运单明细.pdf
 # 邮件主题: 顺丰全电发票出票通知
 # 平台: unknown · 大小: 17041 字节
@@ -488,6 +515,15 @@ total_amount = ""
 # tax_rate = ""
 # buyer_name = ""
 # seller_name = ""
+
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
 
 # 原始文件名: 顺丰同城急送电子发票2.ofd
 # 邮件主题: 顺丰同城急送电子发票
@@ -594,6 +630,15 @@ total_amount = ""
 # buyer_name = ""
 # seller_name = ""
 
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
+
 # 原始文件名: 上海三快智送科技有限 公司_发票金额3.2 0元.ofd_查阅需OFD阅读器.ofd
 # 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
 # 平台: meituan · 大小: 105495 字节
@@ -669,6 +714,15 @@ total_amount = ""
 # buyer_name = ""
 # seller_name = ""
 
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
+
 # 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.ofd
 # 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
 # 平台: unknown · 大小: 81415 字节
@@ -713,6 +767,15 @@ total_amount = ""
 # tax_rate = ""
 # buyer_name = ""
 # seller_name = ""
+
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+tax_amount = ["TotalTaxAm"]
+tax_rate = ["TaxRate"]
+buyer_name = ["BuyerName"]
+seller_name = ["SellerName"]
 
 # 原始文件名: dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.ofd
 # 邮件主题: 尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
