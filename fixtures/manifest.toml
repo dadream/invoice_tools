@@ -1,0 +1,971 @@
+# 发票样本清单
+#
+# 由 invoice-collect 自动生成。path 与 format 已填好，
+# 其余字段需**人工填写** —— 打开每个样本文件，把实际值抄进来。
+# 这些值是解析器的验收依据，填错会让验证结论失效。
+#
+# ticket_type 取值: Rail | Flight | Hotel | CityTransport | Meal | Other
+# 金额与税率用字符串，保留原始小数位，例如 "553.00" "0.09"
+# 日期用 YYYY-MM-DD
+# 发票上没有的可选字段，删掉该行即可
+
+# 原始文件名: 26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.pdf
+# 邮件主题: 您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】
+# 平台: unknown · 大小: 309718 字节
+[[sample]]
+path = "samples/01-unknown-1cb9ce98.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.ofd
+# 邮件主题: 您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】
+# 平台: unknown · 大小: 165541 字节
+[[sample]]
+path = "samples/02-unknown-f6f7c6b1.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.xml
+# 邮件主题: 您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】
+# 平台: unknown · 大小: 7095 字节
+[[sample]]
+path = "samples/03-unknown-6201d368.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_26312000003445962271_上海中 核科创园发展有 限公司_202 60603070745.pdf
+# 邮件主题: 您收到一张【上海中核科创园发展有限公司】开具的数电发票【发票号码：26312000003445962271】，请查收
+# 平台: unknown · 大小: 105943 字节
+[[sample]]
+path = "samples/04-unknown-6554429d.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2611200000 2267104336_河北融元商 贸有限公司北京 第三分公司_20 260604164844.pdf
+# 邮件主题: 您收到一张【河北融元商贸有限公司北京第三分公司】开具的数电发票【发票号码：26112000002267104336】，请查收
+# 平台: unknown · 大小: 150249 字节
+[[sample]]
+path = "samples/05-unknown-b4511bc3.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_26152000000504950146_赛比亚医疗诊 断器械（上海）有限公司_20260605071 745.pdf
+# 邮件主题: 【华住酒店集团】全季赤峰市政府酒店发票已开具，感谢您的支持！（发票号码：26152000000504950146）
+# 平台: unknown · 大小: 58367 字节
+[[sample]]
+path = "samples/06-unknown-fbf5dc58.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 结账单20260605.pdf
+# 邮件主题: 【华住酒店集团】全季赤峰市政府酒店发票已开具，感谢您的支持！（发票号码：26152000000504950146）
+# 平台: unknown · 大小: 35252 字节
+[[sample]]
+path = "samples/07-unknown-f1ad9ccb.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 北京星巴克咖啡有限公司_发 票金额143.40元.pdf
+# 邮件主题: 【电子发票】北京星巴克咖啡有限公司（发票金额：143.40元）
+# 平台: meituan · 大小: 71120 字节
+[[sample]]
+path = "samples/08-meituan-42f0da2f.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限公司_ 发票金额0.30元.pdf
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：0.30元）
+# 平台: meituan · 大小: 109549 字节
+[[sample]]
+path = "samples/09-meituan-2f9595e6.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限公司_ 发票金额0.30元.xml
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：0.30元）
+# 平台: meituan · 大小: 3243 字节
+[[sample]]
+path = "samples/10-meituan-a3662f79.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限 公司_发票金额0.3 0元.ofd_查阅需OFD阅读器.ofd
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：0.30元）
+# 平台: meituan · 大小: 104201 字节
+[[sample]]
+path = "samples/11-meituan-34ee412d.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 90721 字节
+[[sample]]
+path = "samples/12-didi-cc75b327.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 78329 字节
+[[sample]]
+path = "samples/13-didi-dc2d7047.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 98933 字节
+[[sample]]
+path = "samples/14-didi-357b5b11.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 80069 字节
+[[sample]]
+path = "samples/15-didi-6079fc74.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单A.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 93684 字节
+[[sample]]
+path = "samples/16-didi-85a0f5d3.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票B.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 78452 字节
+[[sample]]
+path = "samples/17-didi-cb5d20a0.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单B.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 87049 字节
+[[sample]]
+path = "samples/18-didi-968f2b9b.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票A.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 78943 字节
+[[sample]]
+path = "samples/19-didi-b7415fa5.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 86960 字节
+[[sample]]
+path = "samples/20-didi-87338868.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 78647 字节
+[[sample]]
+path = "samples/21-didi-173842a5.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 92077 字节
+[[sample]]
+path = "samples/22-didi-0cd6a9c3.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 79771 字节
+[[sample]]
+path = "samples/23-didi-226cbac6.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 170562 字节
+[[sample]]
+path = "samples/24-didi-4f308da8.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 79139 字节
+[[sample]]
+path = "samples/25-didi-66e3e108.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: logo2x.png
+# 邮件主题: 顺丰全电发票出票通知
+# 平台: unknown · 大小: 6444 字节
+[[sample]]
+path = "samples/26-unknown-d3006c0b.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰电子发票.pdf
+# 邮件主题: 顺丰全电发票出票通知
+# 平台: unknown · 大小: 59403 字节
+[[sample]]
+path = "samples/27-unknown-08cfe721.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰电子发票.ofd
+# 邮件主题: 顺丰全电发票出票通知
+# 平台: unknown · 大小: 16665 字节
+[[sample]]
+path = "samples/28-unknown-36c9093e.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰电子发票.xml
+# 邮件主题: 顺丰全电发票出票通知
+# 平台: unknown · 大小: 3335 字节
+[[sample]]
+path = "samples/29-unknown-a926b89d.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 发票运单明细.pdf
+# 邮件主题: 顺丰全电发票出票通知
+# 平台: unknown · 大小: 17041 字节
+[[sample]]
+path = "samples/30-unknown-5be79379.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰同城急送电子发票.pdf
+# 邮件主题: 顺丰同城急送电子发票
+# 平台: unknown · 大小: 60809 字节
+[[sample]]
+path = "samples/31-unknown-4812770d.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰同城急送电子发票1.xml
+# 邮件主题: 顺丰同城急送电子发票
+# 平台: unknown · 大小: 3095 字节
+[[sample]]
+path = "samples/32-unknown-9ac1bdc2.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰同城急送电子发票2.ofd
+# 邮件主题: 顺丰同城急送电子发票
+# 平台: unknown · 大小: 16756 字节
+[[sample]]
+path = "samples/33-unknown-1f1e61a4.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 顺丰同城订单详情.pdf
+# 邮件主题: 顺丰同城急送电子发票
+# 平台: unknown · 大小: 108111 字节
+[[sample]]
+path = "samples/34-unknown-993123fa.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 发票文件1.png
+# 邮件主题: 美团-开票申请处理成功通知
+# 平台: meituan · 大小: 134772 字节
+[[sample]]
+path = "samples/35-meituan-21a391a6.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_26112000002354032261_北京赛特奥特莱斯商贸有限公司_20260610131221.pdf
+# 邮件主题: 您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131228
+# 平台: unknown · 大小: 146864 字节
+[[sample]]
+path = "samples/36-unknown-932166e2.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_26112000002354189881_北京赛特奥特莱斯商贸有限公司_20260610131844.pdf
+# 邮件主题: 您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131851
+# 平台: unknown · 大小: 147698 字节
+[[sample]]
+path = "samples/37-unknown-41550a0b.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限公司_ 发票金额3.20元.pdf
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
+# 平台: meituan · 大小: 109183 字节
+[[sample]]
+path = "samples/38-meituan-d495969a.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限公司_ 发票金额3.20元.xml
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
+# 平台: meituan · 大小: 3249 字节
+[[sample]]
+path = "samples/39-meituan-26e4b7aa.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 上海三快智送科技有限 公司_发票金额3.2 0元.ofd_查阅需OFD阅读器.ofd
+# 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
+# 平台: meituan · 大小: 105495 字节
+[[sample]]
+path = "samples/40-meituan-12f8065e.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_26142000000876917341_山西晋 泽昌文旅酒店有 限公司_202 60618021525.pdf
+# 邮件主题: 数电发票
+# 平台: unknown · 大小: 149806 字节
+[[sample]]
+path = "samples/41-unknown-5026a35f.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 发票文件1.png
+# 邮件主题: 美团-开票申请处理成功通知
+# 平台: meituan · 大小: 98535 字节
+[[sample]]
+path = "samples/42-meituan-b6c3341f.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.pdf
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 154009 字节
+[[sample]]
+path = "samples/43-unknown-7f0f13a8.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.xml
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 5173 字节
+[[sample]]
+path = "samples/44-unknown-72fd9aee.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.ofd
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 81415 字节
+[[sample]]
+path = "samples/45-unknown-3ed9ed77.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.pdf
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 166172 字节
+[[sample]]
+path = "samples/46-unknown-6e89a590.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.xml
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 6697 字节
+[[sample]]
+path = "samples/47-unknown-de992fb0.xml"
+format = "xml"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.ofd
+# 邮件主题: 尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
+# 平台: unknown · 大小: 87917 字节
+[[sample]]
+path = "samples/48-unknown-cb25d50d.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 111663 字节
+[[sample]]
+path = "samples/49-didi-2745a005.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 79080 字节
+[[sample]]
+path = "samples/50-didi-520ce335.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 111329 字节
+[[sample]]
+path = "samples/51-didi-2ed3ee1a.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 80680 字节
+[[sample]]
+path = "samples/52-didi-89213171.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 第三方网约车服务公司_曹操出行 行程报销单.pdf
+# 邮件主题: 第三方发票及行程单
+# 平台: didi · 大小: 36341 字节
+[[sample]]
+path = "samples/53-didi-705a5872.pdf"
+format = "pdf-flight"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 曹操出行电子发票.pdf
+# 邮件主题: 第三方发票及行程单
+# 平台: didi · 大小: 200456 字节
+[[sample]]
+path = "samples/54-didi-adc92bb1.pdf"
+format = "pdf-flight"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 91690 字节
+[[sample]]
+path = "samples/55-didi-4dc63148.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 96014 字节
+[[sample]]
+path = "samples/56-didi-22a68dc7.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 74581 字节
+[[sample]]
+path = "samples/57-didi-4e7f177b.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴出行行程报销单.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 137333 字节
+[[sample]]
+path = "samples/58-didi-25f40401.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 滴滴电子发票.pdf
+# 邮件主题: 滴滴出行电子发票及行程报销单
+# 平台: didi · 大小: 78623 字节
+[[sample]]
+path = "samples/59-didi-c6041246.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: header.jpg
+# 邮件主题: 您收到【北京千汇丰火锅店】开具的发票【金额：490元】
+# 平台: unknown · 大小: 66778 字节
+[[sample]]
+path = "samples/60-unknown-ccff78f5.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: downloadbutton.jpg
+# 邮件主题: 您收到【北京千汇丰火锅店】开具的发票【金额：490元】
+# 平台: unknown · 大小: 27356 字节
+[[sample]]
+path = "samples/61-unknown-c27071a2.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: advertising.png
+# 邮件主题: 您收到【北京千汇丰火锅店】开具的发票【金额：490元】
+# 平台: unknown · 大小: 20869 字节
+[[sample]]
+path = "samples/62-unknown-70a24c65.jpg"
+format = "image"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 26112000002680730506.ofd
+# 邮件主题: 您收到【北京千汇丰火锅店】开具的发票【金额：490元】
+# 平台: unknown · 大小: 80192 字节
+[[sample]]
+path = "samples/63-unknown-19d988e1.ofd"
+format = "ofd"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+
+# 原始文件名: 26112000002680730506.pdf
+# 邮件主题: 您收到【北京千汇丰火锅店】开具的发票【金额：490元】
+# 平台: unknown · 大小: 152199 字节
+[[sample]]
+path = "samples/64-unknown-e8d72419.pdf"
+format = "pdf-vat"
+ticket_type = "Other"       # 待确认
+invoice_number = ""
+issue_date = ""
+total_amount = ""
+# tax_amount = ""
+# tax_rate = ""
+# buyer_name = ""
+# seller_name = ""
+

@@ -1,6 +1,12 @@
 use anyhow::{bail, Context};
+use invoice_collect::classify::classify_attachment;
 use invoice_collect::config::{DateRange, ImapConfig};
+use invoice_collect::dedupe::Deduper;
+use invoice_collect::extract::extract_email;
 use invoice_collect::imap_client::Session;
+use invoice_collect::manifest_gen::{render, ManifestEntry};
+use invoice_collect::store::save_sample;
+use std::path::Path;
 
 const DEFAULT_SINCE: &str = "2026-06-01";
 const DEFAULT_BEFORE: &str = "2026-07-01";
@@ -16,6 +22,7 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("probe") => probe(&parse_target(&args)?),
+        Some("collect") => collect(&parse_target(&args)?),
         Some(other) => bail!("未知子命令: {other}\n\n{USAGE}"),
         None => {
             eprintln!("{USAGE}");
@@ -79,4 +86,137 @@ fn probe(target: &Target) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+fn collect(target: &Target) -> anyhow::Result<()> {
+    let cfg = ImapConfig::from_env(&target.username)?;
+    let range = target.range.clone();
+    let fixtures_root = Path::new("fixtures");
+
+    let mut session = Session::connect(&cfg)?;
+    let uids = session.search_range("INBOX", &range)?;
+    println!("范围内 {} 封邮件，开始逐封处理\n", uids.len());
+
+    let mut deduper = Deduper::new();
+    let mut entries: Vec<ManifestEntry> = Vec::new();
+    let mut stats = Stats::default();
+
+    for uid in &uids {
+        stats.emails_scanned += 1;
+
+        let raw = match session.fetch_raw(*uid) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("  UID {uid} 拉取失败，跳过: {e}");
+                stats.fetch_failures += 1;
+                continue;
+            }
+        };
+
+        let email = match extract_email(&raw) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("  UID {uid} MIME 解析失败，跳过: {e}");
+                stats.parse_failures += 1;
+                continue;
+            }
+        };
+
+        if email.attachments.is_empty() {
+            continue;
+        }
+        stats.emails_with_attachments += 1;
+
+        for att in &email.attachments {
+            stats.attachments_seen += 1;
+
+            let Some(cls) = classify_attachment(&email, att) else {
+                stats.not_invoice += 1;
+                continue;
+            };
+
+            if !deduper.is_new(email.message_id.as_deref(), &att.data) {
+                stats.duplicates += 1;
+                continue;
+            }
+
+            let seq = entries.len() + 1;
+            let saved = save_sample(fixtures_root, seq, &cls, att)?;
+            println!(
+                "  [{:>2}] {:<10} {:<12} {} 字节  ← {}",
+                seq,
+                cls.format.as_manifest_str(),
+                cls.platform,
+                saved.byte_len,
+                att.filename
+            );
+
+            entries.push(ManifestEntry {
+                saved,
+                format: cls.format.as_manifest_str().to_string(),
+                platform: cls.platform.clone(),
+                original_filename: att.filename.clone(),
+                subject: email.subject.clone(),
+            });
+        }
+    }
+
+    let manifest_path = fixtures_root.join("manifest.toml");
+    std::fs::create_dir_all(fixtures_root)?;
+    std::fs::write(&manifest_path, render(&entries))?;
+
+    stats.print(entries.len());
+    print_format_breakdown(&entries);
+    println!("\n清单骨架已写入 {}", manifest_path.display());
+    println!("下一步：打开每个样本文件，把期望值填进清单。");
+
+    Ok(())
+}
+
+#[derive(Default)]
+struct Stats {
+    emails_scanned: usize,
+    emails_with_attachments: usize,
+    attachments_seen: usize,
+    not_invoice: usize,
+    duplicates: usize,
+    fetch_failures: usize,
+    parse_failures: usize,
+}
+
+impl Stats {
+    fn print(&self, saved: usize) {
+        println!("\n─── 采集统计 ───");
+        println!("扫描邮件          {}", self.emails_scanned);
+        println!("其中含附件        {}", self.emails_with_attachments);
+        println!("附件总数          {}", self.attachments_seen);
+        println!("判定为非发票      {}", self.not_invoice);
+        println!("重复丢弃          {}", self.duplicates);
+        println!("拉取失败          {}", self.fetch_failures);
+        println!("解析失败          {}", self.parse_failures);
+        println!("最终落盘          {saved}");
+    }
+}
+
+fn print_format_breakdown(entries: &[ManifestEntry]) {
+    use std::collections::BTreeMap;
+    let mut by_format: BTreeMap<&str, usize> = BTreeMap::new();
+    for e in entries {
+        *by_format.entry(e.format.as_str()).or_insert(0) += 1;
+    }
+
+    println!("\n─── 格式分布 vs 解析验证计划的需求 ───");
+    let needed: &[(&str, usize)] = &[
+        ("xml", 5),
+        ("ofd", 5),
+        ("pdf-rail", 3),
+        ("pdf-flight", 3),
+        ("pdf-vat", 3),
+        ("image", 10),
+    ];
+    for (format, need) in needed {
+        let got = by_format.get(format).copied().unwrap_or(0);
+        let mark = if got >= *need { "✓" } else { "缺" };
+        println!("  {mark} {format:<12} {got}/{need}");
+    }
 }
