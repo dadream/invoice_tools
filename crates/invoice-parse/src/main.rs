@@ -15,6 +15,10 @@ fn main() -> anyhow::Result<()> {
             let path = args.get(2).context("用法: invoice-parse parse-one <file.xml>")?;
             parse_one(PathBuf::from(path))
         }
+        Some("dump-ofd") => {
+            let path = args.get(2).context("用法: invoice-parse dump-ofd <file.ofd>")?;
+            dump_ofd(PathBuf::from(path))
+        }
         Some("explore-xml") => explore_xml(),
         Some(other) => bail!("未知子命令: {other}"),
         None => {
@@ -22,6 +26,7 @@ fn main() -> anyhow::Result<()> {
             eprintln!("  invoice-parse explore-xml");
             eprintln!("  invoice-parse dump-tags <file.xml>");
             eprintln!("  invoice-parse parse-one <file.xml>");
+            eprintln!("  invoice-parse dump-ofd <file.ofd>");
             Ok(())
         }
     }
@@ -127,5 +132,25 @@ fn explore_xml() -> anyhow::Result<()> {
         println!("{}: {}", tag, count);
     }
 
+    Ok(())
+}
+
+fn dump_ofd(path: PathBuf) -> anyhow::Result<()> {
+    let bytes = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
+
+    println!("容器条目：");
+    for name in invoice_parse::ofd::list_entries(&bytes)? {
+        println!("  {name}");
+    }
+
+    match invoice_parse::ofd::extract_invoice_xml(&bytes, &path) {
+        Ok(xml) => {
+            println!("\n内嵌发票 XML 的叶子元素：");
+            for leaf in invoice_parse::xml::collect_leaf_elements(&xml)? {
+                println!("  {:<28} = {}", leaf.tag, leaf.text);
+            }
+        }
+        Err(e) => println!("\n未能提取内嵌 XML: {e}"),
+    }
     Ok(())
 }
