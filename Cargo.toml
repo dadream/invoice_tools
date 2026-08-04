@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/invoice-collect"]
+members = ["crates/invoice-collect", "crates/invoice-parse"]
 resolver = "2"
 
 [workspace.package]
@@ -9,9 +9,12 @@ rust-version = "1.75"
 [workspace.dependencies]
 anyhow = "1.0"
 thiserror = "2.0"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 sha2 = "0.10"
 imap = "3.0.0-alpha.15"
 mail-parser = "0.9"
+rust_decimal = { version = "1.36", features = ["serde"] }
+quick-xml = { version = "0.36", features = ["serialize"] }
+zip = "2.2"
