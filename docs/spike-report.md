@@ -5,12 +5,12 @@
 | 格式 | 样本数 | 通过 | 通过率 |
 |---|---|---|---|
 | image | 6 | 0 | 0.0% |
-| ofd | 8 | 0 | 0.0% |
+| ofd | 8 | 2 | 25.0% |
 | pdf-flight | 2 | 0 | 0.0% |
 | pdf-vat | 41 | 1 | 2.4% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 8/64（12.5%）
+合计 10/64（15.6%）
 
 ## 字段不匹配
 
@@ -59,7 +59,6 @@
 | samples/06-unknown-fbf5dc58.pdf | 解析器崩溃: assertion failed: name == "Identity-H" |
 | samples/07-unknown-f1ad9ccb.pdf | 在 fixtures/samples/07-unknown-f1ad9ccb.pdf 中找不到必需字段 invoice_number |
 | samples/08-meituan-42f0da2f.pdf | 在 fixtures/samples/08-meituan-42f0da2f.pdf 中找不到必需字段 total_amount |
-| samples/11-meituan-34ee412d.ofd | 在 fixtures/samples/11-meituan-34ee412d.ofd 中找不到必需字段 invoice_number |
 | samples/12-didi-cc75b327.pdf | 在 fixtures/samples/12-didi-cc75b327.pdf 中找不到必需字段 total_amount |
 | samples/13-didi-dc2d7047.pdf | 在 fixtures/samples/13-didi-dc2d7047.pdf 中找不到必需字段 total_amount |
 | samples/14-didi-357b5b11.pdf | 在 fixtures/samples/14-didi-357b5b11.pdf 中找不到必需字段 total_amount |
@@ -80,7 +79,6 @@
 | samples/33-unknown-1f1e61a4.ofd | 在 fixtures/samples/33-unknown-1f1e61a4.ofd 中找不到必需字段 total_amount |
 | samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
 | samples/35-meituan-21a391a6.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/40-meituan-12f8065e.ofd | 在 fixtures/samples/40-meituan-12f8065e.ofd 中找不到必需字段 invoice_number |
 | samples/42-meituan-b6c3341f.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
 | samples/45-unknown-3ed9ed77.ofd | 在 fixtures/samples/45-unknown-3ed9ed77.ofd 中找不到必需字段 invoice_number |
 | samples/48-unknown-cb25d50d.ofd | 在 fixtures/samples/48-unknown-cb25d50d.ofd 中找不到必需字段 invoice_number |
