@@ -190,6 +190,17 @@ pub fn parse_vat_invoice_text(text: &str, path: &Path) -> Result<ParsedInvoice, 
     })
 }
 
+/// 使用带坐标的文本框解析增值税发票（PDF）。
+///
+/// 相比纯文本提取，此方法利用空间关系定位字段，
+/// 对版式复杂的 PDF 有更高的准确率。
+pub fn parse_vat_invoice_positioned(
+    pdf_bytes: &[u8],
+    path: &Path,
+) -> Result<ParsedInvoice, ParseError> {
+    crate::pdf_text::parse_vat_invoice_from_boxes(pdf_bytes, path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -4,6 +4,7 @@ pub mod ocr;
 pub mod ofd;
 pub mod ofd_text;
 pub mod pdf;
+pub mod pdf_text;
 pub mod report;
 pub mod verify;
 pub mod xml;

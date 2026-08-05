@@ -48,11 +48,12 @@ fn find_value(
             }
 
             // 情况 2：值在同一行的右邻框
+            // 允许轻微重叠（-5.0）以应对 PDF 文本框宽度计算的不精确
             let mut right_neighbors: Vec<&TextBox> = boxes
                 .iter()
                 .filter(|other| {
                     (other.center_y() - b.center_y()).abs() <= SAME_LINE_TOLERANCE
-                        && other.x >= b.right() - 1.0
+                        && other.x >= b.right() - 5.0
                         && !std::ptr::eq(*other, b)
                 })
                 .collect();

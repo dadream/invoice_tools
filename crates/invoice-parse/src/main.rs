@@ -27,6 +27,10 @@ fn main() -> anyhow::Result<()> {
             println!("{}", invoice_parse::pdf::extract_text(&bytes, Path::new(path))?);
             Ok(())
         }
+        Some("dump-pdf-boxes") => {
+            let path = args.get(2).context("用法: invoice-parse dump-pdf-boxes <file.pdf>")?;
+            dump_pdf_boxes(PathBuf::from(path))
+        }
         Some("verify") => {
             let path = args.get(2).context("用法: invoice-parse verify <file.ofd|file.xml>")?;
             let bytes = std::fs::read(path)?;
@@ -63,6 +67,7 @@ fn main() -> anyhow::Result<()> {
             eprintln!("  invoice-parse parse-one <file.xml>");
             eprintln!("  invoice-parse dump-ofd <file.ofd>");
             eprintln!("  invoice-parse dump-pdf <file.pdf>");
+            eprintln!("  invoice-parse dump-pdf-boxes <file.pdf>");
             eprintln!("  invoice-parse verify <file.ofd>");
             eprintln!("  invoice-parse verify-all");
             Ok(())
@@ -209,6 +214,73 @@ fn dump_ofd(path: PathBuf) -> anyhow::Result<()> {
         }
         Err(e) => println!("\n未能提取内嵌 XML: {e}"),
     }
+    Ok(())
+}
+
+fn dump_pdf_boxes(path: PathBuf) -> anyhow::Result<()> {
+    let bytes = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
+
+    println!("提取文本框（带坐标）：");
+    let boxes = invoice_parse::pdf_text::extract_text_boxes(&bytes, &path)?;
+    println!("共 {} 个文本框（原始）\n", boxes.len());
+
+    for (i, b) in boxes.iter().enumerate().take(20) {
+        println!(
+            "{:3}: ({:6.1}, {:6.1}) {}x{} conf={:.2} \"{}\"",
+            i,
+            b.x,
+            b.y,
+            b.width as i32,
+            b.height as i32,
+            b.confidence,
+            b.text.chars().take(30).collect::<String>()
+        );
+    }
+
+    if boxes.len() > 20 {
+        println!("... 还有 {} 个文本框", boxes.len() - 20);
+    }
+
+    // Show merged boxes
+    let merged = invoice_parse::ocr::merge_line_fragments(boxes, 12.0);
+    println!("\n合并后 {} 个文本框：\n", merged.len());
+
+    for (i, b) in merged.iter().enumerate().take(20) {
+        println!(
+            "{:3}: ({:6.1}, {:6.1}) {}x{} conf={:.2} \"{}\"",
+            i,
+            b.x,
+            b.y,
+            b.width as i32,
+            b.height as i32,
+            b.confidence,
+            b.text.chars().take(50).collect::<String>()
+        );
+    }
+
+    if merged.len() > 20 {
+        println!("... 还有 {} 个文本框", merged.len() - 20);
+    }
+
+    // Try parsing as VAT invoice
+    println!("\n尝试解析为增值税发票：");
+    match invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, &path) {
+        Ok(invoice) => {
+            println!("发票号码: {}", invoice.invoice_number);
+            println!("开票日期: {}", invoice.issue_date);
+            println!("价税合计: {}", invoice.total_amount);
+            if let Some(tax) = invoice.tax_amount {
+                println!("税额: {}", tax);
+            }
+            if let Some(buyer) = invoice.buyer_name {
+                println!("购买方: {}", buyer);
+            }
+            println!("解析等级: {:?}", invoice.parse_level);
+            println!("置信度: {:.2}", invoice.confidence);
+        }
+        Err(e) => println!("解析失败: {}", e),
+    }
+
     Ok(())
 }
 

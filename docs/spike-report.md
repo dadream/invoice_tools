@@ -75,9 +75,9 @@
 | samples/24-didi-4f308da8.pdf | 在 fixtures/samples/24-didi-4f308da8.pdf 中找不到必需字段 total_amount |
 | samples/25-didi-66e3e108.pdf | 在 fixtures/samples/25-didi-66e3e108.pdf 中找不到必需字段 total_amount |
 | samples/26-unknown-d3006c0b.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/28-unknown-36c9093e.ofd | 在 fixtures/samples/28-unknown-36c9093e.ofd 中找不到必需字段 invoice_number |
+| samples/28-unknown-36c9093e.ofd | 在 fixtures/samples/28-unknown-36c9093e.ofd 中找不到必需字段 total_amount |
 | samples/30-unknown-5be79379.pdf | 在 fixtures/samples/30-unknown-5be79379.pdf 中找不到必需字段 total_amount |
-| samples/33-unknown-1f1e61a4.ofd | 在 fixtures/samples/33-unknown-1f1e61a4.ofd 中找不到必需字段 invoice_number |
+| samples/33-unknown-1f1e61a4.ofd | 在 fixtures/samples/33-unknown-1f1e61a4.ofd 中找不到必需字段 total_amount |
 | samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
 | samples/35-meituan-21a391a6.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
 | samples/40-meituan-12f8065e.ofd | 在 fixtures/samples/40-meituan-12f8065e.ofd 中找不到必需字段 invoice_number |
