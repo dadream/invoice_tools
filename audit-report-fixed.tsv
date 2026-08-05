@@ -1,0 +1,129 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `target/debug/invoice-collect audit '879455187@qq.com'`
+连接 imap.qq.com:993 账号 879455187@qq.com
+范围内 69 封邮件，开始审计
+
+UID	Date	From	Subject	Filename	ContentType	ByteLen	Platform	Format	Reason	WouldSave	Notes
+570	(from_envelope)	kefu@service.vpiaotong.com	您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】	26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.pdf	text/plain	309718	unknown	pdf-vat	keyword_match	YES	keyword_match
+570	(from_envelope)	kefu@service.vpiaotong.com	您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】	26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.ofd	text/plain	165541	unknown	ofd	keyword_match	YES	keyword_match
+570	(from_envelope)	kefu@service.vpiaotong.com	您收到一张来自北京华夏龙源华斌商贸有限公司的电子发票【发票金额：47.40】	26112000002208097411_ 赛比亚医疗 诊断器械（ 上海）有限 公司.xml	text/plain	7095	unknown	xml	keyword_match	YES	keyword_match
+572	(from_envelope)	invoice@info.nuonuo.com	您收到一张【很久以前餐饮管理（上海）有限公司】开具的发票【发票号码：26312000003409200316】	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+573	(from_envelope)	1293926527@qq.com	您收到一张【上海中核科创园发展有限公司】开具的数电发票【发票号码：26312000003445962271】，请查收	dzfp_26312000003445962271_上海中 核科创园发展有 限公司_202 60603070745.pdf	application/octet-stream	105943	unknown	pdf-vat	keyword_match	YES	keyword_match
+575	(from_envelope)	303268627@qq.com	您收到一张【河北融元商贸有限公司北京第三分公司】开具的数电发票【发票号码：26112000002267104336】，请查收	dzfp_2611200000 2267104336_河北融元商 贸有限公司北京 第三分公司_20 260604164844.pdf	application/octet-stream	150249	unknown	pdf-vat	keyword_match	YES	keyword_match
+576	(from_envelope)	adu@sebia.com	(无主题)	dzfp_26152000000504292846_松山区锡蒙餐厅_2026 0604194646.pdf	application/pdf	107648				NO	rejected_no_invoice_features
+577	(from_envelope)	invoice@invoice01.huazhuhotels.com	【华住酒店集团】全季赤峰市政府酒店发票已开具，感谢您的支持！（发票号码：26152000000504950146）	dzfp_26152000000504950146_赛比亚医疗诊 断器械（上海）有限公司_20260605071 745.pdf	application/octet-stream	58367	unknown	pdf-vat	keyword_match	YES	keyword_match
+577	(from_envelope)	invoice@invoice01.huazhuhotels.com	【华住酒店集团】全季赤峰市政府酒店发票已开具，感谢您的支持！（发票号码：26152000000504950146）	结账单20260605.pdf	application/octet-stream	35252	unknown	pdf-vat	keyword_match	YES	keyword_match
+578	(from_envelope)	yun1@vip.baiwang.com	电子发票下载	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+579	(from_envelope)	460330987@qq.com	79	dzfp_26154000000017842981_赛比亚医疗诊断器械（上海）有限公司_20260605154629.pdf	application/octet-stream	118323				NO	rejected_no_invoice_features
+580	(from_envelope)	460330987@qq.com	177	dzfp_26152000000504292846_松山区锡蒙餐厅_20260605161911.pdf	application/octet-stream	107721				NO	rejected_no_invoice_features
+581	(from_envelope)	460330987@qq.com	5994	26112000002279072131.pdf	application/octet-stream	60519				NO	rejected_no_invoice_features
+582	(from_envelope)	460330987@qq.com	37	dzfp_26632000000104970661_北京和谐时代企业管理有限公司青海分公司_20260527115711.pdf	application/octet-stream	150686				NO	rejected_no_invoice_features
+583	(from_envelope)	460330987@qq.com	93	93-高铁.pdf	application/octet-stream	155609				NO	rejected_no_invoice_features
+585	(from_envelope)	it_fapiao@meituan.com	【电子发票】北京星巴克咖啡有限公司（发票金额：143.40元）	北京星巴克咖啡有限公司_发 票金额143.40元.pdf	application/pdf	71120	meituan	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+586	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：0.30元）	上海三快智送科技有限公司_ 发票金额0.30元.pdf	application/pdf	109549	meituan	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+586	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：0.30元）	上海三快智送科技有限公司_ 发票金额0.30元.xml	application/xml	3243	meituan	xml	sender_whitelist_match	YES	sender_whitelist_match
+586	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：0.30元）	上海三快智送科技有限 公司_发票金额0.3 0元.ofd_查阅需OFD阅读器.ofd	application/ofd	104201	meituan	ofd	sender_whitelist_match	YES	sender_whitelist_match
+587	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	90721	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+587	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	78329	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+588	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	98933	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+588	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	80069	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+589	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单A.pdf	application/octet-stream	93684	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+589	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票B.pdf	application/octet-stream	78452	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+589	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单B.pdf	application/octet-stream	87049	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+589	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票A.pdf	application/octet-stream	78943	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+590	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	86960	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+590	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	78647	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+591	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	92077	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+591	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	79771	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+592	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	170562	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+592	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	79139	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+593	(from_envelope)	invoice2@bill.sf-express.com	顺丰全电发票出票通知	logo2x.png	image/png	6444				NO	rejected_no_invoice_features
+593	(from_envelope)	invoice2@bill.sf-express.com	顺丰全电发票出票通知	顺丰电子发票.pdf	application/pdf	59403	unknown	pdf-vat	keyword_match	YES	keyword_match
+593	(from_envelope)	invoice2@bill.sf-express.com	顺丰全电发票出票通知	顺丰电子发票.ofd	application/octet-stream	16665	unknown	ofd	keyword_match	YES	keyword_match
+593	(from_envelope)	invoice2@bill.sf-express.com	顺丰全电发票出票通知	顺丰电子发票.xml	application/octet-stream	3335	unknown	xml	keyword_match	YES	keyword_match
+593	(from_envelope)	invoice2@bill.sf-express.com	顺丰全电发票出票通知	发票运单明细.pdf	application/pdf	17041	unknown	pdf-vat	keyword_match	YES	keyword_match
+594	(from_envelope)	sftcjs@bill.sf-express.com	顺丰同城急送电子发票	顺丰同城急送电子发票.pdf	application/pdf	60809	unknown	pdf-vat	keyword_match	YES	keyword_match
+594	(from_envelope)	sftcjs@bill.sf-express.com	顺丰同城急送电子发票	顺丰同城急送电子发票1.xml	application/octet-stream	3095	unknown	xml	keyword_match	YES	keyword_match
+594	(from_envelope)	sftcjs@bill.sf-express.com	顺丰同城急送电子发票	顺丰同城急送电子发票2.ofd	application/octet-stream	16756	unknown	ofd	keyword_match	YES	keyword_match
+594	(from_envelope)	sftcjs@bill.sf-express.com	顺丰同城急送电子发票	顺丰同城订单详情.pdf	application/pdf	108111	unknown	pdf-vat	keyword_match	YES	keyword_match
+595	(from_envelope)	2507918066@qq.com	CheckoutBill (12)	2B5864CE@8B611E50.8F88266A00000000.png	application/octet-stream	371143				NO	rejected_no_invoice_features
+596	(from_envelope)	it_fapiao@meituan.com	美团-开票申请处理成功通知	发票文件1.png	application/x-png	134772	meituan	image	sender_whitelist_match	YES	sender_whitelist_match
+597	(from_envelope)	sdfp_service7@aisino.com	您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131228	dzfp_26112000002354032261_北京赛特奥特莱斯商贸有限公司_20260610131221.pdf	application/octet-stream	146864	unknown	pdf-vat	keyword_match	YES	keyword_match
+598	(from_envelope)	sdfp_service7@aisino.com	您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131851	dzfp_26112000002354189881_北京赛特奥特莱斯商贸有限公司_20260610131844.pdf	application/octet-stream	147698	unknown	pdf-vat	keyword_match	YES	keyword_match
+599	(from_envelope)	460330987@qq.com	692	dzfp_26112000002354189881_赛比亚医疗诊断器械（上海）有限公司_20260610131844.pdf	application/octet-stream	147746				NO	rejected_no_invoice_features
+600	(from_envelope)	460330987@qq.com	82	dzfp_26144000000040068001_山西铁路文化旅游有限公司唐盛源分公司_20260615112104.pdf	application/octet-stream	149642				NO	rejected_no_invoice_features
+601	(from_envelope)	460330987@qq.com	48.5	dzfp_26144000000041271406_太原市迎泽区顺华牛肉粉馆水西门店_20260616124923.pdf	application/octet-stream	150740				NO	rejected_no_invoice_features
+602	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限公司_ 发票金额3.20元.pdf	application/pdf	109183	meituan	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+602	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限公司_ 发票金额3.20元.xml	application/xml	3249	meituan	xml	sender_whitelist_match	YES	sender_whitelist_match
+602	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限 公司_发票金额3.2 0元.ofd_查阅需OFD阅读器.ofd	application/ofd	105495	meituan	ofd	sender_whitelist_match	YES	sender_whitelist_match
+603	(from_envelope)	jzc7978888@qq.com	数电发票	dzfp_26142000000876917341_山西晋 泽昌文旅酒店有 限公司_202 60618021525.pdf	application/octet-stream	149806	unknown	pdf-vat	keyword_match	YES	keyword_match
+604	(from_envelope)	it_fapiao@meituan.com	美团-开票申请处理成功通知	发票文件1.png	application/x-png	98535	meituan	image	sender_whitelist_match	YES	sender_whitelist_match
+605	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.pdf	application/octet-stream	154009	unknown	pdf-vat	keyword_match	YES	keyword_match
+605	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.xml	application/octet-stream	5173	unknown	xml	keyword_match	YES	keyword_match
+605	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.ofd	application/octet-stream	81415	unknown	ofd	keyword_match	YES	keyword_match
+606	(from_envelope)	it_fapiao@meituan.com	美团-开票申请处理成功通知	发票文件1.png	application/x-png	98535	meituan	image	sender_whitelist_match	YES	sender_whitelist_match
+607	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限公司_ 发票金额3.20元.pdf	application/pdf	109183	meituan	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+607	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限公司_ 发票金额3.20元.xml	application/xml	3249	meituan	xml	sender_whitelist_match	YES	sender_whitelist_match
+607	(from_envelope)	it_fapiao@meituan.com	【电子发票】上海三快智送科技有限公司（发票金额：3.20元）	上海三快智送科技有限 公司_发票金额3.2 0元.ofd_查阅需OFD阅读器.ofd	application/ofd	105495	meituan	ofd	sender_whitelist_match	YES	sender_whitelist_match
+608	(from_envelope)	it_fapiao@meituan.com	【电子发票】北京星巴克咖啡有限公司（发票金额：143.40元）	北京星巴克咖啡有限公司_发 票金额143.40元.pdf	application/pdf	71120	meituan	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+609	(from_envelope)	adu@sebia.com	(无主题)	dzfp_26154000000018314746_松山区众联城南对夹 蒙餐厅_20260618161316.pdf	application/pdf	109254				NO	rejected_no_invoice_features
+610	(from_envelope)	adu@sebia.com	177	dzfp_26152000000504292846_松山区锡蒙餐厅_2026 0622144159.pdf	application/pdf	107705				NO	rejected_no_invoice_features
+611	(from_envelope)	2196595840@qq.com	Screenshot_2026-06-22-15-20-10-588_com.sankuai.meituan.meituanwaimaibusiness	Screenshot_2026-06-22-15-20-10-588_com.sankuai.meituan.meituanwaimaibusiness.jpg	application/octet-stream	1764330				NO	rejected_no_invoice_features
+612	(from_envelope)	adu@sebia.com	29	dzfp_26112000001759962226_北京喜小满餐饮管理 有限公司_20260622152733.pdf	application/pdf	149313				NO	rejected_no_invoice_features
+613	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26149226468000133693.pdf	application/pdf	27917	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+613	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26149226468000133693.ofd	application/ofd	19195	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+614	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26149126468002261996.pdf	application/pdf	27971	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+614	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26149126468002261996.ofd	application/ofd	19256	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+615	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119110025000834908.pdf	application/pdf	27993	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+615	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119110025000834908.ofd	application/ofd	19194	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+616	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26219111819000136576.pdf	application/pdf	28057	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+616	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26219111819000136576.ofd	application/ofd	19236	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+617	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26219211819000006904.pdf	application/pdf	28015	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+617	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26219211819000006904.ofd	application/ofd	19223	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+618	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119111389001207867.pdf	application/pdf	27891	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+618	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119111389001207867.ofd	application/ofd	19160	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+619	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159212578000041851.ofd	application/ofd	19339	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+619	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159212578000041851.pdf	application/pdf	28014	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+620	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119112707000395447.pdf	application/pdf	27889	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+620	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119112707000395447.ofd	application/ofd	19164	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+621	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159112578000747903.pdf	application/pdf	28054	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+621	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159112578000747903.ofd	application/ofd	19360	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+622	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159114489000413703.ofd	application/ofd	19310	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+622	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26159114489000413703.pdf	application/pdf	27774	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+623	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119112707000395450.pdf	application/pdf	27831	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+623	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119112707000395450.ofd	application/ofd	19108	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+624	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26139112308000252150.ofd	application/ofd	19137	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+624	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26139112308000252150.pdf	application/pdf	27944	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+625	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.pdf	application/octet-stream	166172	unknown	pdf-vat	keyword_match	YES	keyword_match
+625	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.xml	application/octet-stream	6697	unknown	xml	keyword_match	YES	keyword_match
+625	(from_envelope)	fapiao_jtlf_hb@163.com	尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！	dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.ofd	application/octet-stream	87917	unknown	ofd	keyword_match	YES	keyword_match
+626	(from_envelope)	hasl04@hengansl.com.cn	恒安标准人寿【自动转账扣款通知书】To:879455187@qq.com	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+627	(from_envelope)	hasl04@hengansl.com.cn	恒安标准人寿【自动转账扣款通知书】To:879455187@qq.com	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+629	(from_envelope)	yun1@vip.baiwang.com	电子发票下载	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+630	(from_envelope)	reservation@tx.ihg.com	您在邢台泉城礼堂假日酒店的账单, 预订号码: 26570568 / Your Folio for Confirmation # 26570568 at Holiday Inn Xingtai Quancheng.	InformationFolio_20260625125748.pdf	application/json	262513				NO	rejected_no_invoice_features
+632	(from_envelope)	bjczpjzx@czj.beijing.gov.cn	【电子票据】您收到一张新的电子票据	11010125-0003913472.pdf	text/plain	164277				NO	rejected_no_invoice_features
+633	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	111663	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+633	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	79080	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+634	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	111329	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+634	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	80680	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+635	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	第三方发票及行程单	第三方网约车服务公司_曹操出行 行程报销单.pdf	application/octet-stream	36341	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+635	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	第三方发票及行程单	曹操出行电子发票.pdf	application/octet-stream	200456	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+636	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	91690	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+638	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	96014	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+638	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	74581	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+639	(from_envelope)	bjczpjzx@czj.beijing.gov.cn	【电子票据】您收到一张新的电子票据	11040225-0024265715.pdf	text/plain	172174				NO	rejected_no_invoice_features
+640	(from_envelope)	HolidayInn@mc.ihg.com	感谢您入住 Holiday Inn Hotels & Resorts Xingtai Quancheng。	NO_ATTACHMENTS						SKIP_NO_ATTACH	
+641	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26139122528000598895.pdf	application/pdf	34806	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+641	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26139122528000598895.ofd	application/ofd	20169	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+642	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119121152005209167.ofd	application/ofd	19133	12306	ofd	sender_whitelist_match	YES	sender_whitelist_match
+642	(from_envelope)	12306@rails.com.cn	网上购票系统-电子发票通知	26119121152005209167.pdf	application/pdf	27974	12306	pdf-rail	sender_whitelist_match	YES	sender_whitelist_match
+643	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴出行行程报销单.pdf	application/octet-stream	137333	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+643	(from_envelope)	didifapiao@mailgate.xiaojukeji.com	滴滴出行电子发票及行程报销单	滴滴电子发票.pdf	application/octet-stream	78623	didi	pdf-vat	sender_whitelist_match	YES	sender_whitelist_match
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	header.jpg	image/jpeg	66778	unknown	image	keyword_match	YES	keyword_match
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	downloadbutton.jpg	image/jpeg	27356				NO	rejected_no_invoice_features
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	advertising.png	image/jpeg	20869				NO	rejected_no_invoice_features
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	26112000002680730506.ofd	application/octet-stream	80192	unknown	ofd	keyword_match	YES	keyword_match
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	26112000002680730506.pdf	application/pdf	152199	unknown	pdf-vat	keyword_match	YES	keyword_match
+644	(from_envelope)	noreply@crestv.cn	您收到【北京千汇丰火锅店】开具的发票【金额：490元】	dzfp_26112000002680730506_20260630175153.xml	application/xml	4413	unknown	xml	keyword_match	YES	keyword_match
+
+审计完成

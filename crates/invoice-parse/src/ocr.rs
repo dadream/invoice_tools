@@ -1,9 +1,10 @@
 use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
 use crate::xml::{parse_amount, parse_date, parse_tax_rate};
 use std::path::Path;
+use serde::{Deserialize, Serialize};
 
 /// OCR 识别出的一个文本框。坐标为左上角原点的像素值。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextBox {
     pub text: String,
     pub x: f32,
@@ -140,6 +141,30 @@ pub fn locate_vat_fields(boxes: &[TextBox], path: &Path) -> Result<ParsedInvoice
         confidence,
         source_path: path.to_path_buf(),
     })
+}
+
+/// 通过 Python sidecar 进行 OCR 识别。
+///
+/// 调用 tools/ocr_sidecar.py，返回文本框数组。
+pub fn recognize_via_sidecar(image_path: &Path) -> anyhow::Result<Vec<TextBox>> {
+    let project_root = std::env::current_dir()?;
+    let sidecar_path = project_root.join("tools/ocr_sidecar.py");
+
+    let output = std::process::Command::new("python3")
+        .arg(sidecar_path)
+        .arg(image_path)
+        .output()?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "OCR sidecar failed with exit code: {:?}",
+            output.status.code()
+        );
+    }
+
+    let json = String::from_utf8(output.stdout)?;
+    let boxes: Vec<TextBox> = serde_json::from_str(&json)?;
+    Ok(boxes)
 }
 
 #[cfg(test)]

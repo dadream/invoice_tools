@@ -53,6 +53,7 @@ fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
+        Some("verify-all") => verify_all(),
         Some("explore-xml") => explore_xml(),
         Some(other) => bail!("未知子命令: {other}"),
         None => {
@@ -63,6 +64,7 @@ fn main() -> anyhow::Result<()> {
             eprintln!("  invoice-parse dump-ofd <file.ofd>");
             eprintln!("  invoice-parse dump-pdf <file.pdf>");
             eprintln!("  invoice-parse verify <file.ofd>");
+            eprintln!("  invoice-parse verify-all");
             Ok(())
         }
     }
@@ -208,4 +210,109 @@ fn dump_ofd(path: PathBuf) -> anyhow::Result<()> {
         Err(e) => println!("\n未能提取内嵌 XML: {e}"),
     }
     Ok(())
+}
+
+fn verify_all() -> anyhow::Result<()> {
+    use invoice_parse::manifest::{Manifest, TagHints};
+    use invoice_parse::model::ParsedInvoice;
+    use invoice_parse::report::{render_markdown, OutcomeKind, SampleOutcome};
+
+    let manifest = Manifest::load(Path::new("fixtures/manifest.toml"))?;
+    let mut outcomes = Vec::new();
+
+    for sample in &manifest.samples {
+        let full_path = PathBuf::from("fixtures").join(&sample.path);
+        let hints = sample.xml_tag_hints.clone().unwrap_or(TagHints {
+            invoice_number: vec![],
+            issue_date: vec![],
+            total_amount: vec![],
+            tax_amount: vec![],
+            tax_rate: vec![],
+            buyer_name: vec![],
+            seller_name: vec![],
+        });
+
+        let parsed: anyhow::Result<ParsedInvoice> = std::panic::catch_unwind(|| {
+            match sample.format.as_str() {
+                "xml" => std::fs::read(&full_path)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|b| {
+                        invoice_parse::xml::parse_invoice_xml(
+                            &b,
+                            &full_path,
+                            &hints,
+                            sample.ticket_type,
+                        )
+                        .map_err(Into::into)
+                    }),
+                "ofd" => std::fs::read(&full_path)
+                    .map_err(anyhow::Error::from)
+                    .and_then(|b| {
+                        invoice_parse::ofd::parse_invoice_ofd(
+                            &b,
+                            &full_path,
+                            &hints,
+                            sample.ticket_type,
+                        )
+                        .map_err(Into::into)
+                    }),
+                "pdf-rail" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_rail_itinerary),
+                "pdf-flight" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_flight_itinerary),
+                "pdf-vat" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_vat_invoice_text),
+                "image" => Err(anyhow::anyhow!("图片 OCR 需要 Python sidecar，暂未集成到 verify-all")),
+                other => Err(anyhow::anyhow!("未知格式: {other}")),
+            }
+        })
+        .unwrap_or_else(|panic_err| {
+            let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic_err.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "解析器 panic".to_string()
+            };
+            Err(anyhow::anyhow!("解析器崩溃: {}", panic_msg))
+        });
+
+        let result = match parsed {
+            Ok(invoice) => {
+                let comparisons = sample.compare(&invoice);
+                let failures: Vec<_> =
+                    comparisons.into_iter().filter(|c| !c.matched).collect();
+                if failures.is_empty() {
+                    OutcomeKind::FullMatch
+                } else {
+                    OutcomeKind::PartialMatch { failures }
+                }
+            }
+            Err(e) => OutcomeKind::ParseFailed {
+                error: e.to_string(),
+            },
+        };
+
+        outcomes.push(SampleOutcome {
+            path: sample.path.display().to_string(),
+            format: sample.format.clone(),
+            result,
+        });
+    }
+
+    let md = render_markdown(&outcomes);
+    std::fs::create_dir_all("docs")?;
+    std::fs::write("docs/spike-report.md", &md)?;
+    println!("{md}");
+    println!("报告已写入 docs/spike-report.md");
+    Ok(())
+}
+
+fn parse_pdf_with(
+    path: &Path,
+    parser: fn(&str, &Path) -> Result<invoice_parse::model::ParsedInvoice, invoice_parse::model::ParseError>,
+) -> anyhow::Result<invoice_parse::model::ParsedInvoice> {
+    let bytes = std::fs::read(path)?;
+    let text = match invoice_parse::pdf::extract_text(&bytes, path) {
+        Ok(t) => t,
+        Err(e) => return Err(anyhow::anyhow!("PDF 文本提取失败: {}", e)),
+    };
+    parser(&text, path).map_err(Into::into)
 }

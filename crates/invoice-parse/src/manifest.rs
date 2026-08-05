@@ -55,7 +55,7 @@ pub struct TagHints {
     pub seller_name: Vec<String>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldComparison {
     pub field: &'static str,
     pub expected: String,

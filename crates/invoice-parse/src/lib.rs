@@ -3,5 +3,6 @@ pub mod model;
 pub mod ocr;
 pub mod ofd;
 pub mod pdf;
+pub mod report;
 pub mod verify;
 pub mod xml;
