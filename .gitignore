@@ -10,3 +10,6 @@ fixtures/samples/
 /models/*.onnx
 /models/*.txt
 /models/*.traineddata
+
+# Vendored ONNX Runtime dynamic library (16MB, see models/README.md)
+/vendor/
