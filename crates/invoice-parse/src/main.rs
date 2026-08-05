@@ -1,7 +1,7 @@
 use anyhow::{bail, Context};
-use invoice_parse::{manifest::Manifest, xml};
+use invoice_parse::{manifest::{Manifest, TagHints}, pdf, xml};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -19,6 +19,14 @@ fn main() -> anyhow::Result<()> {
             let path = args.get(2).context("用法: invoice-parse dump-ofd <file.ofd>")?;
             dump_ofd(PathBuf::from(path))
         }
+        Some("dump-pdf") => {
+            let path = args.get(2).context("用法: invoice-parse dump-pdf <file.pdf>")?;
+            let bytes = std::fs::read(&path)?;
+            println!("有文本层: {}", invoice_parse::pdf::has_text_layer(&bytes));
+            println!("--- 文本层内容 ---");
+            println!("{}", invoice_parse::pdf::extract_text(&bytes, Path::new(path))?);
+            Ok(())
+        }
         Some("explore-xml") => explore_xml(),
         Some(other) => bail!("未知子命令: {other}"),
         None => {
@@ -27,6 +35,7 @@ fn main() -> anyhow::Result<()> {
             eprintln!("  invoice-parse dump-tags <file.xml>");
             eprintln!("  invoice-parse parse-one <file.xml>");
             eprintln!("  invoice-parse dump-ofd <file.ofd>");
+            eprintln!("  invoice-parse dump-pdf <file.pdf>");
             Ok(())
         }
     }
@@ -58,12 +67,31 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
         .find(|s| s.path.ends_with(file_name))
         .context("未在 manifest.toml 中找到该样本")?;
 
-    let hints = sample.xml_tag_hints.as_ref()
-        .context("该样本没有配置 xml_tag_hints")?;
-
     let bytes = std::fs::read(&path).with_context(|| format!("读取 {} 失败", path.display()))?;
 
-    let invoice = xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type)?;
+    // Determine format and parse accordingly
+    let invoice = match sample.format.as_str() {
+        "xml-rail" | "xml-flight" | "xml-vat" => {
+            let hints = sample.xml_tag_hints.as_ref()
+                .context("该样本没有配置 xml_tag_hints")?;
+            xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type)?
+        }
+        "pdf-rail" | "pdf-flight" | "pdf-vat" => {
+            // For PDFs, create empty hints since PDF parsing doesn't use XML tag hints
+            let empty_hints = TagHints {
+                invoice_number: vec![],
+                issue_date: vec![],
+                total_amount: vec![],
+                tax_amount: vec![],
+                tax_rate: vec![],
+                buyer_name: vec![],
+                seller_name: vec![],
+            };
+            let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
+            pdf::parse_invoice_pdf(&bytes, &path, hints, sample.ticket_type)?
+        }
+        other => anyhow::bail!("不支持的格式: {}", other),
+    };
 
     println!("解析成功！\n");
     println!("发票号码: {}", invoice.invoice_number);
