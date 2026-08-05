@@ -98,7 +98,11 @@ fn any_text(_s: &str) -> bool {
 /// 两种版式都要支持：
 /// - 标签与值在同一个框内（"发票号码 12345"）
 /// - 标签与值是相邻的两个框（"发票号码" | "12345"）
-pub fn locate_vat_fields(boxes: &[TextBox], path: &Path) -> Result<ParsedInvoice, ParseError> {
+pub fn locate_vat_fields(
+    boxes: &[TextBox],
+    path: &Path,
+    level: ParseLevel,
+) -> Result<ParsedInvoice, ParseError> {
     let missing = |field: &str| ParseError::MissingField {
         path: path.to_path_buf(),
         field: field.to_string(),
@@ -137,10 +141,48 @@ pub fn locate_vat_fields(boxes: &[TextBox], path: &Path) -> Result<ParsedInvoice
         buyer_name: buyer.map(|(raw, _)| raw),
         seller_name: seller.map(|(raw, _)| raw),
         ticket_type: TicketType::Other,
-        parse_level: ParseLevel::L2,
+        parse_level: level,
         confidence,
         source_path: path.to_path_buf(),
     })
+}
+
+/// 把同一行内水平相邻的碎片框合并成一个。
+///
+/// 有些 OFD 把一个词拆成多个 TextObject（"发"/"票号"/"码："），
+/// 不合并就找不到 "发票号码" 这个标签。
+/// `max_gap` 是允许的最大水平间隙（像素）：小于它就认为属于同一串文本。
+pub fn merge_line_fragments(mut boxes: Vec<TextBox>, max_gap: f32) -> Vec<TextBox> {
+    if boxes.is_empty() {
+        return boxes;
+    }
+    // 先按行（y 中心）再按 x 排序
+    boxes.sort_by(|a, b| {
+        a.center_y()
+            .partial_cmp(&b.center_y())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    let mut out: Vec<TextBox> = Vec::with_capacity(boxes.len());
+    for b in boxes {
+        match out.last_mut() {
+            Some(prev)
+                if (prev.center_y() - b.center_y()).abs() <= SAME_LINE_TOLERANCE
+                    && b.x - prev.right() <= max_gap
+                    && b.x >= prev.x =>
+            {
+                // 同一行且紧邻：拼接文本，扩展边框
+                prev.text.push_str(&b.text);
+                let right = prev.right().max(b.right());
+                prev.width = right - prev.x;
+                prev.height = prev.height.max(b.height);
+                prev.confidence = prev.confidence.min(b.confidence);
+            }
+            _ => out.push(b),
+        }
+    }
+    out
 }
 
 /// 通过 Python sidecar 进行 OCR 识别。
@@ -209,7 +251,7 @@ mod tests {
 
     #[test]
     fn locates_fields_in_inline_layout() {
-        let invoice = locate_vat_fields(&inline_layout(), Path::new("a.jpg")).unwrap();
+        let invoice = locate_vat_fields(&inline_layout(), Path::new("a.jpg"), ParseLevel::L2).unwrap();
         assert_eq!(invoice.invoice_number, "24312000000012345678");
         assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
         assert_eq!(invoice.total_amount, Decimal::from_str("1280.00").unwrap());
@@ -220,7 +262,7 @@ mod tests {
 
     #[test]
     fn locates_fields_in_adjacent_layout() {
-        let invoice = locate_vat_fields(&adjacent_layout(), Path::new("b.jpg")).unwrap();
+        let invoice = locate_vat_fields(&adjacent_layout(), Path::new("b.jpg"), ParseLevel::L2).unwrap();
         assert_eq!(invoice.invoice_number, "24312000000012345678");
         assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
         assert_eq!(invoice.total_amount, Decimal::from_str("1280.00").unwrap());
@@ -229,7 +271,7 @@ mod tests {
     #[test]
     fn confidence_is_minimum_across_used_boxes() {
         // 整张票的可信度由最弱的字段决定——一个字段错了整张就不能用
-        let invoice = locate_vat_fields(&inline_layout(), Path::new("a.jpg")).unwrap();
+        let invoice = locate_vat_fields(&inline_layout(), Path::new("a.jpg"), ParseLevel::L2).unwrap();
         assert!(
             (invoice.confidence - 0.93).abs() < 0.001,
             "应取最低置信度 0.93，实际 {}",
@@ -248,7 +290,7 @@ mod tests {
             tb("价税合计", 400.0, 300.0, 0.9),
             tb("￥999.00", 520.0, 500.0, 0.9),
         ];
-        let err = locate_vat_fields(&boxes, Path::new("c.jpg")).unwrap_err();
+        let err = locate_vat_fields(&boxes, Path::new("c.jpg"), ParseLevel::L2).unwrap_err();
         assert!(err.to_string().contains("total_amount"), "实际: {err}");
     }
 
@@ -258,7 +300,7 @@ mod tests {
             tb("开票日期 2026-07-03", 400.0, 70.0, 0.9),
             tb("价税合计 ￥100.00", 400.0, 300.0, 0.9),
         ];
-        let err = locate_vat_fields(&boxes, Path::new("d.jpg")).unwrap_err();
+        let err = locate_vat_fields(&boxes, Path::new("d.jpg"), ParseLevel::L2).unwrap_err();
         assert!(err.to_string().contains("invoice_number"), "实际: {err}");
     }
 }

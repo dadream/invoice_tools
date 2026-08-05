@@ -2,6 +2,7 @@ pub mod manifest;
 pub mod model;
 pub mod ocr;
 pub mod ofd;
+pub mod ofd_text;
 pub mod pdf;
 pub mod report;
 pub mod verify;

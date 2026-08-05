@@ -79,8 +79,16 @@ pub fn parse_invoice_ofd(
     hints: &TagHints,
     ticket_type: TicketType,
 ) -> Result<ParsedInvoice, ParseError> {
-    let xml_bytes = extract_invoice_xml(ofd_bytes, path)?;
-    crate::xml::parse_invoice_xml(&xml_bytes, path, hints, ticket_type)
+    // 优先走结构化 XML（L0）——有语义标签，最可靠
+    if let Ok(xml_bytes) = extract_invoice_xml(ofd_bytes, path) {
+        if let Ok(invoice) =
+            crate::xml::parse_invoice_xml(&xml_bytes, path, hints, ticket_type)
+        {
+            return Ok(invoice);
+        }
+    }
+    // 退回版式文本（L1）：实测 23 个样本全是版式格式，没有结构化标签
+    crate::ofd_text::parse_invoice_ofd_text(ofd_bytes, path)
 }
 
 fn open_zip(
