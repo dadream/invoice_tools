@@ -27,6 +27,32 @@ fn main() -> anyhow::Result<()> {
             println!("{}", invoice_parse::pdf::extract_text(&bytes, Path::new(path))?);
             Ok(())
         }
+        Some("verify") => {
+            let path = args.get(2).context("用法: invoice-parse verify <file.ofd|file.xml>")?;
+            let bytes = std::fs::read(path)?;
+            let path_obj = Path::new(path);
+
+            if path.ends_with(".xml") {
+                // XML 验签
+                println!("验签 XML 文件...");
+                let status = invoice_parse::verify::verify_xml_signature(&bytes, path_obj)?;
+                println!("验签结果: {:?}", status);
+            } else {
+                // OFD 验签
+                match invoice_parse::verify::locate_signature(&bytes)? {
+                    None => println!("容器内未找到签章文件"),
+                    Some(sig) => {
+                        println!("签章文件: {} （{} 字节）", sig.entry_name, sig.raw.len());
+                        println!("前 32 字节: {:02x?}", &sig.raw[..sig.raw.len().min(32)]);
+                    }
+                }
+                println!(
+                    "验签结果: {:?}",
+                    invoice_parse::verify::verify_ofd_signature(&bytes, path_obj)?
+                );
+            }
+            Ok(())
+        }
         Some("explore-xml") => explore_xml(),
         Some(other) => bail!("未知子命令: {other}"),
         None => {
@@ -36,6 +62,7 @@ fn main() -> anyhow::Result<()> {
             eprintln!("  invoice-parse parse-one <file.xml>");
             eprintln!("  invoice-parse dump-ofd <file.ofd>");
             eprintln!("  invoice-parse dump-pdf <file.pdf>");
+            eprintln!("  invoice-parse verify <file.ofd>");
             Ok(())
         }
     }
