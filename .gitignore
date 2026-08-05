@@ -5,3 +5,8 @@ fixtures/samples/
 
 # Local environment with real credentials (never commit)
 .env.local
+
+# OCR model files (large binary files)
+/models/*.onnx
+/models/*.txt
+/models/*.traineddata
