@@ -1,5 +1,5 @@
 use anyhow::{bail, Context};
-use invoice_parse::{manifest::{Manifest, TagHints}, pdf, xml};
+use invoice_parse::{manifest::{Manifest, TagHints}, model::TicketType, pdf, xml};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -103,7 +103,7 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
         "xml-rail" | "xml-flight" | "xml-vat" => {
             let hints = sample.xml_tag_hints.as_ref()
                 .context("该样本没有配置 xml_tag_hints")?;
-            xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type)?
+            xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
         }
         "pdf-rail" | "pdf-flight" | "pdf-vat" => {
             // For PDFs, create empty hints since PDF parsing doesn't use XML tag hints
@@ -117,7 +117,7 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
                 seller_name: vec![],
             };
             let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
-            pdf::parse_invoice_pdf(&bytes, &path, hints, sample.ticket_type)?
+            pdf::parse_invoice_pdf(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
         }
         other => anyhow::bail!("不支持的格式: {}", other),
     };
@@ -241,7 +241,7 @@ fn verify_all() -> anyhow::Result<()> {
                             &b,
                             &full_path,
                             &hints,
-                            sample.ticket_type,
+                            sample.ticket_type.unwrap_or(TicketType::Other),
                         )
                         .map_err(Into::into)
                     }),
@@ -252,7 +252,7 @@ fn verify_all() -> anyhow::Result<()> {
                             &b,
                             &full_path,
                             &hints,
-                            sample.ticket_type,
+                            sample.ticket_type.unwrap_or(TicketType::Other),
                         )
                         .map_err(Into::into)
                     }),
@@ -277,8 +277,10 @@ fn verify_all() -> anyhow::Result<()> {
         let result = match parsed {
             Ok(invoice) => {
                 let comparisons = sample.compare(&invoice);
-                let failures: Vec<_> =
-                    comparisons.into_iter().filter(|c| !c.matched).collect();
+                let failures: Vec<_> = comparisons
+                    .into_iter()
+                    .filter(|c| c.status == invoice_parse::manifest::FieldStatus::Mismatch)
+                    .collect();
                 if failures.is_empty() {
                     OutcomeKind::FullMatch
                 } else {

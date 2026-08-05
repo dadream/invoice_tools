@@ -15,10 +15,7 @@
 [[sample]]
 path = "samples/01-unknown-1cb9ce98.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -30,10 +27,7 @@ total_amount = ""
 [[sample]]
 path = "samples/02-unknown-f6f7c6b1.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -45,10 +39,7 @@ total_amount = ""
 [[sample]]
 path = "samples/03-unknown-6201d368.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -69,10 +60,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/04-unknown-6554429d.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -84,10 +72,7 @@ total_amount = ""
 [[sample]]
 path = "samples/05-unknown-b4511bc3.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -99,10 +84,7 @@ total_amount = ""
 [[sample]]
 path = "samples/06-unknown-fbf5dc58.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -114,10 +96,7 @@ total_amount = ""
 [[sample]]
 path = "samples/07-unknown-f1ad9ccb.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -129,10 +108,7 @@ total_amount = ""
 [[sample]]
 path = "samples/08-meituan-42f0da2f.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -144,10 +120,7 @@ total_amount = ""
 [[sample]]
 path = "samples/09-meituan-2f9595e6.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -159,10 +132,7 @@ total_amount = ""
 [[sample]]
 path = "samples/10-meituan-a3662f79.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -183,10 +153,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/11-meituan-34ee412d.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -198,10 +165,7 @@ total_amount = ""
 [[sample]]
 path = "samples/12-didi-cc75b327.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -213,10 +177,7 @@ total_amount = ""
 [[sample]]
 path = "samples/13-didi-dc2d7047.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -228,10 +189,7 @@ total_amount = ""
 [[sample]]
 path = "samples/14-didi-357b5b11.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -243,10 +201,7 @@ total_amount = ""
 [[sample]]
 path = "samples/15-didi-6079fc74.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -258,10 +213,7 @@ total_amount = ""
 [[sample]]
 path = "samples/16-didi-85a0f5d3.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -273,10 +225,7 @@ total_amount = ""
 [[sample]]
 path = "samples/17-didi-cb5d20a0.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -288,10 +237,7 @@ total_amount = ""
 [[sample]]
 path = "samples/18-didi-968f2b9b.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -303,10 +249,7 @@ total_amount = ""
 [[sample]]
 path = "samples/19-didi-b7415fa5.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -318,10 +261,7 @@ total_amount = ""
 [[sample]]
 path = "samples/20-didi-87338868.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -333,10 +273,7 @@ total_amount = ""
 [[sample]]
 path = "samples/21-didi-173842a5.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -348,10 +285,7 @@ total_amount = ""
 [[sample]]
 path = "samples/22-didi-0cd6a9c3.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -363,10 +297,7 @@ total_amount = ""
 [[sample]]
 path = "samples/23-didi-226cbac6.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -378,10 +309,7 @@ total_amount = ""
 [[sample]]
 path = "samples/24-didi-4f308da8.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -393,10 +321,7 @@ total_amount = ""
 [[sample]]
 path = "samples/25-didi-66e3e108.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -408,10 +333,7 @@ total_amount = ""
 [[sample]]
 path = "samples/26-unknown-d3006c0b.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -423,10 +345,7 @@ total_amount = ""
 [[sample]]
 path = "samples/27-unknown-08cfe721.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -438,10 +357,7 @@ total_amount = ""
 [[sample]]
 path = "samples/28-unknown-36c9093e.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -453,10 +369,7 @@ total_amount = ""
 [[sample]]
 path = "samples/29-unknown-a926b89d.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -477,10 +390,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/30-unknown-5be79379.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -492,10 +402,7 @@ total_amount = ""
 [[sample]]
 path = "samples/31-unknown-4812770d.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -507,10 +414,7 @@ total_amount = ""
 [[sample]]
 path = "samples/32-unknown-9ac1bdc2.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -531,10 +435,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/33-unknown-1f1e61a4.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -546,10 +447,7 @@ total_amount = ""
 [[sample]]
 path = "samples/34-unknown-993123fa.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -561,10 +459,7 @@ total_amount = ""
 [[sample]]
 path = "samples/35-meituan-21a391a6.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -576,10 +471,7 @@ total_amount = ""
 [[sample]]
 path = "samples/36-unknown-932166e2.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -591,10 +483,7 @@ total_amount = ""
 [[sample]]
 path = "samples/37-unknown-41550a0b.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -606,10 +495,7 @@ total_amount = ""
 [[sample]]
 path = "samples/38-meituan-d495969a.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -621,10 +507,7 @@ total_amount = ""
 [[sample]]
 path = "samples/39-meituan-26e4b7aa.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -645,10 +528,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/40-meituan-12f8065e.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -660,10 +540,7 @@ total_amount = ""
 [[sample]]
 path = "samples/41-unknown-5026a35f.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -675,10 +552,7 @@ total_amount = ""
 [[sample]]
 path = "samples/42-meituan-b6c3341f.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -690,10 +564,7 @@ total_amount = ""
 [[sample]]
 path = "samples/43-unknown-7f0f13a8.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -705,10 +576,7 @@ total_amount = ""
 [[sample]]
 path = "samples/44-unknown-72fd9aee.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -729,10 +597,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/45-unknown-3ed9ed77.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -744,10 +609,7 @@ total_amount = ""
 [[sample]]
 path = "samples/46-unknown-6e89a590.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -759,10 +621,7 @@ total_amount = ""
 [[sample]]
 path = "samples/47-unknown-de992fb0.xml"
 format = "xml"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -783,10 +642,7 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/48-unknown-cb25d50d.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -798,10 +654,7 @@ total_amount = ""
 [[sample]]
 path = "samples/49-didi-2745a005.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -813,10 +666,7 @@ total_amount = ""
 [[sample]]
 path = "samples/50-didi-520ce335.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -828,10 +678,7 @@ total_amount = ""
 [[sample]]
 path = "samples/51-didi-2ed3ee1a.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -843,10 +690,7 @@ total_amount = ""
 [[sample]]
 path = "samples/52-didi-89213171.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -858,10 +702,7 @@ total_amount = ""
 [[sample]]
 path = "samples/53-didi-705a5872.pdf"
 format = "pdf-flight"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -873,10 +714,7 @@ total_amount = ""
 [[sample]]
 path = "samples/54-didi-adc92bb1.pdf"
 format = "pdf-flight"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -888,10 +726,7 @@ total_amount = ""
 [[sample]]
 path = "samples/55-didi-4dc63148.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -903,10 +738,7 @@ total_amount = ""
 [[sample]]
 path = "samples/56-didi-22a68dc7.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -918,10 +750,7 @@ total_amount = ""
 [[sample]]
 path = "samples/57-didi-4e7f177b.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -933,10 +762,7 @@ total_amount = ""
 [[sample]]
 path = "samples/58-didi-25f40401.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -948,10 +774,7 @@ total_amount = ""
 [[sample]]
 path = "samples/59-didi-c6041246.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -963,10 +786,7 @@ total_amount = ""
 [[sample]]
 path = "samples/60-unknown-ccff78f5.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -978,10 +798,7 @@ total_amount = ""
 [[sample]]
 path = "samples/61-unknown-c27071a2.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -993,10 +810,7 @@ total_amount = ""
 [[sample]]
 path = "samples/62-unknown-70a24c65.jpg"
 format = "image"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -1008,10 +822,7 @@ total_amount = ""
 [[sample]]
 path = "samples/63-unknown-19d988e1.ofd"
 format = "ofd"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -1023,10 +834,7 @@ total_amount = ""
 [[sample]]
 path = "samples/64-unknown-e8d72419.pdf"
 format = "pdf-vat"
-ticket_type = "Other"       # 待确认
-invoice_number = ""
-issue_date = ""
-total_amount = ""
+# ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""

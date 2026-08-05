@@ -139,7 +139,7 @@ mod tests {
                     field,
                     expected: "553.00".into(),
                     actual: "12.80".into(),
-                    matched: false,
+                    status: crate::manifest::FieldStatus::Mismatch,
                 }],
             },
         }
