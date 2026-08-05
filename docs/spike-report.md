@@ -7,72 +7,10 @@
 | image | 6 | 0 | 0.0% |
 | ofd | 8 | 0 | 0.0% |
 | pdf-flight | 2 | 0 | 0.0% |
-| pdf-vat | 41 | 0 | 0.0% |
-| xml | 7 | 0 | 0.0% |
+| pdf-vat | 41 | 12 | 29.3% |
+| xml | 7 | 7 | 100.0% |
 
-合计 0/64（0.0%）
-
-## 字段不匹配
-
-| 样本 | 字段 | 期望 | 实际 |
-|---|---|---|---|
-| samples/03-unknown-6201d368.xml | invoice_number |  | 26112000002208097411 |
-| samples/03-unknown-6201d368.xml | issue_date |  | 2026-06-01 |
-| samples/03-unknown-6201d368.xml | total_amount |  | 47.40 |
-| samples/04-unknown-6554429d.pdf | invoice_number |  | 26312000003445962271 |
-| samples/04-unknown-6554429d.pdf | issue_date |  | 2026-06-03 |
-| samples/04-unknown-6554429d.pdf | total_amount |  | 1500.00 |
-| samples/05-unknown-b4511bc3.pdf | invoice_number |  | 26112000002267104336 |
-| samples/05-unknown-b4511bc3.pdf | issue_date |  | 2026-06-04 |
-| samples/05-unknown-b4511bc3.pdf | total_amount |  | 65.40 |
-| samples/09-meituan-2f9595e6.pdf | invoice_number |  | 26317000001917172381 |
-| samples/09-meituan-2f9595e6.pdf | issue_date |  | 2026-06-08 |
-| samples/09-meituan-2f9595e6.pdf | total_amount |  | 0.30 |
-| samples/10-meituan-a3662f79.xml | invoice_number |  | 26317000001917172381 |
-| samples/10-meituan-a3662f79.xml | issue_date |  | 2026-06-08 |
-| samples/10-meituan-a3662f79.xml | total_amount |  | 0.30 |
-| samples/27-unknown-08cfe721.pdf | invoice_number |  | 26117000000826606023 |
-| samples/27-unknown-08cfe721.pdf | issue_date |  | 2026-06-08 |
-| samples/27-unknown-08cfe721.pdf | total_amount |  | 15.00 |
-| samples/29-unknown-a926b89d.xml | invoice_number |  | 26117000000826606023 |
-| samples/29-unknown-a926b89d.xml | issue_date |  | 2026-06-08 |
-| samples/29-unknown-a926b89d.xml | total_amount |  | 15.00 |
-| samples/31-unknown-4812770d.pdf | invoice_number |  | 26117000000806259258 |
-| samples/31-unknown-4812770d.pdf | issue_date |  | 2026-06-08 |
-| samples/31-unknown-4812770d.pdf | total_amount |  | 68.82 |
-| samples/32-unknown-9ac1bdc2.xml | invoice_number |  | 26117000000806259258 |
-| samples/32-unknown-9ac1bdc2.xml | issue_date |  | 2026-06-08 |
-| samples/32-unknown-9ac1bdc2.xml | total_amount |  | 68.82 |
-| samples/36-unknown-932166e2.pdf | invoice_number |  | 26112000002354032261 |
-| samples/36-unknown-932166e2.pdf | issue_date |  | 2026-06-10 |
-| samples/36-unknown-932166e2.pdf | total_amount |  | 692.00 |
-| samples/37-unknown-41550a0b.pdf | invoice_number |  | 26112000002354189881 |
-| samples/37-unknown-41550a0b.pdf | issue_date |  | 2026-06-10 |
-| samples/37-unknown-41550a0b.pdf | total_amount |  | 692.00 |
-| samples/38-meituan-d495969a.pdf | invoice_number |  | 26317000002117472528 |
-| samples/38-meituan-d495969a.pdf | issue_date |  | 2026-06-17 |
-| samples/38-meituan-d495969a.pdf | total_amount |  | 3.20 |
-| samples/39-meituan-26e4b7aa.xml | invoice_number |  | 26317000002117472528 |
-| samples/39-meituan-26e4b7aa.xml | issue_date |  | 2026-06-17 |
-| samples/39-meituan-26e4b7aa.xml | total_amount |  | 3.20 |
-| samples/41-unknown-5026a35f.pdf | invoice_number |  | 26142000000876917341 |
-| samples/41-unknown-5026a35f.pdf | issue_date |  | 2026-06-18 |
-| samples/41-unknown-5026a35f.pdf | total_amount |  | 1850.58 |
-| samples/43-unknown-7f0f13a8.pdf | invoice_number |  | 26132000001912746961 |
-| samples/43-unknown-7f0f13a8.pdf | issue_date |  | 2026-06-18 |
-| samples/43-unknown-7f0f13a8.pdf | total_amount |  | 80.00 |
-| samples/44-unknown-72fd9aee.xml | invoice_number |  | 26132000001912746961 |
-| samples/44-unknown-72fd9aee.xml | issue_date |  | 2026-06-18 |
-| samples/44-unknown-72fd9aee.xml | total_amount |  | 80.00 |
-| samples/46-unknown-6e89a590.pdf | invoice_number |  | 26132000001954318426 |
-| samples/46-unknown-6e89a590.pdf | issue_date |  | 2026-06-22 |
-| samples/46-unknown-6e89a590.pdf | total_amount |  | 74.00 |
-| samples/47-unknown-de992fb0.xml | invoice_number |  | 26132000001954318426 |
-| samples/47-unknown-de992fb0.xml | issue_date |  | 2026-06-22 |
-| samples/47-unknown-de992fb0.xml | total_amount |  | 74.00 |
-| samples/64-unknown-e8d72419.pdf | invoice_number |  | 26112000002680730506 |
-| samples/64-unknown-e8d72419.pdf | issue_date |  | 2026-06-30 |
-| samples/64-unknown-e8d72419.pdf | total_amount |  | 490.00 |
+合计 19/64（29.7%）
 
 ## 解析失败
 
