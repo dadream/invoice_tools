@@ -38,12 +38,15 @@ format = "ofd"
 # 平台: unknown · 大小: 7095 字节
 [[sample]]
 path = "samples/03-unknown-6201d368.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26112000002208097411"
+issue_date = "2026-06-01"
+total_amount = "47.40"
+tax_amount = "5.45"
+tax_rate = "0.13"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京华夏龙源华斌商贸有限公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -60,11 +63,13 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/04-unknown-6554429d.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26312000003445962271"
+issue_date = "2026-06-03"
+total_amount = "1500.00"
+tax_amount = "84.91"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "上海中核科创园发展有限公司"
 
 # 原始文件名: dzfp_2611200000 2267104336_河北融元商 贸有限公司北京 第三分公司_20 260604164844.pdf
 # 邮件主题: 您收到一张【河北融元商贸有限公司北京第三分公司】开具的数电发票【发票号码：26112000002267104336】，请查收
@@ -72,11 +77,13 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/05-unknown-b4511bc3.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26112000002267104336"
+issue_date = "2026-06-04"
+total_amount = "65.40"
+tax_amount = "0.65"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "河北融元商贸有限公司北京第三分公司"
 
 # 原始文件名: dzfp_26152000000504950146_赛比亚医疗诊 断器械（上海）有限公司_20260605071 745.pdf
 # 邮件主题: 【华住酒店集团】全季赤峰市政府酒店发票已开具，感谢您的支持！（发票号码：26152000000504950146）
@@ -120,23 +127,28 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/09-meituan-2f9595e6.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26317000001917172381"
+issue_date = "2026-06-08"
+total_amount = "0.30"
+tax_amount = "0.02"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "上海三快智送科技有限公司"
 
 # 原始文件名: 上海三快智送科技有限公司_ 发票金额0.30元.xml
 # 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：0.30元）
 # 平台: meituan · 大小: 3243 字节
 [[sample]]
 path = "samples/10-meituan-a3662f79.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26317000001917172381"
+issue_date = "2026-06-08"
+total_amount = "0.30"
+tax_amount = "0.02"
+tax_rate = "0.06"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "上海三快智送科技有限公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -345,11 +357,13 @@ format = "image"
 [[sample]]
 path = "samples/27-unknown-08cfe721.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26117000000826606023"
+issue_date = "2026-06-08"
+total_amount = "15.00"
+tax_amount = "0.85"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京顺丰速运有限公司"
 
 # 原始文件名: 顺丰电子发票.ofd
 # 邮件主题: 顺丰全电发票出票通知
@@ -368,12 +382,15 @@ format = "ofd"
 # 平台: unknown · 大小: 3335 字节
 [[sample]]
 path = "samples/29-unknown-a926b89d.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26117000000826606023"
+issue_date = "2026-06-08"
+total_amount = "15.00"
+tax_amount = "0.85"
+tax_rate = "0.06"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京顺丰速运有限公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -402,23 +419,28 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/31-unknown-4812770d.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26117000000806259258"
+issue_date = "2026-06-08"
+total_amount = "68.82"
+tax_amount = "3.90"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "深圳市顺丰同城物流有限公司北京分公司"
 
 # 原始文件名: 顺丰同城急送电子发票1.xml
 # 邮件主题: 顺丰同城急送电子发票
 # 平台: unknown · 大小: 3095 字节
 [[sample]]
 path = "samples/32-unknown-9ac1bdc2.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26117000000806259258"
+issue_date = "2026-06-08"
+total_amount = "68.82"
+tax_amount = "3.9"
+tax_rate = "0.06"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "深圳市顺丰同城物流有限公司北京分公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -471,11 +493,13 @@ format = "image"
 [[sample]]
 path = "samples/36-unknown-932166e2.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26112000002354032261"
+issue_date = "2026-06-10"
+total_amount = "692.00"
+tax_amount = "79.61"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京赛特奥特莱斯商贸有限公司"
 
 # 原始文件名: dzfp_26112000002354189881_北京赛特奥特莱斯商贸有限公司_20260610131844.pdf
 # 邮件主题: 您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131851
@@ -483,11 +507,13 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/37-unknown-41550a0b.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26112000002354189881"
+issue_date = "2026-06-10"
+total_amount = "692.00"
+tax_amount = "79.61"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京赛特奥特莱斯商贸有限公司"
 
 # 原始文件名: 上海三快智送科技有限公司_ 发票金额3.20元.pdf
 # 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
@@ -495,23 +521,28 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/38-meituan-d495969a.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26317000002117472528"
+issue_date = "2026-06-17"
+total_amount = "3.20"
+tax_amount = "0.18"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "上海三快智送科技有限公司"
 
 # 原始文件名: 上海三快智送科技有限公司_ 发票金额3.20元.xml
 # 邮件主题: 【电子发票】上海三快智送科技有限公司（发票金额：3.20元）
 # 平台: meituan · 大小: 3249 字节
 [[sample]]
 path = "samples/39-meituan-26e4b7aa.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26317000002117472528"
+issue_date = "2026-06-17"
+total_amount = "3.20"
+tax_amount = "0.18"
+tax_rate = "0.06"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "上海三快智送科技有限公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -540,11 +571,13 @@ format = "ofd"
 [[sample]]
 path = "samples/41-unknown-5026a35f.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26142000000876917341"
+issue_date = "2026-06-18"
+total_amount = "1850.58"
+tax_amount = "104.75"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "山西晋泽昌文旅酒店有限公司"
 
 # 原始文件名: 发票文件1.png
 # 邮件主题: 美团-开票申请处理成功通知
@@ -564,23 +597,28 @@ format = "image"
 [[sample]]
 path = "samples/43-unknown-7f0f13a8.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26132000001912746961"
+issue_date = "2026-06-18"
+total_amount = "80.00"
+tax_amount = "9.20"
+buyer_name = "赛比亚医疗诊断器械(上海)有限公司"
+seller_name = "北京京铁列车服务有限公司石家庄分公司"
 
 # 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.xml
 # 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
 # 平台: unknown · 大小: 5173 字节
 [[sample]]
 path = "samples/44-unknown-72fd9aee.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26132000001912746961"
+issue_date = "2026-06-18"
+total_amount = "80.00"
+tax_amount = "9.20"
+tax_rate = "0.13"
+buyer_name = "赛比亚医疗诊断器械(上海)有限公司"
+seller_name = "北京京铁列车服务有限公司石家庄分公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]
@@ -609,23 +647,28 @@ format = "ofd"
 [[sample]]
 path = "samples/46-unknown-6e89a590.pdf"
 format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+# L0-capable: PDF with text layer
+invoice_number = "26132000001954318426"
+issue_date = "2026-06-22"
+total_amount = "74.00"
+tax_amount = "8.52"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京京铁列车服务有限公司石家庄分公司"
 
 # 原始文件名: dzfp_2613200000 1954318426_赛比亚医疗 诊断器械（上海 ）有限公司_20 260622162235.xml
 # 邮件主题: 尊敬的用户，您好。我们于2026年06月22日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！
 # 平台: unknown · 大小: 6697 字节
 [[sample]]
 path = "samples/47-unknown-de992fb0.xml"
-format = "xml"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "xml-vat"
+# L0-capable: native XML with text elements
+invoice_number = "26132000001954318426"
+issue_date = "2026-06-22"
+total_amount = "74.00"
+tax_amount = "8.52"
+tax_rate = "0.13"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京京铁列车服务有限公司石家庄分公司"
 
 [sample.xml_tag_hints]
 invoice_number = ["InvoiceNumber", "EIid"]

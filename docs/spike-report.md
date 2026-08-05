@@ -7,10 +7,48 @@
 | image | 6 | 0 | 0.0% |
 | ofd | 8 | 0 | 0.0% |
 | pdf-flight | 2 | 0 | 0.0% |
-| pdf-vat | 41 | 12 | 29.3% |
-| xml | 7 | 7 | 100.0% |
+| pdf-vat | 41 | 1 | 2.4% |
+| xml-vat | 7 | 7 | 100.0% |
 
-合计 19/64（29.7%）
+合计 8/64（12.5%）
+
+## 字段不匹配
+
+| 样本 | 字段 | 期望 | 实际 |
+|---|---|---|---|
+| samples/04-unknown-6554429d.pdf | tax_amount | 84.91 | <缺失> |
+| samples/04-unknown-6554429d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/04-unknown-6554429d.pdf | seller_name | 上海中核科创园发展有限公司 | <缺失> |
+| samples/05-unknown-b4511bc3.pdf | tax_amount | 0.65 | <缺失> |
+| samples/05-unknown-b4511bc3.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/05-unknown-b4511bc3.pdf | seller_name | 河北融元商贸有限公司北京第三分公司 | <缺失> |
+| samples/09-meituan-2f9595e6.pdf | tax_amount | 0.02 | <缺失> |
+| samples/09-meituan-2f9595e6.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/09-meituan-2f9595e6.pdf | seller_name | 上海三快智送科技有限公司 | <缺失> |
+| samples/27-unknown-08cfe721.pdf | tax_amount | 0.85 | <缺失> |
+| samples/27-unknown-08cfe721.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/27-unknown-08cfe721.pdf | seller_name | 北京顺丰速运有限公司 | <缺失> |
+| samples/31-unknown-4812770d.pdf | tax_amount | 3.90 | <缺失> |
+| samples/31-unknown-4812770d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/31-unknown-4812770d.pdf | seller_name | 深圳市顺丰同城物流有限公司北京分公司 | <缺失> |
+| samples/36-unknown-932166e2.pdf | tax_amount | 79.61 | <缺失> |
+| samples/36-unknown-932166e2.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/36-unknown-932166e2.pdf | seller_name | 北京赛特奥特莱斯商贸有限公司 | <缺失> |
+| samples/37-unknown-41550a0b.pdf | tax_amount | 79.61 | <缺失> |
+| samples/37-unknown-41550a0b.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/37-unknown-41550a0b.pdf | seller_name | 北京赛特奥特莱斯商贸有限公司 | <缺失> |
+| samples/38-meituan-d495969a.pdf | tax_amount | 0.18 | <缺失> |
+| samples/38-meituan-d495969a.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/38-meituan-d495969a.pdf | seller_name | 上海三快智送科技有限公司 | <缺失> |
+| samples/41-unknown-5026a35f.pdf | tax_amount | 104.75 | <缺失> |
+| samples/41-unknown-5026a35f.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/41-unknown-5026a35f.pdf | seller_name | 山西晋泽昌文旅酒店有限公司 | <缺失> |
+| samples/43-unknown-7f0f13a8.pdf | tax_amount | 9.20 | <缺失> |
+| samples/43-unknown-7f0f13a8.pdf | buyer_name | 赛比亚医疗诊断器械(上海)有限公司 | <缺失> |
+| samples/43-unknown-7f0f13a8.pdf | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
+| samples/46-unknown-6e89a590.pdf | tax_amount | 8.52 | <缺失> |
+| samples/46-unknown-6e89a590.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/46-unknown-6e89a590.pdf | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
 
 ## 解析失败
 

@@ -234,7 +234,7 @@ fn verify_all() -> anyhow::Result<()> {
 
         let parsed: anyhow::Result<ParsedInvoice> = std::panic::catch_unwind(|| {
             match sample.format.as_str() {
-                "xml" => std::fs::read(&full_path)
+                "xml" | "xml-vat" | "xml-rail" | "xml-flight" => std::fs::read(&full_path)
                     .map_err(anyhow::Error::from)
                     .and_then(|b| {
                         invoice_parse::xml::parse_invoice_xml(
