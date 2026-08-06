@@ -462,7 +462,7 @@ pub fn locate_vat_fields(
         parse_level: level,
         confidence,
         city: field_extractor::extract_city(&TicketType::Other, &seller_name.as_deref().unwrap_or("")),
-        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
+        departure_time: None,
         checkin_date: None,
         source_path: path.to_path_buf(),
     })

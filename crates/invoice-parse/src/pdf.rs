@@ -203,7 +203,7 @@ pub fn parse_vat_invoice_text(text: &str, path: &Path) -> Result<ParsedInvoice, 
         parse_level: ParseLevel::L1,
         confidence: 1.0,
         city: field_extractor::extract_city(&TicketType::Other, &seller_name.as_deref().unwrap_or("")),
-        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
+        departure_time: None,
         checkin_date: None,
         source_path: path.to_path_buf(),
     })

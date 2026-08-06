@@ -40,7 +40,24 @@ pub fn extract_city(ticket_type: &TicketType, seller_name: &str) -> Option<Strin
     // 剥离站点后缀
     let city = STATION_SUFFIX_RE.replace(departure, "").to_string();
 
-    if city.is_empty() {
+    // 防止过度剥离（如"济南站"不应变成"济"）
+    if city.chars().count() < 2 && departure.chars().count() >= 2 {
+        // 改用保守策略：只剥离单一后缀词，不连续剥离
+        if departure.ends_with('站') {
+            Some(departure[..departure.len() - '站'.len_utf8()].to_string())
+        } else if departure.ends_with("机场") {
+            Some(departure[..departure.len() - "机场".len()].to_string())
+        } else if departure.ends_with("虹桥") {
+            Some(departure[..departure.len() - "虹桥".len()].to_string())
+        } else if departure.ends_with("浦东") {
+            Some(departure[..departure.len() - "浦东".len()].to_string())
+        } else if departure.ends_with("首都") {
+            Some(departure[..departure.len() - "首都".len()].to_string())
+        } else {
+            // 无可剥离的后缀，保持原样
+            Some(departure.to_string())
+        }
+    } else if city.is_empty() {
         None
     } else {
         Some(city)

@@ -71,3 +71,27 @@ fn test_extract_departure_time_fallback_to_midnight() {
 
     assert_eq!(departure_time, Some(expected));
 }
+
+#[test]
+fn test_extract_city_preserves_direction_in_name() {
+    // "济南站" 剥离 "站" 后应为 "济南"，不应过度剥离为 "济"
+    let seller_name = "济南站→北京";
+    let city = extract_city(&TicketType::Rail, seller_name);
+    assert_eq!(city, Some("济南".to_string()));
+}
+
+#[test]
+fn test_extract_city_handles_hainan() {
+    // "海南机场" 剥离 "机场" 后应为 "海南"，不应过度剥离为 "海"
+    let seller_name = "海南机场→广州";
+    let city = extract_city(&TicketType::Flight, seller_name);
+    assert_eq!(city, Some("海南".to_string()));
+}
+
+#[test]
+fn test_extract_city_handles_double_direction() {
+    // "湖南南站" 剥离 "南站" 后应为 "湖"（单字），触发守卫返回原始值 "湖南南"
+    let seller_name = "湖南南站→深圳";
+    let city = extract_city(&TicketType::Rail, seller_name);
+    assert_eq!(city, Some("湖南南".to_string()));
+}
