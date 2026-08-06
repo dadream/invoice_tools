@@ -6,13 +6,12 @@
 |---|---|---|---|
 | image | 2 | 2 | 100.0% |
 | ofd | 8 | 6 | 75.0% |
-| pdf-flight | 2 | 0 | 0.0% |
-| pdf-vat | 41 | 17 | 41.5% |
+| pdf-vat | 42 | 18 | 42.9% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 32/60（53.3%）
+合计 33/59（55.9%）
 
-另有 4 个样本经人工确认不是发票，已排除在统计之外。
+另有 5 个样本经人工确认不是发票，已排除在统计之外。
 
 ## 字段不匹配
 
@@ -50,8 +49,6 @@
 | samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
 | samples/49-didi-2745a005.pdf | 在 fixtures/samples/49-didi-2745a005.pdf 中找不到必需字段 total_amount |
 | samples/51-didi-2ed3ee1a.pdf | 在 fixtures/samples/51-didi-2ed3ee1a.pdf 中找不到必需字段 total_amount |
-| samples/53-didi-705a5872.pdf | 在 fixtures/samples/53-didi-705a5872.pdf 中找不到必需字段 invoice_number |
-| samples/54-didi-adc92bb1.pdf | 在 fixtures/samples/54-didi-adc92bb1.pdf 中找不到必需字段 invoice_number |
 | samples/55-didi-4dc63148.pdf | 在 fixtures/samples/55-didi-4dc63148.pdf 中找不到必需字段 total_amount |
 | samples/56-didi-22a68dc7.pdf | 在 fixtures/samples/56-didi-22a68dc7.pdf 中找不到必需字段 total_amount |
 | samples/58-didi-25f40401.pdf | 在 fixtures/samples/58-didi-25f40401.pdf 中找不到必需字段 total_amount |
@@ -61,6 +58,7 @@
 | 样本 | 原因 |
 |---|---|
 | samples/26-unknown-d3006c0b.jpg | 176x64 近空白 PNG（非白像素 0.4%），OCR 检测不到任何文本，邮件装饰图元 |
+| samples/53-didi-705a5872.pdf | 曹操出行行程单（非发票），仅含行程明细，无发票号码 |
 | samples/60-unknown-ccff78f5.jpg | 1200x240 邮件横幅图，仅含「数字化税票服务平台」标题文字 |
 | samples/61-unknown-c27071a2.jpg | 350x43「点击查看发票」按钮图 |
 | samples/62-unknown-70a24c65.jpg | 665x108「恭喜您获得开票奖励」营销横幅 |

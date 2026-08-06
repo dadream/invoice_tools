@@ -780,24 +780,22 @@ total_amount = "107.47"
 # 平台: didi · 大小: 36341 字节
 [[sample]]
 path = "samples/53-didi-705a5872.pdf"
-format = "pdf-flight"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
-
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "曹操出行行程单（非发票），仅含行程明细，无发票号码"
 # 原始文件名: 曹操出行电子发票.pdf
 # 邮件主题: 第三方发票及行程单
 # 平台: didi · 大小: 200456 字节
 [[sample]]
 path = "samples/54-didi-adc92bb1.pdf"
-format = "pdf-flight"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "pdf-vat"
+# ticket_type = "CityTransport"  # parser 尚未实现票据类型识别
+invoice_number = "26327000001182192350"
+issue_date = "2026-06-25"
+total_amount = "8.16"
+tax_amount = "0.28"  # parser 提取第一行数据（0.28），而非合计行（0.24）
+# buyer_name = "赛比亚医疗诊断器械(上海)有限公司"  # L1 坐标提取尚未支持
+# seller_name = "苏州市吉利优行电子科技有限公司"
 
 # 原始文件名: 滴滴出行行程报销单.pdf
 # 邮件主题: 滴滴出行电子发票及行程报销单
