@@ -1,3 +1,4 @@
+pub mod field_extractor;
 pub mod manifest;
 pub mod model;
 pub mod ocr;
