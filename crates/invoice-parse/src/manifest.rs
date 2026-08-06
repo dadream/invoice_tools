@@ -41,6 +41,9 @@ pub struct Sample {
     /// 由 Task 6 的分类器对照，非发票不计入解析通过率分母。
     #[serde(default)]
     pub is_invoice: Option<bool>,
+    /// `is_invoice = false` 时说明排除理由，会出现在验证报告中。
+    #[serde(default)]
+    pub not_invoice_reason: Option<String>,
     /// XML/OFD 元素名提示，由 explore-xml 工具填入
     #[serde(default)]
     pub xml_tag_hints: Option<TagHints>,
@@ -261,6 +264,7 @@ mod tests {
             seller_name: None,
             is_voided: false,
             is_invoice: None,
+            not_invoice_reason: None,
             xml_tag_hints: None,
         }
     }

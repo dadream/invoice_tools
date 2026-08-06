@@ -366,6 +366,8 @@ total_amount = "1324.86"
 [[sample]]
 path = "samples/26-unknown-d3006c0b.jpg"
 format = "image"
+is_invoice = false
+not_invoice_reason = "176x64 近空白 PNG（非白像素 0.4%），OCR 检测不到任何文本，邮件装饰图元"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -869,6 +871,8 @@ total_amount = "893.55"
 [[sample]]
 path = "samples/60-unknown-ccff78f5.jpg"
 format = "image"
+is_invoice = false
+not_invoice_reason = "1200x240 邮件横幅图，仅含「数字化税票服务平台」标题文字"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -881,6 +885,8 @@ format = "image"
 [[sample]]
 path = "samples/61-unknown-c27071a2.jpg"
 format = "image"
+is_invoice = false
+not_invoice_reason = "350x43「点击查看发票」按钮图"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -893,6 +899,8 @@ format = "image"
 [[sample]]
 path = "samples/62-unknown-70a24c65.jpg"
 format = "image"
+is_invoice = false
+not_invoice_reason = "665x108「恭喜您获得开票奖励」营销横幅"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""

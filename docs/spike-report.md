@@ -4,13 +4,15 @@
 
 | 格式 | 样本数 | 通过 | 通过率 |
 |---|---|---|---|
-| image | 6 | 0 | 0.0% |
-| ofd | 8 | 2 | 25.0% |
+| image | 2 | 2 | 100.0% |
+| ofd | 8 | 4 | 50.0% |
 | pdf-flight | 2 | 0 | 0.0% |
-| pdf-vat | 41 | 1 | 2.4% |
+| pdf-vat | 41 | 12 | 29.3% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 10/64（15.6%）
+合计 25/60（41.7%）
+
+另有 4 个样本经人工确认不是发票，已排除在统计之外。
 
 ## 字段不匹配
 
@@ -20,7 +22,7 @@
 | samples/04-unknown-6554429d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/04-unknown-6554429d.pdf | seller_name | 上海中核科创园发展有限公司 | <缺失> |
 | samples/05-unknown-b4511bc3.pdf | tax_amount | 0.65 | <缺失> |
-| samples/05-unknown-b4511bc3.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/05-unknown-b4511bc3.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | 地址:-;    电话:15313153611 |
 | samples/05-unknown-b4511bc3.pdf | seller_name | 河北融元商贸有限公司北京第三分公司 | <缺失> |
 | samples/09-meituan-2f9595e6.pdf | tax_amount | 0.02 | <缺失> |
 | samples/09-meituan-2f9595e6.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
@@ -60,43 +62,33 @@
 | samples/07-unknown-f1ad9ccb.pdf | 在 fixtures/samples/07-unknown-f1ad9ccb.pdf 中找不到必需字段 invoice_number |
 | samples/08-meituan-42f0da2f.pdf | 在 fixtures/samples/08-meituan-42f0da2f.pdf 中找不到必需字段 total_amount |
 | samples/12-didi-cc75b327.pdf | 在 fixtures/samples/12-didi-cc75b327.pdf 中找不到必需字段 total_amount |
-| samples/13-didi-dc2d7047.pdf | 在 fixtures/samples/13-didi-dc2d7047.pdf 中找不到必需字段 total_amount |
 | samples/14-didi-357b5b11.pdf | 在 fixtures/samples/14-didi-357b5b11.pdf 中找不到必需字段 total_amount |
-| samples/15-didi-6079fc74.pdf | 在 fixtures/samples/15-didi-6079fc74.pdf 中找不到必需字段 total_amount |
 | samples/16-didi-85a0f5d3.pdf | 在 fixtures/samples/16-didi-85a0f5d3.pdf 中找不到必需字段 total_amount |
-| samples/17-didi-cb5d20a0.pdf | 在 fixtures/samples/17-didi-cb5d20a0.pdf 中找不到必需字段 total_amount |
 | samples/18-didi-968f2b9b.pdf | 在 fixtures/samples/18-didi-968f2b9b.pdf 中找不到必需字段 total_amount |
-| samples/19-didi-b7415fa5.pdf | 在 fixtures/samples/19-didi-b7415fa5.pdf 中找不到必需字段 total_amount |
 | samples/20-didi-87338868.pdf | 在 fixtures/samples/20-didi-87338868.pdf 中找不到必需字段 total_amount |
-| samples/21-didi-173842a5.pdf | 在 fixtures/samples/21-didi-173842a5.pdf 中找不到必需字段 total_amount |
 | samples/22-didi-0cd6a9c3.pdf | 在 fixtures/samples/22-didi-0cd6a9c3.pdf 中找不到必需字段 total_amount |
-| samples/23-didi-226cbac6.pdf | 在 fixtures/samples/23-didi-226cbac6.pdf 中找不到必需字段 total_amount |
 | samples/24-didi-4f308da8.pdf | 在 fixtures/samples/24-didi-4f308da8.pdf 中找不到必需字段 total_amount |
-| samples/25-didi-66e3e108.pdf | 在 fixtures/samples/25-didi-66e3e108.pdf 中找不到必需字段 total_amount |
-| samples/26-unknown-d3006c0b.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/28-unknown-36c9093e.ofd | 在 fixtures/samples/28-unknown-36c9093e.ofd 中找不到必需字段 total_amount |
 | samples/30-unknown-5be79379.pdf | 在 fixtures/samples/30-unknown-5be79379.pdf 中找不到必需字段 total_amount |
-| samples/33-unknown-1f1e61a4.ofd | 在 fixtures/samples/33-unknown-1f1e61a4.ofd 中找不到必需字段 total_amount |
 | samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
-| samples/35-meituan-21a391a6.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/42-meituan-b6c3341f.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
 | samples/45-unknown-3ed9ed77.ofd | 在 fixtures/samples/45-unknown-3ed9ed77.ofd 中找不到必需字段 invoice_number |
 | samples/48-unknown-cb25d50d.ofd | 在 fixtures/samples/48-unknown-cb25d50d.ofd 中找不到必需字段 invoice_number |
 | samples/49-didi-2745a005.pdf | 在 fixtures/samples/49-didi-2745a005.pdf 中找不到必需字段 total_amount |
-| samples/50-didi-520ce335.pdf | 在 fixtures/samples/50-didi-520ce335.pdf 中找不到必需字段 total_amount |
 | samples/51-didi-2ed3ee1a.pdf | 在 fixtures/samples/51-didi-2ed3ee1a.pdf 中找不到必需字段 total_amount |
-| samples/52-didi-89213171.pdf | 在 fixtures/samples/52-didi-89213171.pdf 中找不到必需字段 total_amount |
 | samples/53-didi-705a5872.pdf | 在 fixtures/samples/53-didi-705a5872.pdf 中找不到必需字段 invoice_number |
 | samples/54-didi-adc92bb1.pdf | 在 fixtures/samples/54-didi-adc92bb1.pdf 中找不到必需字段 invoice_number |
 | samples/55-didi-4dc63148.pdf | 在 fixtures/samples/55-didi-4dc63148.pdf 中找不到必需字段 total_amount |
 | samples/56-didi-22a68dc7.pdf | 在 fixtures/samples/56-didi-22a68dc7.pdf 中找不到必需字段 total_amount |
-| samples/57-didi-4e7f177b.pdf | 在 fixtures/samples/57-didi-4e7f177b.pdf 中找不到必需字段 total_amount |
 | samples/58-didi-25f40401.pdf | 在 fixtures/samples/58-didi-25f40401.pdf 中找不到必需字段 total_amount |
-| samples/59-didi-c6041246.pdf | 在 fixtures/samples/59-didi-c6041246.pdf 中找不到必需字段 total_amount |
-| samples/60-unknown-ccff78f5.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/61-unknown-c27071a2.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
-| samples/62-unknown-70a24c65.jpg | 图片 OCR 需要 Python sidecar，暂未集成到 verify-all |
 | samples/63-unknown-19d988e1.ofd | 在 fixtures/samples/63-unknown-19d988e1.ofd 中找不到必需字段 invoice_number |
+
+## 已排除（非发票）
+
+| 样本 | 原因 |
+|---|---|
+| samples/26-unknown-d3006c0b.jpg | 176x64 近空白 PNG（非白像素 0.4%），OCR 检测不到任何文本，邮件装饰图元 |
+| samples/60-unknown-ccff78f5.jpg | 1200x240 邮件横幅图，仅含「数字化税票服务平台」标题文字 |
+| samples/61-unknown-c27071a2.jpg | 350x43「点击查看发票」按钮图 |
+| samples/62-unknown-70a24c65.jpg | 665x108「恭喜您获得开票奖励」营销横幅 |
 
 ---
 

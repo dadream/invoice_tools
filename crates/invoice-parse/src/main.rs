@@ -294,6 +294,23 @@ fn verify_all() -> anyhow::Result<()> {
 
     for sample in &manifest.samples {
         let full_path = PathBuf::from("fixtures").join(&sample.path);
+
+        // 人工确认非发票的样本（邮件横幅、下载按钮、广告图）直接跳过，
+        // 不进入通过率的分子和分母。
+        if sample.is_invoice == Some(false) {
+            outcomes.push(SampleOutcome {
+                path: sample.path.display().to_string(),
+                format: sample.format.clone(),
+                result: OutcomeKind::Skipped {
+                    reason: sample
+                        .not_invoice_reason
+                        .clone()
+                        .unwrap_or_else(|| "人工确认非发票".to_string()),
+                },
+            });
+            continue;
+        }
+
         let hints = sample.xml_tag_hints.clone().unwrap_or(TagHints {
             invoice_number: vec![],
             issue_date: vec![],
