@@ -260,6 +260,83 @@ fn find_in_column(
     None
 }
 
+/// 在指定列中查找数值并求和（支持多行明细）。
+///
+/// 与 find_in_column 类似，但收集所有满足校验的数值框并求和，
+/// 用于支持多商品明细的税额汇总。
+///
+/// 返回 (求和结果文本, 最小置信度)
+fn find_in_column_sum(
+    boxes: &[TextBox],
+    column_labels: &[&str],
+    validate: impl Fn(&str) -> bool,
+    x_tolerance: f32,
+) -> Option<(String, f32)> {
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    for label in column_labels {
+        for header in boxes.iter().filter(|b| b.text.contains(label)) {
+            if header.width > 80.0 {
+                continue;
+            }
+            let col_x = header.x;
+            let col_bottom = header.y + header.height;
+
+            let mut candidates: Vec<&TextBox> = boxes
+                .iter()
+                .filter(|b| {
+                    b.y > col_bottom
+                        && (b.x - col_x).abs() <= x_tolerance
+                        && !std::ptr::eq(*b, header)
+                })
+                .collect();
+            candidates.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+
+            // 收集所有满足校验的数值框
+            let mut sum = Decimal::ZERO;
+            let mut min_confidence = f32::INFINITY;
+            let mut count = 0;
+
+            for c in candidates {
+                let text = c.text.trim();
+                // 跳过包含"合计"的行（总计行，不应计入明细求和）
+                if text.contains("合计") || text.contains("合 计") {
+                    continue;
+                }
+                if !text.is_empty() && validate(text) {
+                    // 尝试解析为金额
+                    let cleaned = text.replace(['￥', '¥', ','], "");
+                    if let Ok(val) = Decimal::from_str(&cleaned) {
+                        // 检查同行是否有"合"或"计"字（可能是拆分的合计行标记）
+                        let same_line_boxes: Vec<&TextBox> = boxes
+                            .iter()
+                            .filter(|other| {
+                                (other.center_y() - c.center_y()).abs() <= SAME_LINE_TOLERANCE
+                                    && !std::ptr::eq(*other, c)
+                            })
+                            .collect();
+                        let has_total_marker = same_line_boxes
+                            .iter()
+                            .any(|b| b.text.contains("合") || b.text.contains("计"));
+
+                        if !has_total_marker {
+                            sum += val;
+                            min_confidence = min_confidence.min(c.confidence);
+                            count += 1;
+                        }
+                    }
+                }
+            }
+
+            if count > 0 {
+                return Some((sum.to_string(), min_confidence));
+            }
+        }
+    }
+    None
+}
+
 /// 在左右两列区块中查找「名称：」字段。
 ///
 /// 增值税发票的购销方信息是左右分栏：买方在左侧（x < 中线），
@@ -337,7 +414,9 @@ pub fn locate_vat_fields(
 
     // 税额：优先行内定位，表格列版式作为兜底
     // 列定位器会跳过宽度 > 80px 的合并表头（如「税率/征收率税 额」）
+    // 对于多行明细，先尝试求和逻辑，失败则取第一行
     let tax = find_value(boxes, &["税额", "税  额"], looks_like_amount)
+        .or_else(|| find_in_column_sum(boxes, &["税额", "税 额", "税  额"], looks_like_amount, 20.0))
         .or_else(|| find_in_column(boxes, &["税额", "税 额", "税  额"], looks_like_amount, 20.0));
     let rate = find_value(boxes, &["税率"], looks_like_rate);
 

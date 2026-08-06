@@ -6,10 +6,10 @@
 |---|---|---|---|
 | image | 2 | 2 | 100.0% |
 | ofd | 8 | 6 | 75.0% |
-| pdf-vat | 27 | 19 | 70.4% |
+| pdf-vat | 27 | 23 | 85.2% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 34/44（77.3%）
+合计 38/44（86.4%）
 
 另有 20 个样本经人工确认不是发票，已排除在统计之外。
 
@@ -19,10 +19,6 @@
 |---|---|---|---|
 | samples/27-unknown-08cfe721.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/31-unknown-4812770d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
-| samples/36-unknown-932166e2.pdf | tax_amount | 79.61 | 56.72 |
-| samples/37-unknown-41550a0b.pdf | tax_amount | 79.61 | 56.72 |
-| samples/43-unknown-7f0f13a8.pdf | tax_amount | 9.20 | 7.82 |
-| samples/46-unknown-6e89a590.pdf | tax_amount | 8.52 | 0.58 |
 | samples/48-unknown-cb25d50d.ofd | tax_amount | 8.52 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
