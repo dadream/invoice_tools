@@ -1,3 +1,4 @@
+use crate::field_extractor;
 use crate::manifest::TagHints;
 use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
 use crate::xml::{parse_amount, parse_date};
@@ -91,9 +92,12 @@ pub fn parse_rail_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, Pa
         path,
     )?;
 
+    let seller_name = None;
+    let issue_date = parse_date(&date_raw)?;
+
     Ok(ParsedInvoice {
         invoice_number: number_raw.chars().filter(|c| c.is_ascii_digit()).collect(),
-        issue_date: parse_date(&date_raw)?,
+        issue_date,
         total_amount: parse_amount(&amount_raw, "total_amount")?,
         tax_amount: capture_after(text, &["税额"], AMOUNT_PATTERN)
             .map(|raw| parse_amount(&raw, "tax_amount"))
@@ -102,12 +106,12 @@ pub fn parse_rail_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, Pa
             .map(|raw| crate::xml::parse_tax_rate(&raw))
             .transpose()?,
         buyer_name: capture_after(text, &["购买方名称", "购买方"], r"\S+"),
-        seller_name: None,
+        seller_name: seller_name.clone(),
         ticket_type: TicketType::Rail,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
-        city: None,
-        departure_time: None,
+        city: field_extractor::extract_city(&TicketType::Rail, &seller_name.as_deref().unwrap_or("")),
+        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
         checkin_date: None,
         source_path: path.to_path_buf(),
     })
@@ -132,19 +136,22 @@ pub fn parse_flight_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, 
         path,
     )?;
 
+    let seller_name = capture_after(text, &["承运人"], r"\S+");
+    let issue_date = parse_date(&date_raw)?;
+
     Ok(ParsedInvoice {
         invoice_number: number_raw.chars().filter(|c| c.is_ascii_digit()).collect(),
-        issue_date: parse_date(&date_raw)?,
+        issue_date,
         total_amount: parse_amount(&amount_raw, "total_amount")?,
         tax_amount: None,
         tax_rate: None,
         buyer_name: capture_after(text, &["旅客姓名", "购买方名称"], r"\S+"),
-        seller_name: capture_after(text, &["承运人"], r"\S+"),
+        seller_name: seller_name.clone(),
         ticket_type: TicketType::Flight,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
-        city: None,
-        departure_time: None,
+        city: field_extractor::extract_city(&TicketType::Flight, &seller_name.as_deref().unwrap_or("")),
+        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
         checkin_date: None,
         source_path: path.to_path_buf(),
     })
@@ -177,9 +184,12 @@ pub fn parse_vat_invoice_text(text: &str, path: &Path) -> Result<ParsedInvoice, 
         });
     let amount_raw = require_field(amount_raw, "total_amount", path)?;
 
+    let seller_name = capture_after(text, &["销售方名称", "销  售  方"], r"\S+");
+    let issue_date = parse_date(&date_raw)?;
+
     Ok(ParsedInvoice {
         invoice_number: number_raw.chars().filter(|c| c.is_ascii_digit()).collect(),
-        issue_date: parse_date(&date_raw)?,
+        issue_date,
         total_amount: parse_amount(&amount_raw, "total_amount")?,
         tax_amount: capture_after(text, &["税额", "税  额"], AMOUNT_PATTERN)
             .map(|raw| parse_amount(&raw, "tax_amount"))
@@ -188,12 +198,12 @@ pub fn parse_vat_invoice_text(text: &str, path: &Path) -> Result<ParsedInvoice, 
             .map(|raw| crate::xml::parse_tax_rate(&raw))
             .transpose()?,
         buyer_name: capture_after(text, &["购买方名称", "购  买  方"], r"\S+"),
-        seller_name: capture_after(text, &["销售方名称", "销  售  方"], r"\S+"),
+        seller_name: seller_name.clone(),
         ticket_type: TicketType::Other,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
-        city: None,
-        departure_time: None,
+        city: field_extractor::extract_city(&TicketType::Other, &seller_name.as_deref().unwrap_or("")),
+        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
         checkin_date: None,
         source_path: path.to_path_buf(),
     })

@@ -1,3 +1,4 @@
+use crate::field_extractor;
 use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
 use crate::xml::{parse_amount, parse_date, parse_tax_rate};
 use std::path::Path;
@@ -444,21 +445,24 @@ pub fn locate_vat_fields(
     confidences.extend([&tax, &rate].iter().filter_map(|o| o.as_ref().map(|(_, c)| *c)));
     let confidence = confidences.iter().copied().fold(f32::INFINITY, f32::min);
 
+    let seller_name = seller.as_ref().map(|(raw, _)| raw.clone());
+    let issue_date = parse_date(&date_raw)?;
+
     Ok(ParsedInvoice {
         invoice_number: number_raw.chars().filter(|c| c.is_ascii_digit()).collect(),
-        issue_date: parse_date(&date_raw)?,
+        issue_date,
         total_amount: parse_amount(&amount_raw, "total_amount")?,
         tax_amount: tax
             .map(|(raw, _)| parse_amount(&raw, "tax_amount"))
             .transpose()?,
         tax_rate: rate.map(|(raw, _)| parse_tax_rate(&raw)).transpose()?,
         buyer_name: buyer.map(|(raw, _)| raw),
-        seller_name: seller.map(|(raw, _)| raw),
+        seller_name: seller_name.clone(),
         ticket_type: TicketType::Other,
         parse_level: level,
         confidence,
-        city: None,
-        departure_time: None,
+        city: field_extractor::extract_city(&TicketType::Other, &seller_name.as_deref().unwrap_or("")),
+        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
         checkin_date: None,
         source_path: path.to_path_buf(),
     })
