@@ -948,6 +948,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "invoice-grouping"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "invoice-parse",
+ "rust_decimal",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "invoice-parse"
 version = "0.1.0"
 dependencies = [
