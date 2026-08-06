@@ -1,3 +1,4 @@
+use crate::field_extractor;
 use crate::manifest::TagHints;
 use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
 use chrono::NaiveDate;
@@ -141,6 +142,8 @@ pub fn parse_invoice_xml(
         .map(|raw| parse_tax_rate(&raw))
         .transpose()?;
 
+    let seller_name = find(&hints.seller_name);
+
     Ok(ParsedInvoice {
         invoice_number,
         issue_date,
@@ -148,13 +151,17 @@ pub fn parse_invoice_xml(
         tax_amount,
         tax_rate,
         buyer_name: find(&hints.buyer_name),
-        seller_name: find(&hints.seller_name),
+        seller_name: seller_name.clone(),
         ticket_type,
         parse_level: ParseLevel::L0,
         confidence: 1.0,
-        city: None,
-        departure_time: None,
-        checkin_date: None,
+        city: field_extractor::extract_city(&ticket_type, &seller_name.as_deref().unwrap_or("")),
+        departure_time: field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date),
+        checkin_date: if ticket_type == TicketType::Hotel {
+            field_extractor::extract_checkin_date(issue_date)
+        } else {
+            None
+        },
         source_path: path.to_path_buf(),
     })
 }
