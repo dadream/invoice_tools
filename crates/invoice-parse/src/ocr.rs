@@ -357,7 +357,21 @@ fn find_buyer_seller_names(
         // 判定区块：x < 中线 → 买方，x >= 中线 → 卖方
         let is_buyer_side = label_box.x < MID_X;
 
-        // 在同一行右侧**且在同一个区块内**找值
+        // 情况 1：标签和值在同一个框（"名称：赛比亚医疗诊断器械..."）
+        if let Some(rest) = label_box.text.split(NAME_LABEL).nth(1) {
+            let candidate = rest.trim();
+            if !candidate.is_empty() {
+                let result = Some((candidate.to_string(), label_box.confidence));
+                if is_buyer_side {
+                    buyer = result;
+                } else {
+                    seller = result;
+                }
+                continue;
+            }
+        }
+
+        // 情况 2：值在同一行右侧**且在同一个区块内**的邻框
         let mut right_neighbors: Vec<&TextBox> = boxes
             .iter()
             .filter(|other| {
@@ -380,8 +394,6 @@ fn find_buyer_seller_names(
                     seller = result;
                 }
             }
-        } else {
-            eprintln!("  → 无候选");
         }
     }
 

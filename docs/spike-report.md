@@ -6,10 +6,10 @@
 |---|---|---|---|
 | image | 2 | 2 | 100.0% |
 | ofd | 8 | 6 | 75.0% |
-| pdf-vat | 27 | 23 | 85.2% |
+| pdf-vat | 27 | 25 | 92.6% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 38/44（86.4%）
+合计 40/44（90.9%）
 
 另有 20 个样本经人工确认不是发票，已排除在统计之外。
 
@@ -17,8 +17,6 @@
 
 | 样本 | 字段 | 期望 | 实际 |
 |---|---|---|---|
-| samples/27-unknown-08cfe721.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
-| samples/31-unknown-4812770d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | tax_amount | 8.52 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
