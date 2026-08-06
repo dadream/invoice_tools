@@ -84,26 +84,61 @@ fn looks_like_date(s: &str) -> bool {
 fn looks_like_amount(s: &str) -> bool {
     s.chars().any(|c| c.is_ascii_digit())
         && s.chars()
-            .all(|c| c.is_ascii_digit() || "￥¥,. ".contains(c))
+            .all(|c| c.is_ascii_digit() || "￥¥,. 元".contains(c))
 }
 
 /// 从包含中文大写金额的混合文本中提取阿拉伯数字金额。
 ///
 /// 例如 "壹拾伍圆整 ¥15.00" → Some("15.00")
 ///      "（小写）¥15.00"   → Some("15.00")
+///      "（小写）143.40¥"  → Some("143.40")
+///      "合计20.98元"      → Some("20.98")
 fn extract_amount_from_mixed(text: &str) -> Option<String> {
-    // 找最后一个 ¥ 或 ￥，取其后的数字串
+    // 策略 1：找最后一个 ¥ 或 ￥，优先取其后的数字串，如果后面为空则取前面的
     if let Some((pos, ch)) = text.char_indices().rfind(|(_, c)| *c == '¥' || *c == '￥') {
         let after = text[pos + ch.len_utf8()..].trim();
-        let num: String = after
+        let num_after: String = after
             .chars()
             .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
             .filter(|c| *c != ',')
+            .collect();
+        if !num_after.is_empty() {
+            return Some(num_after);
+        }
+
+        // ¥ 后面为空，尝试取前面的数字（逆序扫描到第一个非数字字符）
+        let before = text[..pos].trim();
+        let num_before: String = before
+            .chars()
+            .rev()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+            .filter(|c| *c != ',')
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        if !num_before.is_empty() {
+            return Some(num_before);
+        }
+    }
+
+    // 策略 2：找「元」，取其前面的数字（逆序扫描到第一个非数字字符）
+    if let Some(pos) = text.rfind('元') {
+        let before = text[..pos].trim();
+        let num: String = before
+            .chars()
+            .rev()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+            .filter(|c| *c != ',')
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
             .collect();
         if !num.is_empty() {
             return Some(num);
         }
     }
+
     None
 }
 
@@ -297,7 +332,7 @@ pub fn locate_vat_fields(
     let (date_raw, c2) =
         find_value(boxes, &["开票日期", "开具时间"], looks_like_date).ok_or_else(|| missing("issue_date"))?;
     let (amount_raw, c3) =
-        find_amount_value(boxes, &["价税合计", "合计金额", "小写"])
+        find_amount_value(boxes, &["价税合计", "合计金额", "小写", "合计"])
             .ok_or_else(|| missing("total_amount"))?;
 
     // 税额：优先行内定位，表格列版式作为兜底

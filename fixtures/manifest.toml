@@ -176,8 +176,10 @@ format = "ofd"
 # 平台: didi · 大小: 90721 字节
 [[sample]]
 path = "samples/12-didi-cc75b327.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -203,8 +205,10 @@ total_amount = "20.98"
 # 平台: didi · 大小: 98933 字节
 [[sample]]
 path = "samples/14-didi-357b5b11.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -230,8 +234,10 @@ total_amount = "143.40"
 # 平台: didi · 大小: 93684 字节
 [[sample]]
 path = "samples/16-didi-85a0f5d3.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -257,8 +263,10 @@ total_amount = "13.45"
 # 平台: didi · 大小: 87049 字节
 [[sample]]
 path = "samples/18-didi-968f2b9b.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -284,8 +292,10 @@ total_amount = "29.14"
 # 平台: didi · 大小: 86960 字节
 [[sample]]
 path = "samples/20-didi-87338868.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -311,8 +321,10 @@ total_amount = "20.06"
 # 平台: didi · 大小: 92077 字节
 [[sample]]
 path = "samples/22-didi-0cd6a9c3.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -338,8 +350,10 @@ total_amount = "35.60"
 # 平台: didi · 大小: 170562 字节
 [[sample]]
 path = "samples/24-didi-4f308da8.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -726,8 +740,10 @@ seller_name = "北京京铁列车服务有限公司石家庄分公司"
 # 平台: didi · 大小: 111663 字节
 [[sample]]
 path = "samples/49-didi-2745a005.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -753,8 +769,10 @@ total_amount = "151.94"
 # 平台: didi · 大小: 111329 字节
 [[sample]]
 path = "samples/51-didi-2ed3ee1a.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -802,8 +820,10 @@ tax_amount = "0.28"  # parser 提取第一行数据（0.28），而非合计行�
 # 平台: didi · 大小: 91690 字节
 [[sample]]
 path = "samples/55-didi-4dc63148.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -814,8 +834,10 @@ format = "pdf-vat"
 # 平台: didi · 大小: 96014 字节
 [[sample]]
 path = "samples/56-didi-22a68dc7.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
@@ -841,8 +863,10 @@ total_amount = "25.70"
 # 平台: didi · 大小: 137333 字节
 [[sample]]
 path = "samples/58-didi-25f40401.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "行程报销单（非发票），仅含行程明细，无发票号码"
+
 # tax_amount = ""
 # tax_rate = ""
 # buyer_name = ""
