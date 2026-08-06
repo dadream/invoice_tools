@@ -1,4 +1,5 @@
 pub mod types;
+pub mod ambiguity;
 mod deterministic;
 
 use invoice_parse::model::ParsedInvoice;
