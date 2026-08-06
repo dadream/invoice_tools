@@ -180,6 +180,98 @@ fn any_text(_s: &str) -> bool {
     true
 }
 
+/// 在指定列中查找数值。
+///
+/// 增值税发票是表格版式：「税额」「金额」等字段是列标题，
+/// 值在该列下方的若干行中。本函数先找列标题框，
+/// 再在标题框的 x 坐标±容差范围内、y > 标题底部的框中找第一个满足校验的值。
+///
+/// 返回 (值文本, 置信度)
+fn find_in_column(
+    boxes: &[TextBox],
+    column_labels: &[&str],
+    validate: impl Fn(&str) -> bool,
+    x_tolerance: f32,
+) -> Option<(String, f32)> {
+    for label in column_labels {
+        for header in boxes.iter().filter(|b| b.text.contains(label)) {
+            let col_x = header.x;
+            let col_bottom = header.y + header.height;
+
+            // 在该列（x 坐标±容差）下方找第一个满足校验的框
+            let mut candidates: Vec<&TextBox> = boxes
+                .iter()
+                .filter(|b| {
+                    b.y > col_bottom
+                        && (b.x - col_x).abs() <= x_tolerance
+                        && !std::ptr::eq(*b, header)
+                })
+                .collect();
+            candidates.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
+
+            for c in candidates {
+                let text = c.text.trim();
+                if !text.is_empty() && validate(text) {
+                    return Some((text.to_string(), c.confidence));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// 在左右两列区块中查找「名称：」字段。
+///
+/// 增值税发票的购销方信息是左右分栏：买方在左侧（x < 中线），
+/// 卖方在右侧（x > 中线）。每个区块内都有「名称：」标签，
+/// 本函数先按 x 坐标判定买方/卖方区块，再在对应区块内找「名称：」右侧的值。
+///
+/// 返回 (buyer_name, buyer_conf, seller_name, seller_conf)
+fn find_buyer_seller_names(
+    boxes: &[TextBox],
+) -> (Option<(String, f32)>, Option<(String, f32)>) {
+    const MID_X: f32 = 250.0; // 增值税发票标准版式的左右分栏中线
+    const NAME_LABEL: &str = "名称：";
+
+    let mut buyer = None;
+    let mut seller = None;
+
+    for label_box in boxes.iter().filter(|b| b.text.contains(NAME_LABEL)) {
+        // 判定区块：x < 中线 → 买方，x >= 中线 → 卖方
+        let is_buyer_side = label_box.x < MID_X;
+
+        // 在同一行右侧**且在同一个区块内**找值
+        let mut right_neighbors: Vec<&TextBox> = boxes
+            .iter()
+            .filter(|other| {
+                (other.center_y() - label_box.center_y()).abs() <= SAME_LINE_TOLERANCE
+                    && other.x >= label_box.right() - 5.0
+                    && !std::ptr::eq(*other, label_box)
+                    // 关键约束：右侧值必须在同一个区块内
+                    && (is_buyer_side == (other.x < MID_X))
+            })
+            .collect();
+        right_neighbors.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap());
+
+        if let Some(value_box) = right_neighbors.first() {
+            let name = value_box.text.trim().to_string();
+            if !name.is_empty() {
+                let result = Some((name, value_box.confidence));
+                if is_buyer_side {
+                    buyer = result;
+                } else {
+                    seller = result;
+                }
+            }
+        } else {
+            eprintln!("  → 无候选");
+        }
+    }
+
+    (buyer, seller)
+}
+
+
 /// 从 OCR 文本框中定位增值税发票字段。
 ///
 /// 两种版式都要支持：
@@ -203,10 +295,16 @@ pub fn locate_vat_fields(
         find_amount_value(boxes, &["价税合计", "合计金额", "小写"])
             .ok_or_else(|| missing("total_amount"))?;
 
-    let tax = find_value(boxes, &["税额"], looks_like_amount);
+    // 税额：先试表格列版式（「税额」列下方），失败降级到行内/同行右邻版式
+    let tax = find_in_column(boxes, &["税额", "税 额"], looks_like_amount, 20.0)
+        .or_else(|| find_value(boxes, &["税额"], looks_like_amount));
     let rate = find_value(boxes, &["税率"], looks_like_rate);
-    let buyer = find_value(boxes, &["购买方名称", "购买方"], any_text);
-    let seller = find_value(boxes, &["销售方名称", "销售方"], any_text);
+
+    // 购销方名称：先试表格列版式（左右分栏 + 「名称：」），
+    // 失败降级到行内版式（完整标签「购买方名称」「销售方名称」）
+    let (buyer_col, seller_col) = find_buyer_seller_names(boxes);
+    let buyer = buyer_col.or_else(|| find_value(boxes, &["购买方名称", "购买方"], any_text));
+    let seller = seller_col.or_else(|| find_value(boxes, &["销售方名称", "销售方"], any_text));
 
     // 整张票的置信度取所有实际采用的框的最小值——
     // 一个字段错了，整张票就不能直接用

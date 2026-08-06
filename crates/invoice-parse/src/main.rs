@@ -245,7 +245,8 @@ fn dump_pdf_boxes(path: PathBuf) -> anyhow::Result<()> {
     let merged = invoice_parse::ocr::merge_line_fragments(boxes, 12.0);
     println!("\n合并后 {} 个文本框：\n", merged.len());
 
-    for (i, b) in merged.iter().enumerate().take(20) {
+    // 合并后的框全部打印：诊断购销方区块和税额列必须看到完整版式
+    for (i, b) in merged.iter().enumerate() {
         println!(
             "{:3}: ({:6.1}, {:6.1}) {}x{} conf={:.2} \"{}\"",
             i,
@@ -256,10 +257,6 @@ fn dump_pdf_boxes(path: PathBuf) -> anyhow::Result<()> {
             b.confidence,
             b.text.chars().take(50).collect::<String>()
         );
-    }
-
-    if merged.len() > 20 {
-        println!("... 还有 {} 个文本框", merged.len() - 20);
     }
 
     // Try parsing as VAT invoice
@@ -274,6 +271,9 @@ fn dump_pdf_boxes(path: PathBuf) -> anyhow::Result<()> {
             }
             if let Some(buyer) = invoice.buyer_name {
                 println!("购买方: {}", buyer);
+            }
+            if let Some(seller) = invoice.seller_name {
+                println!("销售方: {}", seller);
             }
             println!("解析等级: {:?}", invoice.parse_level);
             println!("置信度: {:.2}", invoice.confidence);
