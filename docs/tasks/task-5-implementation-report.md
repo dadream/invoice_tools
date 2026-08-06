@@ -2,17 +2,57 @@
 
 **任务**: 实现 5 类歧义检测与 Mock 解决器  
 **实施日期**: 2026-08-06  
-**状态**: ✅ 已完成
+**状态**: ✅ 已完成（含审查修复）
 
 ---
 
 ## 完成情况
 
-- [x] 创建 `src/ambiguity.rs`（340 行）
+- [x] 创建 `src/ambiguity.rs`（318 行，优化后）
 - [x] 创建 `tests/mock_resolver.rs`（46 行）
 - [x] 修改 `src/deterministic.rs`（移除内联检测代码，调用新模块）
 - [x] 修改 `src/lib.rs`（导出 ambiguity 模块）
 - [x] 清理未使用代码（移除 `build_city_chain` 旧版本和 `SAME_DAY_THRESHOLD_HOURS` 常量）
+- [x] **审查修复**：修复 2 个 Critical + 3 个 Important 问题
+
+## 审查修复记录
+
+### Critical 修复
+
+**C1 - TransferStopover 缺失酒店检查**
+- 问题：未检查"该城市无酒店发票"（Brief 明确要求）
+- 修复：添加 `has_hotel` 检查逻辑，只有无酒店时才报告歧义
+- 影响：提高歧义检测准确性，避免误报
+
+**C2 - 代码重复**
+- 问题：`is_home_city()` 和 `extract_destination()` 在两个模块中重复定义
+- 修复：将辅助函数移到 `deterministic.rs` 并设为 `pub(crate)`，`ambiguity.rs` 通过 `use` 导入
+- 影响：减少 24 行重复代码，提高可维护性
+
+### Important 修复
+
+**I1 - WeekendBetweenTrips 逻辑偏离**
+- 问题：实现检查"从常驻城市的两次出发"而非"两趟行程间隔"，间隔范围 2-4 天超出 Brief 的 2-3 天
+- 修复：改为遍历所有 BusinessTrip，检查 `trip1.end_date` 到 `trip2.start_date` 的间隔，范围改为 2-3 天
+- 影响：符合 Brief 规格，检测更精确
+
+**I2 - 候选方案文本不符合 Brief**
+- 问题：NoReturnTicket 和 TimeOverlap 的候选文本与 Brief 不一致
+- 修复：
+  - NoReturnTicket: "单程出差，无需返程" / "返程票丢失，需补录"
+  - TimeOverlap: "第一张票作废/改签" / "并行出差（特殊情况）"
+  - TransferStopover: "中转站，不计入行程城市" / "行程点，在此停留办事"
+- 影响：输出文本与设计文档完全一致
+
+**I3 - 测试断言过于宽松**
+- 问题：5 个测试使用 `||` 逻辑或未验证 `AmbiguityKind`，无法准确验证检测结果
+- 修复：加强以下测试的断言
+  - `test_weekend_between_trips_ambiguity`: 必须检测到 WeekendBetweenTrips 且行程数为 2
+  - `test_transfer_stopover_ambiguity`: 必须检测到 TransferStopover 且郑州不在城市链中
+  - `test_one_way_with_hotel_only`: 必须检测到 NoReturnTicket
+  - `test_single_transport_ticket`: 必须检测到 NoReturnTicket
+  - `test_no_return_at_end_of_month`: 必须检测到 NoReturnTicket
+- 影响：测试更严格，确保检测逻辑正确
 
 ## 测试结果
 
@@ -56,6 +96,8 @@ test test_weekend_between_trips_ambiguity ... ok
 ## 提交哈希
 
 - `38ae7f1` - feat(grouping): 实现 5 类歧义检测与 Mock 解决器
+- `7a35c95` - docs: Task 5 实施报告
+- `7c8fdeb` - fix(grouping): 修复歧义检测的 5 个问题（审查修复）
 
 ## 技术细节
 
@@ -64,28 +106,30 @@ test test_weekend_between_trips_ambiguity ... ok
 创建独立的 `ambiguity.rs` 模块，职责清晰：
 - 主入口函数 `detect_ambiguities()` 调用 5 个检测函数
 - 每个检测函数对应一类歧义
-- 辅助函数 `is_home_city()` 和 `extract_destination()` 支持城市判断和目的地提取
+- 辅助函数 `is_home_city()` 和 `extract_destination()` 位于 `deterministic.rs`，设为 `pub(crate)` 供跨模块使用
 
 ### 2. 五类歧义检测实现
 
 #### (1) NoReturnTicket - 无返程票
 - **逻辑**: 检查每个出差行程的最后一张交通票目的地是否为常驻城市
-- **候选方案**: "行程未结束，等待下月数据" / "行程已结束，未录入返程票"
+- **候选方案**: "单程出差，无需返程" / "返程票丢失，需补录"
 
 #### (2) TimeOverlap - 时间重叠
 - **逻辑**: 检测同一天是否有多张交通票去往不同城市
 - **实现**: 使用 `HashMap<NaiveDate, Vec<(usize, &ParsedInvoice)>>` 按日期分组
-- **候选方案**: "同事代订票据" / "退改签重复"
+- **候选方案**: "第一张票作废/改签" / "并行出差（特殊情况）"
 
 #### (3) TransferStopover - 中转停留（4-12h 灰色区间）
-- **逻辑**: 检测连续交通票间隔在 4-12 小时的情况
+- **逻辑**: 检测连续交通票间隔在 4-12 小时且该城市无酒店发票的情况
 - **常量**: `TRANSFER_THRESHOLD_HOURS = 4`, `STOPOVER_THRESHOLD_HOURS = 12`
-- **候选方案**: "中转点，不计入行程城市" / "行程点，计入行程城市"
+- **酒店检查**: 使用 `checkin_date == curr_time.date()` 匹配当天酒店
+- **候选方案**: "中转站，不计入行程城市" / "行程点，在此停留办事"
 
 #### (4) WeekendBetweenTrips - 周末夹缝
-- **逻辑**: 检测从常驻城市出发的两次行程间隔 2-4 天，且跨越周末（周五到周一）
-- **实现**: 使用 `chrono::Weekday::number_from_monday()` 判断星期几
-- **候选方案**: "周末回家了，两次独立出差" / "周末留在外地，连续出差"
+- **逻辑**: 检测两趟出差行程间隔 2-3 天，且间隔中包含周六或周日
+- **实现**: 遍历所有 BusinessTrip，检查 `trip1.end_date` 到 `trip2.start_date` 的间隔
+- **周末检测**: 遍历间隔天数，使用 `chrono::Weekday::Sat | Sun` 判断
+- **候选方案**: "周末回家，两趟独立行程" / "周末仍在外地，合并为一趟"
 
 #### (5) MultipleVisitsSameCity - 同城多次往返（新增）
 - **逻辑**: 检测 30 天内 3 次以上访问同一非常驻城市，且每次停留 < 7 天
