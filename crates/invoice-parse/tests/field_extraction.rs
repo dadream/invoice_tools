@@ -43,3 +43,31 @@ fn test_extract_city_hotel_returns_none() {
     let city = extract_city(&TicketType::Hotel, seller_name);
     assert_eq!(city, None);
 }
+
+#[test]
+fn test_extract_departure_time_with_time() {
+    let seller_name = "北京南 08:30→上海虹桥 13:28";
+    let issue_date = NaiveDate::from_ymd_opt(2026, 7, 15).unwrap();
+    let departure_time = extract_departure_time(seller_name, issue_date);
+
+    let expected = NaiveDate::from_ymd_opt(2026, 7, 15)
+        .unwrap()
+        .and_hms_opt(8, 30, 0)
+        .unwrap();
+
+    assert_eq!(departure_time, Some(expected));
+}
+
+#[test]
+fn test_extract_departure_time_fallback_to_midnight() {
+    let seller_name = "北京南→上海虹桥";
+    let issue_date = NaiveDate::from_ymd_opt(2026, 7, 15).unwrap();
+    let departure_time = extract_departure_time(seller_name, issue_date);
+
+    let expected = NaiveDate::from_ymd_opt(2026, 7, 15)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+
+    assert_eq!(departure_time, Some(expected));
+}

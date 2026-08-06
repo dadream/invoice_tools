@@ -14,6 +14,8 @@ use once_cell::sync::Lazy;
 static CITY_ARROW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^→\->]+)(?:→|->)").unwrap());
 // 常见站点后缀（需要剥离），支持多个后缀连续出现
 static STATION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(南|北|东|西|站|虹桥|浦东|首都|机场)+$").unwrap());
+// 匹配时间格式 "08:00" 或 "8:00"
+static TIME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\d{1,2}):(\d{2})").unwrap());
 
 /// 从交通票 seller_name 提取出发城市
 ///
@@ -49,9 +51,17 @@ pub fn extract_city(ticket_type: &TicketType, seller_name: &str) -> Option<Strin
 ///
 /// seller_name 中可能包含时间信息（如 "北京南 08:00→上海虹桥 13:28"）
 /// 如果没有，回退到 issue_date 的 00:00:00
-pub fn extract_departure_time(_seller_name: &str, _issue_date: NaiveDate) -> Option<NaiveDateTime> {
-    // TODO: 实现时间提取逻辑
-    None
+pub fn extract_departure_time(seller_name: &str, issue_date: NaiveDate) -> Option<NaiveDateTime> {
+    // 尝试从 seller_name 提取时间
+    if let Some(caps) = TIME_RE.captures(seller_name) {
+        let hour: u32 = caps.get(1)?.as_str().parse().ok()?;
+        let minute: u32 = caps.get(2)?.as_str().parse().ok()?;
+
+        return issue_date.and_hms_opt(hour, minute, 0);
+    }
+
+    // 回退到 issue_date 00:00:00
+    issue_date.and_hms_opt(0, 0, 0)
 }
 
 /// 从 issue_date 推导酒店入住日期
