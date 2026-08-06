@@ -36,15 +36,15 @@ pub struct Trip {
 pub struct GroupingConfig {
     /// 常驻城市列表（支持多个，如 ["北京", "上海"]）
     pub home_cities: Vec<String>,
-    /// 歧义解决器（可 mock，生产环境用 LLM），None 表示仅检测不解决
-    pub ambiguity_resolver: Option<Box<dyn AmbiguityResolver>>,
+    /// 歧义解决器（可 mock，生产环境用 LLM）
+    pub ambiguity_handler: Box<dyn AmbiguityResolver>,
 }
 
 impl std::fmt::Debug for GroupingConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupingConfig")
             .field("home_cities", &self.home_cities)
-            .field("ambiguity_resolver", &"<resolver>")
+            .field("ambiguity_handler", &"<resolver>")
             .finish()
     }
 }
@@ -91,6 +91,6 @@ pub struct AmbiguityResolution {
 #[derive(Debug)]
 pub struct GroupingResult {
     pub trips: Vec<Trip>,
-    pub unresolved_ambiguities: Vec<Ambiguity>,
+    pub ambiguities: Vec<Ambiguity>,
     pub overall_confidence: f32,
 }

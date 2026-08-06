@@ -10,6 +10,14 @@ fn d(month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, month, day).unwrap()
 }
 
+// 辅助函数：创建测试配置
+fn make_config(home_cities: Vec<&str>) -> GroupingConfig {
+    GroupingConfig {
+        home_cities: home_cities.iter().map(|s| s.to_string()).collect(),
+        ambiguity_handler: Box::new(DummyResolver),
+    }
+}
+
 // ============================================================================
 // 确定性场景：标准出差行程
 // ============================================================================
@@ -24,10 +32,7 @@ fn test_single_trip_with_return() {
         make_transport(4, TicketType::Rail, d(7, 5), 16, "上海", "北京", "553.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -44,7 +49,7 @@ fn test_single_trip_with_return() {
         _ => panic!("期望 BusinessTrip，实际 {:?}", result.trips[0].kind),
     }
 
-    assert_eq!(result.unresolved_ambiguities.len(), 0);
+    assert_eq!(result.ambiguities.len(), 0);
     assert!(result.overall_confidence > 0.9);
 }
 
@@ -59,10 +64,7 @@ fn test_multi_city_trip() {
         make_transport(5, TicketType::Flight, d(7, 7), 18, "深圳", "北京", "920.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -84,10 +86,7 @@ fn test_local_month_only() {
         make_local(3, d(7, 15), "北京", TicketType::CityTransport, "32.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -112,10 +111,7 @@ fn test_airport_taxi_attached_to_trip() {
         make_local(5, d(7, 5), "北京", TicketType::CityTransport, "90.0"), // 回家
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -138,10 +134,7 @@ fn test_transfer_stopover_within_4h() {
         make_transport(4, TicketType::Rail, d(7, 5), 16, "广州", "北京", "750.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -165,10 +158,7 @@ fn test_stopover_beyond_12h() {
         make_transport(5, TicketType::Rail, d(7, 6), 16, "广州", "北京", "750.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -199,10 +189,7 @@ fn test_two_separate_trips() {
         make_transport(6, TicketType::Flight, d(7, 12), 18, "深圳", "北京", "920.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -224,10 +211,7 @@ fn test_mixed_trips_and_local() {
         make_local(6, d(7, 15), "北京", TicketType::Meal, "88.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -247,15 +231,16 @@ fn test_one_way_with_hotel_only() {
         make_hotel(2, d(7, 4), d(7, 3), "上海", "680.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为行程，但可能有 NeedsReview 或歧义标记
-    assert!(!result.trips.is_empty());
+    // 期望：识别为行程，但应检测到 NoReturnTicket 歧义或标记为 NeedsReview
+    assert_eq!(result.trips.len(), 1);
+    // 要么有歧义标记，要么行程被标记为 NeedsReview
+    let has_ambiguity_or_review = !result.ambiguities.is_empty()
+        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
+    assert!(has_ambiguity_or_review, "单程+酒店应触发歧义检测或人工审核");
 }
 
 #[test]
@@ -263,15 +248,12 @@ fn test_empty_invoice_list() {
     // 边界：空输入
     let invoices = vec![];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
     assert_eq!(result.trips.len(), 0);
-    assert_eq!(result.unresolved_ambiguities.len(), 0);
+    assert_eq!(result.ambiguities.len(), 0);
 }
 
 #[test]
@@ -281,15 +263,15 @@ fn test_single_transport_ticket() {
         make_transport(1, TicketType::Rail, d(7, 3), 9, "北京", "上海", "553.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为行程（可能有歧义标记）
-    assert!(!result.trips.is_empty());
+    // 期望：识别为行程，但应标记为 NeedsReview 或有歧义
+    assert_eq!(result.trips.len(), 1);
+    let has_ambiguity_or_review = !result.ambiguities.is_empty()
+        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
+    assert!(has_ambiguity_or_review, "单张交通票应触发歧义检测或人工审核");
 }
 
 // ============================================================================
@@ -306,17 +288,14 @@ fn test_no_return_ticket_ambiguity() {
         make_transport(3, TicketType::Flight, d(7, 10), 14, "北京", "深圳", "850.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None, // 无解决器，应检测到歧义
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
     // 期望：检测到 NoReturnTicket 歧义
-    assert!(!result.unresolved_ambiguities.is_empty());
+    assert!(!result.ambiguities.is_empty());
     assert!(matches!(
-        result.unresolved_ambiguities[0].kind,
+        result.ambiguities[0].kind,
         AmbiguityKind::NoReturnTicket
     ));
 }
@@ -330,15 +309,15 @@ fn test_no_return_at_end_of_month() {
         // 月末无返程
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：可能检测到歧义或判为未完成行程
-    assert!(!result.trips.is_empty());
+    // 期望：识别为行程，应检测到 NoReturnTicket 歧义或标记为 NeedsReview
+    assert_eq!(result.trips.len(), 1);
+    let has_ambiguity_or_review = !result.ambiguities.is_empty()
+        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
+    assert!(has_ambiguity_or_review, "月末无返程应触发歧义检测或人工审核");
 }
 
 // ============================================================================
@@ -356,16 +335,20 @@ fn test_weekend_between_trips_ambiguity() {
         make_transport(3, TicketType::Flight, d(7, 7), 9, "北京", "深圳", "850.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：可能检测到 WeekendBetweenTrips 歧义
-    // 或判为两个独立行程
+    // 期望：检测到 WeekendBetweenTrips 歧义，或判为两个独立行程
     assert!(!result.trips.is_empty());
+    if result.trips.len() == 1 {
+        // 如果判为单行程，应有歧义标记
+        assert!(!result.ambiguities.is_empty(), "周末夹缝应触发 WeekendBetweenTrips 歧义");
+        assert!(matches!(result.ambiguities[0].kind, AmbiguityKind::WeekendBetweenTrips));
+    } else {
+        // 判为两个独立行程也是合理的
+        assert_eq!(result.trips.len(), 2);
+    }
 }
 
 // ============================================================================
@@ -382,16 +365,27 @@ fn test_transfer_stopover_ambiguity() {
         make_transport(4, TicketType::Rail, d(7, 5), 16, "广州", "北京", "750.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：可能检测到 TransferStopover 歧义
-    // 或根据默认规则判定
-    assert!(!result.trips.is_empty());
+    // 期望：检测到 TransferStopover 歧义，或根据默认规则判定郑州为中转/行程点
+    assert_eq!(result.trips.len(), 1);
+    match &result.trips[0].kind {
+        TripKind::BusinessTrip { cities, .. } => {
+            // 要么检测到歧义，要么按默认规则判定（6h 可能判为中转或行程点）
+            if cities.contains(&"郑州".to_string()) {
+                // 判为行程点，不应有歧义
+                assert!(result.ambiguities.is_empty() ||
+                    !matches!(result.ambiguities[0].kind, AmbiguityKind::TransferStopover));
+            } else {
+                // 判为中转点，可能有歧义标记
+                assert!(result.ambiguities.is_empty() ||
+                    matches!(result.ambiguities[0].kind, AmbiguityKind::TransferStopover));
+            }
+        }
+        _ => panic!("期望 BusinessTrip"),
+    }
 }
 
 // ============================================================================
@@ -416,15 +410,16 @@ fn test_multiple_visits_same_city_ambiguity() {
         make_transport(9, TicketType::Rail, d(7, 17), 16, "上海", "北京", "553.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为 3 个独立行程，或检测到频繁往返模式
+    // 期望：识别为 3 个独立行程，可能检测到 MultipleVisitsSameCity 模式
     assert_eq!(result.trips.len(), 3);
+    // 频繁往返可能触发歧义标记（可选）
+    if !result.ambiguities.is_empty() {
+        assert!(matches!(result.ambiguities[0].kind, AmbiguityKind::MultipleVisitsSameCity));
+    }
 }
 
 // ============================================================================
@@ -440,15 +435,12 @@ fn test_time_overlap_ambiguity() {
         make_hotel(3, d(7, 4), d(7, 3), "上海", "680.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
     // 期望：检测到 TimeOverlap 歧义
-    assert!(!result.unresolved_ambiguities.is_empty());
+    assert!(!result.ambiguities.is_empty());
 }
 
 // ============================================================================
@@ -467,15 +459,24 @@ fn test_multiple_home_cities() {
         make_transport(6, TicketType::Flight, d(7, 8), 18, "深圳", "上海", "850.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string(), "上海".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京", "上海"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：深圳行程独立，北京-上海的票归入本地
+    // 期望：至少包含深圳的出差行程，北京/上海的本地消费可能归入 LocalMonth
     assert!(!result.trips.is_empty());
+
+    // 应有至少一个深圳出差行程
+    let has_shenzhen_trip = result.trips.iter().any(|trip| {
+        matches!(&trip.kind, TripKind::BusinessTrip { cities, .. } if cities.contains(&"深圳".to_string()))
+    });
+    assert!(has_shenzhen_trip, "应识别出深圳出差行程");
+
+    // 北京-上海交通票应归入本地或被过滤（因为都是常驻城市）
+    let business_trips: Vec<_> = result.trips.iter()
+        .filter(|trip| matches!(trip.kind, TripKind::BusinessTrip { .. }))
+        .collect();
+    assert!(business_trips.len() <= 2, "最多 1-2 个出差行程（深圳，可能包含北京-上海往返）");
 }
 
 // ============================================================================
@@ -494,10 +495,7 @@ fn test_long_duration_trip() {
         make_transport(6, TicketType::Flight, d(7, 16), 18, "上海", "北京", "850.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 
@@ -522,10 +520,7 @@ fn test_cross_month_trip() {
         make_transport(4, TicketType::Flight, d(8, 2), 16, "上海", "北京", "850.0"),
     ];
 
-    let config = GroupingConfig {
-        home_cities: vec!["北京".to_string()],
-        ambiguity_resolver: None,
-    };
+    let config = make_config(vec!["北京"]);
 
     let result = group_invoices(&invoices, &config).unwrap();
 

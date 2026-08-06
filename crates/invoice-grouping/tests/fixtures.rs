@@ -1,7 +1,18 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use invoice_parse::model::{ParsedInvoice, TicketType, ParseLevel};
+use invoice_grouping::types::{AmbiguityResolver, Ambiguity, AmbiguityResolution};
 use rust_decimal::Decimal;
 use std::path::PathBuf;
+
+/// 测试用 Dummy Resolver：不解决任何歧义，仅用于满足类型要求
+pub struct DummyResolver;
+
+impl AmbiguityResolver for DummyResolver {
+    fn resolve(&self, _ambiguities: &[Ambiguity]) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
+        // 返回空决策列表，让算法保留原始歧义检测结果
+        Ok(vec![])
+    }
+}
 
 /// 构建一张合成交通票
 pub fn make_transport(
