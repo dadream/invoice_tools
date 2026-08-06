@@ -235,12 +235,15 @@ fn test_one_way_with_hotel_only() {
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为行程，但应检测到 NoReturnTicket 歧义或标记为 NeedsReview
+    // 期望：识别为行程，且必须检测到 NoReturnTicket 歧义
     assert_eq!(result.trips.len(), 1);
-    // 要么有歧义标记，要么行程被标记为 NeedsReview
-    let has_ambiguity_or_review = !result.ambiguities.is_empty()
-        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
-    assert!(has_ambiguity_or_review, "单程+酒店应触发歧义检测或人工审核");
+
+    // 必须检测到 NoReturnTicket 歧义
+    assert!(!result.ambiguities.is_empty(), "单程+酒店应触发 NoReturnTicket 歧义");
+    assert!(
+        result.ambiguities.iter().any(|amb| matches!(amb.kind, AmbiguityKind::NoReturnTicket)),
+        "必须包含 NoReturnTicket 类型的歧义"
+    );
 }
 
 #[test]
@@ -267,11 +270,15 @@ fn test_single_transport_ticket() {
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为行程，但应标记为 NeedsReview 或有歧义
+    // 期望：识别为行程，且必须检测到 NoReturnTicket 歧义
     assert_eq!(result.trips.len(), 1);
-    let has_ambiguity_or_review = !result.ambiguities.is_empty()
-        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
-    assert!(has_ambiguity_or_review, "单张交通票应触发歧义检测或人工审核");
+
+    // 必须检测到 NoReturnTicket 歧义
+    assert!(!result.ambiguities.is_empty(), "单张交通票应触发 NoReturnTicket 歧义");
+    assert!(
+        result.ambiguities.iter().any(|amb| matches!(amb.kind, AmbiguityKind::NoReturnTicket)),
+        "必须包含 NoReturnTicket 类型的歧义"
+    );
 }
 
 // ============================================================================
@@ -313,11 +320,15 @@ fn test_no_return_at_end_of_month() {
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：识别为行程，应检测到 NoReturnTicket 歧义或标记为 NeedsReview
+    // 期望：识别为行程，且必须检测到 NoReturnTicket 歧义
     assert_eq!(result.trips.len(), 1);
-    let has_ambiguity_or_review = !result.ambiguities.is_empty()
-        || matches!(result.trips[0].kind, TripKind::NeedsReview { .. });
-    assert!(has_ambiguity_or_review, "月末无返程应触发歧义检测或人工审核");
+
+    // 必须检测到 NoReturnTicket 歧义
+    assert!(!result.ambiguities.is_empty(), "月末无返程应触发 NoReturnTicket 歧义");
+    assert!(
+        result.ambiguities.iter().any(|amb| matches!(amb.kind, AmbiguityKind::NoReturnTicket)),
+        "必须包含 NoReturnTicket 类型的歧义"
+    );
 }
 
 // ============================================================================
@@ -339,16 +350,15 @@ fn test_weekend_between_trips_ambiguity() {
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：检测到 WeekendBetweenTrips 歧义，或判为两个独立行程
-    assert!(!result.trips.is_empty());
-    if result.trips.len() == 1 {
-        // 如果判为单行程，应有歧义标记
-        assert!(!result.ambiguities.is_empty(), "周末夹缝应触发 WeekendBetweenTrips 歧义");
-        assert!(matches!(result.ambiguities[0].kind, AmbiguityKind::WeekendBetweenTrips));
-    } else {
-        // 判为两个独立行程也是合理的
-        assert_eq!(result.trips.len(), 2);
-    }
+    // 期望：应切分为两个独立行程，且检测到 WeekendBetweenTrips 歧义
+    assert_eq!(result.trips.len(), 2, "应识别为两个独立行程");
+
+    // 必须检测到 WeekendBetweenTrips 歧义
+    assert!(!result.ambiguities.is_empty(), "周末夹缝应触发 WeekendBetweenTrips 歧义");
+    assert!(
+        result.ambiguities.iter().any(|amb| matches!(amb.kind, AmbiguityKind::WeekendBetweenTrips)),
+        "必须包含 WeekendBetweenTrips 类型的歧义"
+    );
 }
 
 // ============================================================================
@@ -357,7 +367,7 @@ fn test_weekend_between_trips_ambiguity() {
 
 #[test]
 fn test_transfer_stopover_ambiguity() {
-    // 歧义场景：中转停留 6 小时（在 4-12h 灰色区间）
+    // 歧义场景：中转停留 6 小时（在 4-12h 灰色区间），无酒店
     let invoices = vec![
         make_transport(1, TicketType::Rail, d(7, 3), 9, "北京", "郑州", "300.0"),
         make_transport(2, TicketType::Rail, d(7, 3), 15, "郑州", "广州", "450.0"), // 6小时间隔
@@ -369,20 +379,20 @@ fn test_transfer_stopover_ambiguity() {
 
     let result = group_invoices(&invoices, &config).unwrap();
 
-    // 期望：检测到 TransferStopover 歧义，或根据默认规则判定郑州为中转/行程点
+    // 期望：检测到 TransferStopover 歧义（郑州停留 6h 且无酒店）
     assert_eq!(result.trips.len(), 1);
+
+    // 必须检测到 TransferStopover 歧义
+    assert!(!result.ambiguities.is_empty(), "4-12h 无酒店应触发 TransferStopover 歧义");
+    assert!(
+        result.ambiguities.iter().any(|amb| matches!(amb.kind, AmbiguityKind::TransferStopover)),
+        "必须包含 TransferStopover 类型的歧义"
+    );
+
+    // 郑州应被判为中转点（不在城市链中）
     match &result.trips[0].kind {
         TripKind::BusinessTrip { cities, .. } => {
-            // 要么检测到歧义，要么按默认规则判定（6h 可能判为中转或行程点）
-            if cities.contains(&"郑州".to_string()) {
-                // 判为行程点，不应有歧义
-                assert!(result.ambiguities.is_empty() ||
-                    !matches!(result.ambiguities[0].kind, AmbiguityKind::TransferStopover));
-            } else {
-                // 判为中转点，可能有歧义标记
-                assert!(result.ambiguities.is_empty() ||
-                    matches!(result.ambiguities[0].kind, AmbiguityKind::TransferStopover));
-            }
+            assert!(!cities.contains(&"郑州".to_string()), "郑州应被判为中转点，不计入城市链");
         }
         _ => panic!("期望 BusinessTrip"),
     }

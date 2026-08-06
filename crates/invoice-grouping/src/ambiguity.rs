@@ -1,7 +1,10 @@
 use crate::types::*;
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate};
 use invoice_parse::model::{ParsedInvoice, TicketType};
 use std::collections::HashMap;
+
+// 使用 deterministic 模块的辅助函数
+use crate::deterministic::{extract_destination, is_home_city};
 
 const TRANSFER_THRESHOLD_HOURS: i64 = 4;
 const STOPOVER_THRESHOLD_HOURS: i64 = 12;
@@ -67,8 +70,8 @@ fn detect_no_return_ticket(
                             description: format!("行程最后一站为 {}，未回到常驻城市", dest),
                             involved_invoice_ids: vec![last_id],
                             candidates: vec![
-                                "行程未结束，等待下月数据".to_string(),
-                                "行程已结束，未录入返程票".to_string(),
+                                "单程出差，无需返程".to_string(),
+                                "返程票丢失，需补录".to_string(),
                             ],
                         });
                     }
@@ -112,8 +115,8 @@ fn detect_time_overlap(_trips: &[Trip], invoices: &[ParsedInvoice]) -> Vec<Ambig
                     description: format!("{} 有多张交通票去往不同城市", date),
                     involved_invoice_ids: transports.iter().map(|(idx, _)| *idx).collect(),
                     candidates: vec![
-                        "同事代订票据".to_string(),
-                        "退改签重复".to_string(),
+                        "第一张票作废/改签".to_string(),
+                        "并行出差（特殊情况）".to_string(),
                     ],
                 });
             }
@@ -156,18 +159,28 @@ fn detect_transfer_stopover(trips: &[Trip], invoices: &[ParsedInvoice]) -> Vec<A
                         && interval_hours < STOPOVER_THRESHOLD_HOURS
                     {
                         if let Some(dest) = extract_destination(curr_inv) {
-                            ambiguities.push(Ambiguity {
-                                kind: AmbiguityKind::TransferStopover,
-                                description: format!(
-                                    "在 {} 停留 {} 小时，中转还是行程点？",
-                                    dest, interval_hours
-                                ),
-                                involved_invoice_ids: vec![intercity_ids[i], intercity_ids[i + 1]],
-                                candidates: vec![
-                                    "中转点，不计入行程城市".to_string(),
-                                    "行程点，计入行程城市".to_string(),
-                                ],
+                            // 检查该城市是否有酒店发票
+                            let has_hotel = invoices.iter().any(|inv| {
+                                inv.ticket_type == TicketType::Hotel
+                                    && inv.city.as_deref() == Some(&dest)
+                                    && inv.checkin_date == Some(curr_time.date())
                             });
+
+                            // 只有在无酒店时才报告为歧义
+                            if !has_hotel {
+                                ambiguities.push(Ambiguity {
+                                    kind: AmbiguityKind::TransferStopover,
+                                    description: format!(
+                                        "在 {} 停留 {} 小时，无酒店记录，中转还是行程点？",
+                                        dest, interval_hours
+                                    ),
+                                    involved_invoice_ids: vec![intercity_ids[i], intercity_ids[i + 1]],
+                                    candidates: vec![
+                                        "中转站，不计入行程城市".to_string(),
+                                        "行程点，在此停留办事".to_string(),
+                                    ],
+                                });
+                            }
                         }
                     }
                 }
@@ -180,55 +193,61 @@ fn detect_transfer_stopover(trips: &[Trip], invoices: &[ParsedInvoice]) -> Vec<A
 
 /// 4. 检测周末夹缝歧义
 fn detect_weekend_between_trips(
-    _trips: &[Trip],
-    invoices: &[ParsedInvoice],
-    home_cities: &[String],
+    trips: &[Trip],
+    _invoices: &[ParsedInvoice],
+    _home_cities: &[String],
 ) -> Vec<Ambiguity> {
     let mut ambiguities = Vec::new();
 
-    // 找出所有从常驻城市出发的交通票
-    let departures_from_home: Vec<(usize, &ParsedInvoice)> = invoices
+    // 找出所有出差行程，按开始时间排序
+    let mut business_trips: Vec<(usize, &Trip)> = trips
         .iter()
         .enumerate()
-        .filter(|(_, inv)| {
-            matches!(inv.ticket_type, TicketType::Rail | TicketType::Flight)
-                && inv
-                    .city
-                    .as_ref()
-                    .map(|c| is_home_city(c, home_cities))
-                    .unwrap_or(false)
-        })
+        .filter(|(_, trip)| matches!(trip.kind, TripKind::BusinessTrip { .. }))
         .collect();
 
-    // 检查连续两次出发是否有周末夹缝
-    for i in 0..departures_from_home.len().saturating_sub(1) {
-        let (idx1, inv1) = departures_from_home[i];
-        let (idx2, inv2) = departures_from_home[i + 1];
+    business_trips.sort_by_key(|(_, trip)| trip.start_date);
 
-        if let (Some(time1), Some(time2)) = (inv1.departure_time, inv2.departure_time) {
-            let gap_days = (time2.date() - time1.date()).num_days();
+    // 检查连续两趟行程是否有周末夹缝
+    for i in 0..business_trips.len().saturating_sub(1) {
+        let (_, trip1) = business_trips[i];
+        let (_, trip2) = business_trips[i + 1];
 
-            // 2-4 天间隔（可能包含周末）
-            if gap_days >= 2 && gap_days <= 4 {
-                // 检查是否是周五到周一的模式
-                let weekday1 = time1.date().weekday();
-                let weekday2 = time2.date().weekday();
+        let gap_days = (trip2.start_date - trip1.end_date).num_days();
 
-                if weekday1.number_from_monday() >= 5 && weekday2.number_from_monday() == 1 {
-                    ambiguities.push(Ambiguity {
-                        kind: AmbiguityKind::WeekendBetweenTrips,
-                        description: format!(
-                            "周末夹在两次出发之间（{} 到 {}）",
-                            time1.date(),
-                            time2.date()
-                        ),
-                        involved_invoice_ids: vec![idx1, idx2],
-                        candidates: vec![
-                            "周末回家了，两次独立出差".to_string(),
-                            "周末留在外地，连续出差".to_string(),
-                        ],
-                    });
+        // 2-3 天间隔（可能包含周末）
+        if gap_days >= 2 && gap_days <= 3 {
+            // 检查间隔中是否包含周六或周日
+            let mut has_weekend = false;
+            for day_offset in 1..=gap_days {
+                let check_date = trip1.end_date + Duration::days(day_offset);
+                let weekday = check_date.weekday();
+                if matches!(
+                    weekday,
+                    chrono::Weekday::Sat | chrono::Weekday::Sun
+                ) {
+                    has_weekend = true;
+                    break;
                 }
+            }
+
+            if has_weekend {
+                // 收集两趟行程的所有发票 ID
+                let mut involved_ids = trip1.invoice_ids.clone();
+                involved_ids.extend(trip2.invoice_ids.clone());
+
+                ambiguities.push(Ambiguity {
+                    kind: AmbiguityKind::WeekendBetweenTrips,
+                    description: format!(
+                        "周末夹在两趟行程之间（{} 到 {}，间隔 {} 天）",
+                        trip1.end_date, trip2.start_date, gap_days
+                    ),
+                    involved_invoice_ids: involved_ids,
+                    candidates: vec![
+                        "周末回家，两趟独立行程".to_string(),
+                        "周末仍在外地，合并为一趟".to_string(),
+                    ],
+                });
             }
         }
     }
@@ -314,27 +333,4 @@ fn detect_multiple_visits_same_city(
     }
 
     ambiguities
-}
-
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-/// 判断城市是否为常驻城市
-fn is_home_city(city: &str, home_cities: &[String]) -> bool {
-    home_cities.iter().any(|h| city.contains(h))
-}
-
-/// 从交通票中提取目的城市（从 seller_name 中解析 "起点 → 终点" 格式）
-fn extract_destination(inv: &ParsedInvoice) -> Option<String> {
-    // 从 seller_name 中解析 "起点 → 终点" 格式
-    if let Some(ref seller) = inv.seller_name {
-        if let Some(arrow_pos) = seller.find("→") {
-            let dest = seller[arrow_pos + "→".len()..].trim();
-            if !dest.is_empty() {
-                return Some(dest.to_string());
-            }
-        }
-    }
-    None
 }

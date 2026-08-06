@@ -371,16 +371,16 @@ fn detect_ambiguities(
 }
 
 // ============================================================================
-// 辅助函数
+// 辅助函数（供模块内和 ambiguity 模块使用）
 // ============================================================================
 
 /// 判断城市是否为常驻城市
-fn is_home_city(city: &str, home_cities: &[String]) -> bool {
+pub(crate) fn is_home_city(city: &str, home_cities: &[String]) -> bool {
     home_cities.iter().any(|h| city.contains(h))
 }
 
 /// 从交通票中提取目的城市（从 seller_name 中解析 "起点 → 终点" 格式）
-fn extract_destination(inv: &ParsedInvoice) -> Option<String> {
+pub(crate) fn extract_destination(inv: &ParsedInvoice) -> Option<String> {
     // 从 seller_name 中解析 "起点 → 终点" 格式
     if let Some(ref seller) = inv.seller_name {
         if let Some(arrow_pos) = seller.find("→") {
