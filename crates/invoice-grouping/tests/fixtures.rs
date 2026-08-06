@@ -21,7 +21,7 @@ pub fn make_transport(
     date: NaiveDate,
     hour: u32,
     from_city: &str,
-    _to_city: &str,
+    to_city: &str,
     amount: &str,
 ) -> ParsedInvoice {
     ParsedInvoice {
@@ -31,7 +31,7 @@ pub fn make_transport(
         tax_amount: None,
         tax_rate: None,
         buyer_name: Some("测试公司".to_string()),
-        seller_name: None,
+        seller_name: Some(format!("{} → {}", from_city, to_city)), // 存储目的城市
         ticket_type,
         parse_level: ParseLevel::L0,
         confidence: 1.0,
