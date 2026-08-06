@@ -537,3 +537,27 @@ fn test_cross_month_trip() {
     // 期望：识别为跨月的单一行程
     assert_eq!(result.trips.len(), 1);
 }
+
+// ============================================================================
+// 边界场景：目的地解析失败
+// ============================================================================
+
+#[test]
+fn test_malformed_destination_parsing() {
+    // 边界场景：交通票 seller_name 不含箭头或格式错误
+    let mut invoices = vec![
+        make_transport(1, TicketType::Rail, d(7, 3), 9, "北京", "上海", "553.0"),
+        make_hotel(2, d(7, 4), d(7, 3), "上海", "680.0"),
+    ];
+
+    // 修改 seller_name 使其无法解析目的地
+    invoices[0].seller_name = Some("北京南站出发".to_string()); // 缺少箭头
+
+    let config = make_config(vec!["北京"]);
+
+    let result = group_invoices(&invoices, &config).unwrap();
+
+    // 期望：仍能正常处理，解析失败时使用 None
+    // 由于缺少返程且目的地解析失败，交通票可能被归入本地
+    assert!(!result.trips.is_empty());
+}
