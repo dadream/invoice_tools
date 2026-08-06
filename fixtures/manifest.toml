@@ -102,12 +102,9 @@ format = "pdf-vat"
 # 平台: unknown · 大小: 35252 字节
 [[sample]]
 path = "samples/07-unknown-f1ad9ccb.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "pdf-hotel"
+is_invoice = false
+not_invoice_reason = "酒店结账单（非发票），含消费明细但无发票号码，实际发票为样本 06"
 
 # 原始文件名: 北京星巴克咖啡有限公司_发 票金额143.40元.pdf
 # 邮件主题: 【电子发票】北京星巴克咖啡有限公司（发票金额：143.40元）
@@ -443,12 +440,9 @@ seller_name = ["SellerName"]
 # 平台: unknown · 大小: 17041 字节
 [[sample]]
 path = "samples/30-unknown-5be79379.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "发票运单明细附件（非发票），含运单列表但无价税合计，实际发票为样本 27"
 
 # 原始文件名: 顺丰同城急送电子发票.pdf
 # 邮件主题: 顺丰同城急送电子发票
@@ -505,12 +499,9 @@ format = "ofd"
 # 平台: unknown · 大小: 108111 字节
 [[sample]]
 path = "samples/34-unknown-993123fa.pdf"
-format = "pdf-vat"
-# ticket_type 待人工核对
-# tax_amount = ""
-# tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
+format = "pdf-transport"
+is_invoice = false
+not_invoice_reason = "顺丰同城订单详情（非发票），含运单列表但无价税合计，实际发票为样本 31"
 
 # 原始文件名: 发票文件1.png
 # 邮件主题: 美团-开票申请处理成功通知

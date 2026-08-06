@@ -337,8 +337,8 @@ pub fn locate_vat_fields(
 
     // 税额：优先行内定位，表格列版式作为兜底
     // 列定位器会跳过宽度 > 80px 的合并表头（如「税率/征收率税 额」）
-    let tax = find_value(boxes, &["税额"], looks_like_amount)
-        .or_else(|| find_in_column(boxes, &["税额", "税 额"], looks_like_amount, 20.0));
+    let tax = find_value(boxes, &["税额", "税  额"], looks_like_amount)
+        .or_else(|| find_in_column(boxes, &["税额", "税 额", "税  额"], looks_like_amount, 20.0));
     let rate = find_value(boxes, &["税率"], looks_like_rate);
 
     // 购销方名称：先试表格列版式（左右分栏 + 「名称：」），

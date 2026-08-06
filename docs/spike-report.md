@@ -6,20 +6,18 @@
 |---|---|---|---|
 | image | 2 | 2 | 100.0% |
 | ofd | 8 | 6 | 75.0% |
-| pdf-vat | 30 | 19 | 63.3% |
+| pdf-vat | 27 | 19 | 70.4% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 34/47（72.3%）
+合计 34/44（77.3%）
 
-另有 17 个样本经人工确认不是发票，已排除在统计之外。
+另有 20 个样本经人工确认不是发票，已排除在统计之外。
 
 ## 字段不匹配
 
 | 样本 | 字段 | 期望 | 实际 |
 |---|---|---|---|
-| samples/27-unknown-08cfe721.pdf | tax_amount | 0.85 | <缺失> |
 | samples/27-unknown-08cfe721.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
-| samples/31-unknown-4812770d.pdf | tax_amount | 3.90 | <缺失> |
 | samples/31-unknown-4812770d.pdf | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/36-unknown-932166e2.pdf | tax_amount | 79.61 | 56.72 |
 | samples/37-unknown-41550a0b.pdf | tax_amount | 79.61 | 56.72 |
@@ -36,14 +34,12 @@
 | samples/01-unknown-1cb9ce98.pdf | PDF 文本提取失败: fixtures/samples/01-unknown-1cb9ce98.pdf 不是有效的 PDF 格式: 文本层提取失败: PDF error: Invalid file trailer |
 | samples/02-unknown-f6f7c6b1.ofd | fixtures/samples/02-unknown-f6f7c6b1.ofd 不是有效的 OFD 格式: 不是有效的 ZIP 容器: invalid Zip archive: Invalid CDFH offset in EOCD |
 | samples/06-unknown-fbf5dc58.pdf | 解析器崩溃: assertion failed: name == "Identity-H" |
-| samples/07-unknown-f1ad9ccb.pdf | 在 fixtures/samples/07-unknown-f1ad9ccb.pdf 中找不到必需字段 invoice_number |
-| samples/30-unknown-5be79379.pdf | 在 fixtures/samples/30-unknown-5be79379.pdf 中找不到必需字段 total_amount |
-| samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
 
 ## 已排除（非发票）
 
 | 样本 | 原因 |
 |---|---|
+| samples/07-unknown-f1ad9ccb.pdf | 酒店结账单（非发票），含消费明细但无发票号码，实际发票为样本 06 |
 | samples/12-didi-cc75b327.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/14-didi-357b5b11.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/16-didi-85a0f5d3.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
@@ -52,6 +48,8 @@
 | samples/22-didi-0cd6a9c3.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/24-didi-4f308da8.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/26-unknown-d3006c0b.jpg | 176x64 近空白 PNG（非白像素 0.4%），OCR 检测不到任何文本，邮件装饰图元 |
+| samples/30-unknown-5be79379.pdf | 发票运单明细附件（非发票），含运单列表但无价税合计，实际发票为样本 27 |
+| samples/34-unknown-993123fa.pdf | 顺丰同城订单详情（非发票），含运单列表但无价税合计，实际发票为样本 31 |
 | samples/49-didi-2745a005.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/51-didi-2ed3ee1a.pdf | 行程报销单（非发票），仅含行程明细，无发票号码 |
 | samples/53-didi-705a5872.pdf | 曹操出行行程单（非发票），仅含行程明细，无发票号码 |
