@@ -244,6 +244,9 @@ mod tests {
             ticket_type: TicketType::Rail,
             parse_level: crate::model::ParseLevel::L0,
             confidence: 1.0,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
             source_path: PathBuf::from("samples/rail-01.xml"),
         }
     }

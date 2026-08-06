@@ -457,6 +457,9 @@ pub fn locate_vat_fields(
         ticket_type: TicketType::Other,
         parse_level: level,
         confidence,
+        city: None,
+        departure_time: None,
+        checkin_date: None,
         source_path: path.to_path_buf(),
     })
 }

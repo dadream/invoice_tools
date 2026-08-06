@@ -106,6 +106,9 @@ pub fn parse_rail_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, Pa
         ticket_type: TicketType::Rail,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
+        city: None,
+        departure_time: None,
+        checkin_date: None,
         source_path: path.to_path_buf(),
     })
 }
@@ -140,6 +143,9 @@ pub fn parse_flight_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, 
         ticket_type: TicketType::Flight,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
+        city: None,
+        departure_time: None,
+        checkin_date: None,
         source_path: path.to_path_buf(),
     })
 }
@@ -186,6 +192,9 @@ pub fn parse_vat_invoice_text(text: &str, path: &Path) -> Result<ParsedInvoice, 
         ticket_type: TicketType::Other,
         parse_level: ParseLevel::L1,
         confidence: 1.0,
+        city: None,
+        departure_time: None,
+        checkin_date: None,
         source_path: path.to_path_buf(),
     })
 }

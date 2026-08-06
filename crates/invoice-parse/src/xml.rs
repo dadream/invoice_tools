@@ -152,6 +152,9 @@ pub fn parse_invoice_xml(
         ticket_type,
         parse_level: ParseLevel::L0,
         confidence: 1.0,
+        city: None,
+        departure_time: None,
+        checkin_date: None,
         source_path: path.to_path_buf(),
     })
 }

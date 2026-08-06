@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -41,6 +41,12 @@ pub struct ParsedInvoice {
     pub parse_level: ParseLevel,
     /// 0.0–1.0。L0 恒为 1.0，L2 由 OCR 引擎给出。
     pub confidence: f32,
+    /// 发票关联城市（交通票为出发城市，酒店为入住城市，其他为消费城市）
+    pub city: Option<String>,
+    /// 交通票出发时间（用于行程时间轴排序）
+    pub departure_time: Option<NaiveDateTime>,
+    /// 酒店入住日期（注意：不是 issue_date，酒店常延迟开票）
+    pub checkin_date: Option<NaiveDate>,
     pub source_path: PathBuf,
 }
 
@@ -86,6 +92,9 @@ mod tests {
             ticket_type: TicketType::Rail,
             parse_level: ParseLevel::L0,
             confidence: 1.0,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
             source_path: PathBuf::from("fixtures/samples/rail-01.xml"),
         };
 
