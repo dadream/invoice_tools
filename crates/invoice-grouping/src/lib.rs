@@ -18,7 +18,7 @@ pub fn group_invoices(
     // TODO: Task 3-5 实现
     Ok(GroupingResult {
         trips: vec![],
-        ambiguities: vec![],
+        unresolved_ambiguities: vec![],
         overall_confidence: 0.0,
     })
 }
