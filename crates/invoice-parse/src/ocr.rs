@@ -195,6 +195,11 @@ fn find_in_column(
 ) -> Option<(String, f32)> {
     for label in column_labels {
         for header in boxes.iter().filter(|b| b.text.contains(label)) {
+            // 跳过宽度过大的表头（可能是多列合并，如「税率/征收率税 额」）
+            // 正常列标题宽度不超过 80px（「税额」「金额」等 2-4 字）
+            if header.width > 80.0 {
+                continue;
+            }
             let col_x = header.x;
             let col_bottom = header.y + header.height;
 
@@ -295,9 +300,10 @@ pub fn locate_vat_fields(
         find_amount_value(boxes, &["价税合计", "合计金额", "小写"])
             .ok_or_else(|| missing("total_amount"))?;
 
-    // 税额：先试表格列版式（「税额」列下方），失败降级到行内/同行右邻版式
-    let tax = find_in_column(boxes, &["税额", "税 额"], looks_like_amount, 20.0)
-        .or_else(|| find_value(boxes, &["税额"], looks_like_amount));
+    // 税额：优先行内定位，表格列版式作为兜底
+    // 列定位器会跳过宽度 > 80px 的合并表头（如「税率/征收率税 额」）
+    let tax = find_value(boxes, &["税额"], looks_like_amount)
+        .or_else(|| find_in_column(boxes, &["税额", "税 额"], looks_like_amount, 20.0));
     let rate = find_value(boxes, &["税率"], looks_like_rate);
 
     // 购销方名称：先试表格列版式（左右分栏 + 「名称：」），

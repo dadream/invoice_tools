@@ -26,7 +26,7 @@
 | samples/37-unknown-41550a0b.pdf | tax_amount | 79.61 | 56.72 |
 | samples/43-unknown-7f0f13a8.pdf | tax_amount | 9.20 | 7.82 |
 | samples/46-unknown-6e89a590.pdf | tax_amount | 8.52 | 0.58 |
-| samples/48-unknown-cb25d50d.ofd | tax_amount | 8.52 | 74.00 |
+| samples/48-unknown-cb25d50d.ofd | tax_amount | 8.52 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
 | samples/48-unknown-cb25d50d.ofd | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
 

@@ -123,7 +123,7 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
             let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
             invoice_parse::ofd::parse_invoice_ofd(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
         }
-        "pdf-rail" | "pdf-flight" | "pdf-vat" => {
+        "pdf-rail" | "pdf-flight" => {
             // For PDFs, create empty hints since PDF parsing doesn't use XML tag hints
             let empty_hints = TagHints {
                 invoice_number: vec![],
@@ -136,6 +136,16 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
             };
             let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
             pdf::parse_invoice_pdf(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
+        }
+        "pdf-vat" => {
+            // L1 坐标路径优先（支持表格版式字段提取），失败降级 flat-text
+            invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, &path)
+                .or_else(|_| {
+                    let text = invoice_parse::pdf::extract_text(&bytes, &path)
+                        .map_err(|e| anyhow::anyhow!("PDF 文本提取失败: {}", e))?;
+                    invoice_parse::pdf::parse_vat_invoice_text(&text, &path)
+                        .map_err(anyhow::Error::from)
+                })?
         }
         other => anyhow::bail!("不支持的格式: {}", other),
     };
