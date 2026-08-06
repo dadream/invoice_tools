@@ -913,6 +913,9 @@ not_invoice_reason = "665x108「恭喜您获得开票奖励」营销横幅"
 [[sample]]
 path = "samples/63-unknown-19d988e1.ofd"
 format = "ofd"
+invoice_number = "26112000002680730506"
+issue_date = "2026-06-30"
+total_amount = "490.00"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
