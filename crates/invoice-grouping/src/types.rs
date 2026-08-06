@@ -24,6 +24,10 @@ pub struct Trip {
     pub kind: TripKind,
     /// 归属此行程的发票索引（对应输入 Vec<ParsedInvoice> 的下标）
     pub invoice_ids: Vec<usize>,
+    /// 行程开始日期
+    pub start_date: NaiveDate,
+    /// 行程结束日期
+    pub end_date: NaiveDate,
     /// 置信度 0.0-1.0
     pub confidence: f32,
 }
@@ -33,14 +37,14 @@ pub struct GroupingConfig {
     /// 常驻城市列表（支持多个，如 ["北京", "上海"]）
     pub home_cities: Vec<String>,
     /// 歧义解决器（可 mock，生产环境用 LLM）
-    pub ambiguity_resolver: Option<Box<dyn AmbiguityResolver>>,
+    pub ambiguity_handler: Box<dyn AmbiguityResolver>,
 }
 
 impl std::fmt::Debug for GroupingConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupingConfig")
             .field("home_cities", &self.home_cities)
-            .field("ambiguity_resolver", &self.ambiguity_resolver.is_some())
+            .field("ambiguity_handler", &"<resolver>")
             .finish()
     }
 }
@@ -87,6 +91,6 @@ pub struct AmbiguityResolution {
 #[derive(Debug)]
 pub struct GroupingResult {
     pub trips: Vec<Trip>,
-    pub unresolved_ambiguities: Vec<Ambiguity>,
+    pub ambiguities: Vec<Ambiguity>,
     pub overall_confidence: f32,
 }
