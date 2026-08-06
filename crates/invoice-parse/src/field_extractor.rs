@@ -7,6 +7,13 @@
 
 use chrono::{NaiveDate, NaiveDateTime};
 use crate::model::TicketType;
+use regex::Regex;
+use once_cell::sync::Lazy;
+
+// 匹配 "北京南→上海虹桥" 或 "北京南->上海虹桥" 格式
+static CITY_ARROW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([^→\->]+)(?:→|->)").unwrap());
+// 常见站点后缀（需要剥离），支持多个后缀连续出现
+static STATION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(南|北|东|西|站|虹桥|浦东|首都|机场)+$").unwrap());
 
 /// 从交通票 seller_name 提取出发城市
 ///
@@ -14,9 +21,28 @@ use crate::model::TicketType;
 /// - "北京南→上海虹桥" → Some("北京")
 /// - "上海虹桥→深圳北" → Some("上海")
 /// - "中国国际航空" → None（无明确城市信息）
-pub fn extract_city(_ticket_type: &TicketType, _seller_name: &str) -> Option<String> {
-    // TODO: 实现城市提取逻辑
-    None
+pub fn extract_city(ticket_type: &TicketType, seller_name: &str) -> Option<String> {
+    // 只处理交通票
+    match ticket_type {
+        TicketType::Rail | TicketType::Flight => {}
+        _ => return None,
+    }
+
+    // 提取箭头前的部分
+    let departure = CITY_ARROW_RE
+        .captures(seller_name)?
+        .get(1)?
+        .as_str()
+        .trim();
+
+    // 剥离站点后缀
+    let city = STATION_SUFFIX_RE.replace(departure, "").to_string();
+
+    if city.is_empty() {
+        None
+    } else {
+        Some(city)
+    }
 }
 
 /// 从交通票 seller_name 和 issue_date 推导出发时间

@@ -29,3 +29,17 @@ fn test_extract_checkin_date() {
     let checkin = extract_checkin_date(issue_date);
     assert_eq!(checkin, Some(issue_date));
 }
+
+#[test]
+fn test_extract_city_strips_station_suffix() {
+    let seller_name = "北京南站→上海虹桥机场";
+    let city = extract_city(&TicketType::Rail, seller_name);
+    assert_eq!(city, Some("北京".to_string()));
+}
+
+#[test]
+fn test_extract_city_hotel_returns_none() {
+    let seller_name = "北京希尔顿酒店";
+    let city = extract_city(&TicketType::Hotel, seller_name);
+    assert_eq!(city, None);
+}
