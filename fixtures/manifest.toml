@@ -502,11 +502,13 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/35-meituan-21a391a6.jpg"
 format = "image"
+# L2 OCR via PaddleOCR Python sidecar
+invoice_number = "26154000000018314746"
+issue_date = "2026-06-08"
+total_amount = "24.60"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
 # ticket_type 待人工核对
-# tax_amount = ""
 # tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
 
 # 原始文件名: dzfp_26112000002354032261_北京赛特奥特莱斯商贸有限公司_20260610131221.pdf
 # 邮件主题: 您收到【北京赛特奥特莱斯商贸有限公司】开具的【1】张数电发票-20260610131228
@@ -606,11 +608,12 @@ seller_name = "山西晋泽昌文旅酒店有限公司"
 [[sample]]
 path = "samples/42-meituan-b6c3341f.jpg"
 format = "image"
+# L2 OCR via PaddleOCR Python sidecar
+invoice_number = "26142000000878599396"
+issue_date = "2026-06-18"
+total_amount = "42.10"
 # ticket_type 待人工核对
-# tax_amount = ""
 # tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
 
 # 原始文件名: dzfp_2613200000 1912746961_赛比亚医疗 诊断器械(上海 )有限公司_20 260618145912.pdf
 # 邮件主题: 尊敬的用户，您好。我们于2026年06月18日开出电子发票，现发送给您，以便作为您的报销凭证，请您收到发票尽快打印报销。 感谢惠顾！

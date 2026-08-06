@@ -5,6 +5,7 @@ Extracts text boxes from images using PaddleOCR
 """
 import sys
 import json
+import os
 
 def main():
     if len(sys.argv) < 2:
@@ -14,10 +15,15 @@ def main():
     image_path = sys.argv[1]
 
     try:
+        # Suppress PaddleOCR logging to stderr
+        os.environ.setdefault('FLAGS_ppocrv3', '1')
+        import logging
+        logging.disable(logging.DEBUG)
+
         from paddleocr import PaddleOCR
 
         # Initialize PaddleOCR with Chinese support
-        ocr = PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False)
+        ocr = PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=False, show_log=False)
 
         # Perform OCR
         result = ocr.ocr(image_path, cls=True)

@@ -342,7 +342,17 @@ fn verify_all() -> anyhow::Result<()> {
                                 .map_err(anyhow::Error::from)
                         })
                 }
-                "image" => Err(anyhow::anyhow!("图片 OCR 需要 Python sidecar，暂未集成到 verify-all")),
+                "image" => {
+                    // L2 OCR via Python sidecar
+                    let boxes = invoice_parse::ocr::recognize_via_sidecar(&full_path)
+                        .map_err(anyhow::Error::from)?;
+                    invoice_parse::ocr::locate_vat_fields(
+                        &boxes,
+                        &full_path,
+                        invoice_parse::model::ParseLevel::L2,
+                    )
+                    .map_err(anyhow::Error::from)
+                }
                 other => Err(anyhow::anyhow!("未知格式: {other}")),
             }
         })

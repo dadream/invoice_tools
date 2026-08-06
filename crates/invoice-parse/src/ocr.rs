@@ -77,7 +77,8 @@ fn looks_like_digits(s: &str) -> bool {
 
 fn looks_like_date(s: &str) -> bool {
     let digits = s.chars().filter(|c| c.is_ascii_digit()).count();
-    (6..=8).contains(&digits)
+    // 支持日期（6-8位）或日期+时间（14位左右）
+    (6..=8).contains(&digits) || (12..=20).contains(&digits)
 }
 
 fn looks_like_amount(s: &str) -> bool {
@@ -197,7 +198,7 @@ pub fn locate_vat_fields(
     let (number_raw, c1) = find_value(boxes, &["发票号码", "发票号"], looks_like_digits)
         .ok_or_else(|| missing("invoice_number"))?;
     let (date_raw, c2) =
-        find_value(boxes, &["开票日期"], looks_like_date).ok_or_else(|| missing("issue_date"))?;
+        find_value(boxes, &["开票日期", "开具时间"], looks_like_date).ok_or_else(|| missing("issue_date"))?;
     let (amount_raw, c3) =
         find_amount_value(boxes, &["价税合计", "合计金额", "小写"])
             .ok_or_else(|| missing("total_amount"))?;
