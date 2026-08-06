@@ -33,12 +33,12 @@ pub fn extract_text_boxes(bytes: &[u8], path: &Path) -> Result<Vec<TextBox>, Par
         }
     })?;
 
-    // 收集所有 Content.xml（可能多页）
+    // 收集所有 Content.xml（可能多页 + 模板层）
     let content_names: Vec<String> = (0..zip.len())
         .filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string()))
         .filter(|n| {
             let l = n.to_lowercase();
-            l.ends_with("content.xml") && l.contains("/pages/")
+            l.ends_with("content.xml") && (l.contains("/pages/") || l.contains("/tpls/"))
         })
         .collect();
 

@@ -110,6 +110,19 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
                 .context("该样本没有配置 xml_tag_hints")?;
             xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
         }
+        "ofd" => {
+            let empty_hints = TagHints {
+                invoice_number: vec![],
+                issue_date: vec![],
+                total_amount: vec![],
+                tax_amount: vec![],
+                tax_rate: vec![],
+                buyer_name: vec![],
+                seller_name: vec![],
+            };
+            let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
+            invoice_parse::ofd::parse_invoice_ofd(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
+        }
         "pdf-rail" | "pdf-flight" | "pdf-vat" => {
             // For PDFs, create empty hints since PDF parsing doesn't use XML tag hints
             let empty_hints = TagHints {

@@ -5,12 +5,12 @@
 | 格式 | 样本数 | 通过 | 通过率 |
 |---|---|---|---|
 | image | 2 | 2 | 100.0% |
-| ofd | 8 | 4 | 50.0% |
+| ofd | 8 | 6 | 75.0% |
 | pdf-flight | 2 | 0 | 0.0% |
 | pdf-vat | 41 | 17 | 41.5% |
 | xml-vat | 7 | 7 | 100.0% |
 
-合计 30/60（50.0%）
+合计 32/60（53.3%）
 
 另有 4 个样本经人工确认不是发票，已排除在统计之外。
 
@@ -26,6 +26,9 @@
 | samples/37-unknown-41550a0b.pdf | tax_amount | 79.61 | 56.72 |
 | samples/43-unknown-7f0f13a8.pdf | tax_amount | 9.20 | 7.82 |
 | samples/46-unknown-6e89a590.pdf | tax_amount | 8.52 | 0.58 |
+| samples/48-unknown-cb25d50d.ofd | tax_amount | 8.52 | 74.00 |
+| samples/48-unknown-cb25d50d.ofd | buyer_name | 赛比亚医疗诊断器械（上海）有限公司 | <缺失> |
+| samples/48-unknown-cb25d50d.ofd | seller_name | 北京京铁列车服务有限公司石家庄分公司 | <缺失> |
 
 ## 解析失败
 
@@ -45,8 +48,6 @@
 | samples/24-didi-4f308da8.pdf | 在 fixtures/samples/24-didi-4f308da8.pdf 中找不到必需字段 total_amount |
 | samples/30-unknown-5be79379.pdf | 在 fixtures/samples/30-unknown-5be79379.pdf 中找不到必需字段 total_amount |
 | samples/34-unknown-993123fa.pdf | 在 fixtures/samples/34-unknown-993123fa.pdf 中找不到必需字段 total_amount |
-| samples/45-unknown-3ed9ed77.ofd | 在 fixtures/samples/45-unknown-3ed9ed77.ofd 中找不到必需字段 invoice_number |
-| samples/48-unknown-cb25d50d.ofd | 在 fixtures/samples/48-unknown-cb25d50d.ofd 中找不到必需字段 invoice_number |
 | samples/49-didi-2745a005.pdf | 在 fixtures/samples/49-didi-2745a005.pdf 中找不到必需字段 total_amount |
 | samples/51-didi-2ed3ee1a.pdf | 在 fixtures/samples/51-didi-2ed3ee1a.pdf 中找不到必需字段 total_amount |
 | samples/53-didi-705a5872.pdf | 在 fixtures/samples/53-didi-705a5872.pdf 中找不到必需字段 invoice_number |
@@ -54,7 +55,6 @@
 | samples/55-didi-4dc63148.pdf | 在 fixtures/samples/55-didi-4dc63148.pdf 中找不到必需字段 total_amount |
 | samples/56-didi-22a68dc7.pdf | 在 fixtures/samples/56-didi-22a68dc7.pdf 中找不到必需字段 total_amount |
 | samples/58-didi-25f40401.pdf | 在 fixtures/samples/58-didi-25f40401.pdf 中找不到必需字段 total_amount |
-| samples/63-unknown-19d988e1.ofd | 在 fixtures/samples/63-unknown-19d988e1.ofd 中找不到必需字段 invoice_number |
 
 ## 已排除（非发票）
 
