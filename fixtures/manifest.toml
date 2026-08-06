@@ -706,11 +706,15 @@ seller_name = ["SellerName"]
 [[sample]]
 path = "samples/48-unknown-cb25d50d.ofd"
 format = "ofd"
+# OFD 纯值布局：值框无标签，parser 尚无法自动配对；已知正确值如下
+invoice_number = "26132000001954318426"
+issue_date = "2026-06-22"
+total_amount = "74.00"
+tax_amount = "8.52"
+buyer_name = "赛比亚医疗诊断器械（上海）有限公司"
+seller_name = "北京京铁列车服务有限公司石家庄分公司"
 # ticket_type 待人工核对
-# tax_amount = ""
 # tax_rate = ""
-# buyer_name = ""
-# seller_name = ""
 
 # 原始文件名: 滴滴出行行程报销单.pdf
 # 邮件主题: 滴滴出行电子发票及行程报销单
