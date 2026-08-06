@@ -86,6 +86,91 @@ fn looks_like_amount(s: &str) -> bool {
             .all(|c| c.is_ascii_digit() || "￥¥,. ".contains(c))
 }
 
+/// 从包含中文大写金额的混合文本中提取阿拉伯数字金额。
+///
+/// 例如 "壹拾伍圆整 ¥15.00" → Some("15.00")
+///      "（小写）¥15.00"   → Some("15.00")
+fn extract_amount_from_mixed(text: &str) -> Option<String> {
+    // 找最后一个 ¥ 或 ￥，取其后的数字串
+    if let Some((pos, ch)) = text.char_indices().rfind(|(_, c)| *c == '¥' || *c == '￥') {
+        let after = text[pos + ch.len_utf8()..].trim();
+        let num: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',')
+            .filter(|c| *c != ',')
+            .collect();
+        if !num.is_empty() {
+            return Some(num);
+        }
+    }
+    None
+}
+
+/// 在文本框集合中查找金额字段，支持三级降级：
+/// 1. 标准逻辑（同框或同行右邻，纯数字/符号）
+/// 2. 同框/同行右邻混合文本中提取（"壹拾伍圆整 ¥15.00" → "15.00"）
+/// 3. 跨行：label 下方 NEXT_LINE_TOLERANCE 像素内的相邻框
+fn find_amount_value(boxes: &[TextBox], labels: &[&str]) -> Option<(String, f32)> {
+    const NEXT_LINE_TOLERANCE: f32 = 30.0;
+
+    // 级别 1：标准逻辑
+    if let Some(result) = find_value(boxes, labels, looks_like_amount) {
+        return Some(result);
+    }
+
+    // 级别 2 & 3：逐标签尝试混合文本提取和跨行搜索
+    for label in labels {
+        for b in boxes.iter().filter(|b| b.text.contains(label)) {
+            // 2a：同框混合（"（小写）¥15.00" 整体在一个框）
+            if let Some(amount) = extract_amount_from_mixed(&b.text) {
+                return Some((amount, b.confidence));
+            }
+
+            // 2b：同行右侧框包含混合文本
+            let mut right_neighbors: Vec<&TextBox> = boxes
+                .iter()
+                .filter(|other| {
+                    (other.center_y() - b.center_y()).abs() <= SAME_LINE_TOLERANCE
+                        && other.x >= b.right() - 5.0
+                        && !std::ptr::eq(*other, b)
+                })
+                .collect();
+            right_neighbors.sort_by(|p, q| p.x.partial_cmp(&q.x).unwrap());
+            for n in &right_neighbors {
+                if let Some(amount) = extract_amount_from_mixed(&n.text) {
+                    return Some((amount, n.confidence));
+                }
+            }
+
+            // 3：跨行——在 label 下方 NEXT_LINE_TOLERANCE px 内搜索
+            let label_bottom = b.y + b.height;
+            let mut below: Vec<&TextBox> = boxes
+                .iter()
+                .filter(|other| {
+                    other.y >= label_bottom - 5.0
+                        && other.y <= label_bottom + NEXT_LINE_TOLERANCE
+                        && !std::ptr::eq(*other, b)
+                })
+                .collect();
+            below.sort_by(|p, q| {
+                p.y.partial_cmp(&q.y)
+                    .unwrap()
+                    .then(p.x.partial_cmp(&q.x).unwrap())
+            });
+            for n in &below {
+                let t = n.text.trim();
+                if looks_like_amount(t) {
+                    return Some((t.to_string(), n.confidence));
+                }
+                if let Some(amount) = extract_amount_from_mixed(t) {
+                    return Some((amount, n.confidence));
+                }
+            }
+        }
+    }
+    None
+}
+
 fn looks_like_rate(s: &str) -> bool {
     s.contains('%') || s.chars().any(|c| c.is_ascii_digit())
 }
@@ -113,12 +198,9 @@ pub fn locate_vat_fields(
         .ok_or_else(|| missing("invoice_number"))?;
     let (date_raw, c2) =
         find_value(boxes, &["开票日期"], looks_like_date).ok_or_else(|| missing("issue_date"))?;
-    let (amount_raw, c3) = find_value(
-        boxes,
-        &["价税合计", "合计金额", "小写"],
-        looks_like_amount,
-    )
-    .ok_or_else(|| missing("total_amount"))?;
+    let (amount_raw, c3) =
+        find_amount_value(boxes, &["价税合计", "合计金额", "小写"])
+            .ok_or_else(|| missing("total_amount"))?;
 
     let tax = find_value(boxes, &["税额"], looks_like_amount);
     let rate = find_value(boxes, &["税率"], looks_like_rate);
@@ -293,6 +375,39 @@ mod tests {
         ];
         let err = locate_vat_fields(&boxes, Path::new("c.jpg"), ParseLevel::L2).unwrap_err();
         assert!(err.to_string().contains("total_amount"), "实际: {err}");
+    }
+
+    #[test]
+    fn extracts_amount_from_chinese_uppercase_mixed_box() {
+        // 同行右侧框 "壹拾伍圆整 ¥15.00"：中文大写 + 阿拉伯金额混合
+        let boxes = vec![
+            tb("发票号码", 400.0, 20.0, 0.97),
+            tb("24312000000012345678", 520.0, 20.0, 0.96),
+            tb("开票日期", 400.0, 40.0, 0.95),
+            tb("2026-06-08", 520.0, 40.0, 0.94),
+            tb("价税合计（大写）", 50.0, 200.0, 0.96),
+            tb("壹拾伍圆整 ¥15.00", 250.0, 200.0, 0.93),
+        ];
+        let invoice =
+            locate_vat_fields(&boxes, Path::new("test.pdf"), ParseLevel::L1).unwrap();
+        assert_eq!(invoice.total_amount, Decimal::from_str("15.00").unwrap());
+    }
+
+    #[test]
+    fn extracts_amount_from_next_line() {
+        // 标签行无值，金额框在下方一行（y 差 15px < NEXT_LINE_TOLERANCE 30px）
+        let boxes = vec![
+            tb("发票号码", 400.0, 20.0, 0.97),
+            tb("24312000000012345678", 520.0, 20.0, 0.96),
+            tb("开票日期", 400.0, 40.0, 0.95),
+            tb("2026-06-08", 520.0, 40.0, 0.94),
+            // label: height=20 → bottom=220；value y=225 在 [215, 250] 范围内
+            tb("（小写）", 50.0, 200.0, 0.96),
+            tb("¥15.00", 120.0, 225.0, 0.93),
+        ];
+        let invoice =
+            locate_vat_fields(&boxes, Path::new("test.pdf"), ParseLevel::L1).unwrap();
+        assert_eq!(invoice.total_amount, Decimal::from_str("15.00").unwrap());
     }
 
     #[test]
