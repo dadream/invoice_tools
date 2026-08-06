@@ -189,6 +189,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/13-didi-dc2d7047.pdf"
 format = "pdf-vat"
+invoice_number = "26117000000826921019"
+issue_date = "2026-06-08"
+total_amount = "20.98"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -213,6 +216,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/15-didi-6079fc74.pdf"
 format = "pdf-vat"
+invoice_number = "26317000002126225277"
+issue_date = "2026-06-08"
+total_amount = "143.40"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -237,6 +243,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/17-didi-cb5d20a0.pdf"
 format = "pdf-vat"
+invoice_number = "26117000000826921202"
+issue_date = "2026-06-08"
+total_amount = "13.45"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -261,6 +270,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/19-didi-b7415fa5.pdf"
 format = "pdf-vat"
+invoice_number = "26127000000292047857"
+issue_date = "2026-06-08"
+total_amount = "29.14"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -285,6 +297,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/21-didi-173842a5.pdf"
 format = "pdf-vat"
+invoice_number = "26127000000292048069"
+issue_date = "2026-06-08"
+total_amount = "20.06"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -309,6 +324,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/23-didi-226cbac6.pdf"
 format = "pdf-vat"
+invoice_number = "26317000002126225422"
+issue_date = "2026-06-08"
+total_amount = "35.60"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -333,6 +351,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/25-didi-66e3e108.pdf"
 format = "pdf-vat"
+invoice_number = "26117000000827110981"
+issue_date = "2026-06-08"
+total_amount = "1324.86"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -709,6 +730,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/50-didi-520ce335.pdf"
 format = "pdf-vat"
+invoice_number = "26127000000321875212"
+issue_date = "2026-06-25"
+total_amount = "151.94"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -733,6 +757,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/52-didi-89213171.pdf"
 format = "pdf-vat"
+invoice_number = "26147000000202542691"
+issue_date = "2026-06-25"
+total_amount = "107.47"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -793,6 +820,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/57-didi-4e7f177b.pdf"
 format = "pdf-vat"
+invoice_number = "26117000000946182418"
+issue_date = "2026-06-27"
+total_amount = "25.70"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -817,6 +847,9 @@ format = "pdf-vat"
 [[sample]]
 path = "samples/59-didi-c6041246.pdf"
 format = "pdf-vat"
+invoice_number = "26117000000964370108"
+issue_date = "2026-06-30"
+total_amount = "893.55"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
@@ -877,6 +910,9 @@ format = "ofd"
 [[sample]]
 path = "samples/64-unknown-e8d72419.pdf"
 format = "pdf-vat"
+invoice_number = "26112000002680730506"
+issue_date = "2026-06-30"
+total_amount = "490.00"
 # ticket_type 待人工核对
 # tax_amount = ""
 # tax_rate = ""
