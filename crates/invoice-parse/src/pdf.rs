@@ -92,7 +92,7 @@ pub fn parse_rail_itinerary(text: &str, path: &Path) -> Result<ParsedInvoice, Pa
         path,
     )?;
 
-    let seller_name = None;
+    let seller_name = capture_after(text, &["销售方名称", "承运人", "售票单位"], r"\S+");
     let issue_date = parse_date(&date_raw)?;
 
     Ok(ParsedInvoice {
