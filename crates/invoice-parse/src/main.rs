@@ -330,7 +330,18 @@ fn verify_all() -> anyhow::Result<()> {
                     }),
                 "pdf-rail" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_rail_itinerary),
                 "pdf-flight" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_flight_itinerary),
-                "pdf-vat" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_vat_invoice_text),
+                "pdf-vat" => {
+                    // L1 坐标路径优先，失败降级 flat-text
+                    let bytes = std::fs::read(&full_path).map_err(anyhow::Error::from)?;
+                    invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, &full_path)
+                        .map_err(anyhow::Error::from)
+                        .or_else(|_| {
+                            let text = invoice_parse::pdf::extract_text(&bytes, &full_path)
+                                .map_err(|e| anyhow::anyhow!("PDF 文本提取失败: {}", e))?;
+                            invoice_parse::pdf::parse_vat_invoice_text(&text, &full_path)
+                                .map_err(anyhow::Error::from)
+                        })
+                }
                 "image" => Err(anyhow::anyhow!("图片 OCR 需要 Python sidecar，暂未集成到 verify-all")),
                 other => Err(anyhow::anyhow!("未知格式: {other}")),
             }
