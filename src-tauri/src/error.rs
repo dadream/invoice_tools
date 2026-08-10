@@ -59,7 +59,9 @@ impl AppError {
     #[allow(dead_code)]
     pub fn internal(message: impl Into<String>) -> Self { Self::new(ErrorKind::Internal, message) }
 
+    #[allow(dead_code)]
     pub fn kind(&self) -> ErrorKind { self.kind }
+    #[allow(dead_code)]
     pub fn message(&self) -> &str { &self.message }
 }
 
