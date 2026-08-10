@@ -1,0 +1,15 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC',
+    'Microsoft YaHei', Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color-scheme: light dark;
+  color: #213547;
+  background-color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { color: rgba(255, 255, 255, .87); background-color: #242424; }
+}
+
+body { margin: 0; min-width: 320px; }
