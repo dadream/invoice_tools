@@ -13,6 +13,7 @@
 use thiserror::Error;
 
 pub mod keychain;
+pub mod crypto;
 
 /// Result type alias for store operations
 pub type StoreResult<T> = Result<T, StoreError>;
