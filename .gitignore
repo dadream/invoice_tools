@@ -1,15 +1,34 @@
-/target
+# Rust
+/target/
+src-tauri/target/
+
+# 真实样本与凭据（绝不提交）
 fixtures/samples/
 .env
+.env.local
 *.eml
 
-# Local environment with real credentials (never commit)
-.env.local
-
-# OCR model files (large binary files)
+# OCR 模型（大二进制，见 models/README.md）
 /models/*.onnx
 /models/*.txt
 /models/*.traineddata
 
-# Vendored ONNX Runtime dynamic library (16MB, see models/README.md)
+# Vendored ONNX Runtime 动态库（16MB）
 /vendor/
+
+# 前端
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+.invoice-assistant/

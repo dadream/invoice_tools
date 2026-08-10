@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/invoice-collect", "crates/invoice-parse", "crates/invoice-grouping", "crates/invoice-store"]
+members = ["crates/invoice-collect", "crates/invoice-parse", "crates/invoice-grouping", "crates/invoice-store", "src-tauri"]
 resolver = "2"
 
 [workspace.package]

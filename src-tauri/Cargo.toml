@@ -1,0 +1,34 @@
+[package]
+name = "invoice-assistant"
+version = "0.1.0"
+description = "发票报销 AI 助手"
+authors = ["Invoice Assistant Team"]
+license = "MIT"
+edition.workspace = true
+rust-version.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = ["devtools"] }
+tauri-plugin-shell = "2.3.5"
+serde = { workspace = true }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2.5"
+
+# 现有 workspace crates（S0.2 只做接线，命令实现在后续任务）
+invoice-parse = { path = "../crates/invoice-parse" }
+invoice-collect = { path = "../crates/invoice-collect" }
+invoice-grouping = { path = "../crates/invoice-grouping" }
+invoice-store = { path = "../crates/invoice-store" }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
