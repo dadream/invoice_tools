@@ -50,7 +50,7 @@ ls docs/tasks/*.md               # 实施报告
 | **M6 输出** | M2 ✅ | P1 | Excel/打印件/PDF 渲染 |
 | **F2 GenericAdapter** | M6 | P1 | 纯本地模式 |
 | **M5 审核界面** | M2 ✅ + M4 ✅ | P1 | 需 Tauri 骨架 |
-| **S0.2 Tauri 骨架** | - | P1 | 三平台构建 |
+| **S0.2 Tauri 骨架** | - | ✅ | Linux 已验证 / Win+macOS 未验证 |
 | **M7-B Concur 邮件收单** | M6 | P2 | 方案 B |
 | **E 计费** | S0.4 | P2 | 账号 + 扣费 + 试运行 |
 | **H1 流水线串联** | 全部 | P3 | 端到端集成 |
