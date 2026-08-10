@@ -12,6 +12,8 @@
 
 use thiserror::Error;
 
+pub mod keychain;
+
 /// Result type alias for store operations
 pub type StoreResult<T> = Result<T, StoreError>;
 
