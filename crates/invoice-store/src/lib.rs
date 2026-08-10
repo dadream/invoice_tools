@@ -15,6 +15,7 @@ use thiserror::Error;
 pub mod keychain;
 pub mod crypto;
 pub mod models;
+pub mod accounts_db;
 
 /// Result type alias for store operations
 pub type StoreResult<T> = Result<T, StoreError>;
