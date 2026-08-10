@@ -85,6 +85,15 @@ pub struct Batch {
 
     /// 提交时间（状态变为 Submitted 时）
     pub submitted_at: Option<NaiveDateTime>,
+
+    /// 批准时间（状态变为 Approved 时）
+    pub approved_at: Option<NaiveDateTime>,
+
+    /// 完成时间（状态变为 Completed 时）
+    pub completed_at: Option<NaiveDateTime>,
+
+    /// 驳回时间（状态变为 Rejected 时）
+    pub rejected_at: Option<NaiveDateTime>,
 }
 
 /// 批次状态

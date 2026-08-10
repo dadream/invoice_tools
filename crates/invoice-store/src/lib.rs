@@ -44,6 +44,13 @@ pub enum StoreError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// Invalid state transition
+    #[error("Invalid state transition from {from} to {to}")]
+    InvalidStateTransition {
+        from: String,
+        to: String,
+    },
+
     /// I/O operation failed
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

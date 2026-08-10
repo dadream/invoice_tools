@@ -43,7 +43,10 @@ impl LedgerDb {
                 invoice_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                submitted_at TEXT
+                submitted_at TEXT,
+                approved_at TEXT,
+                completed_at TEXT,
+                rejected_at TEXT
             )",
             [],
         )?;
@@ -104,7 +107,7 @@ impl LedgerDb {
     /// 获取批次
     pub fn get_batch(&self, id: i64) -> StoreResult<Batch> {
         let batch = self.conn.query_row(
-            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at
+            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at, approved_at, completed_at, rejected_at
              FROM batches WHERE id = ?1",
             params![id],
             Self::parse_batch_row,
@@ -116,7 +119,7 @@ impl LedgerDb {
     /// 列出所有批次
     pub fn list_batches(&self) -> StoreResult<Vec<Batch>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at
+            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at, approved_at, completed_at, rejected_at
              FROM batches ORDER BY created_at DESC"
         )?;
 
@@ -130,7 +133,7 @@ impl LedgerDb {
     /// 按月份列出批次
     pub fn list_batches_by_month(&self, month: &str) -> StoreResult<Vec<Batch>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at
+            "SELECT id, name, month, status, total_amount, invoice_count, created_at, updated_at, submitted_at, approved_at, completed_at, rejected_at
              FROM batches WHERE month = ?1 ORDER BY created_at DESC"
         )?;
 
@@ -141,7 +144,70 @@ impl LedgerDb {
         Ok(batches)
     }
 
-    /// 更新批次状态
+    /// 验证状态转换是否合法
+    fn is_valid_transition(from: &BatchStatus, to: &BatchStatus) -> bool {
+        use BatchStatus::*;
+        matches!(
+            (from, to),
+            (Draft, Submitted)
+                | (Draft, Rejected)
+                | (Submitted, Approved)
+                | (Submitted, Rejected)
+                | (Approved, Completed)
+                | (Approved, Rejected)
+        )
+    }
+
+    /// 转换批次状态（带验证）
+    pub fn transition_batch_status(&self, id: i64, new_status: BatchStatus) -> StoreResult<()> {
+        // 1. 查询当前状态
+        let current_batch = self.get_batch(id)?;
+
+        // 2. 验证转换是否合法
+        if !Self::is_valid_transition(&current_batch.status, &new_status) {
+            return Err(StoreError::InvalidStateTransition {
+                from: format!("{:?}", current_batch.status),
+                to: format!("{:?}", new_status),
+            });
+        }
+
+        // 3. 准备更新的时间戳
+        let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        // 4. 根据目标状态设置相应的时间戳
+        let (submitted_at, approved_at, completed_at, rejected_at) = match new_status {
+            BatchStatus::Submitted => (Some(now.clone()), None, None, None),
+            BatchStatus::Approved => (current_batch.submitted_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()), Some(now.clone()), None, None),
+            BatchStatus::Completed => (
+                current_batch.submitted_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+                current_batch.approved_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+                Some(now.clone()),
+                None
+            ),
+            BatchStatus::Rejected => (
+                current_batch.submitted_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+                current_batch.approved_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+                current_batch.completed_at.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()),
+                Some(now.clone())
+            ),
+            BatchStatus::Draft => (None, None, None, None), // 不应该到达这里
+        };
+
+        // 5. 更新数据库
+        let rows = self.conn.execute(
+            "UPDATE batches SET status = ?1, updated_at = ?2, submitted_at = ?3, approved_at = ?4, completed_at = ?5, rejected_at = ?6 WHERE id = ?7",
+            params![new_status.to_i32(), now, submitted_at, approved_at, completed_at, rejected_at, id],
+        )?;
+
+        if rows == 0 {
+            return Err(StoreError::NotFound(format!("Batch {}", id)));
+        }
+
+        Ok(())
+    }
+
+    /// 更新批次状态（已废弃，使用 transition_batch_status 替代）
+    #[deprecated(note = "Use transition_batch_status instead for state validation")]
     pub fn update_batch_status(&self, id: i64, status: BatchStatus) -> StoreResult<()> {
         let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
 
@@ -298,6 +364,12 @@ impl LedgerDb {
             updated_at: NaiveDateTime::parse_from_str(&row.get::<_, String>(7)?, "%Y-%m-%d %H:%M:%S")
                 .map_err(|e| rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::new(e)))?,
             submitted_at: row.get::<_, Option<String>>(8)?
+                .and_then(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").ok()),
+            approved_at: row.get::<_, Option<String>>(9)?
+                .and_then(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").ok()),
+            completed_at: row.get::<_, Option<String>>(10)?
+                .and_then(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").ok()),
+            rejected_at: row.get::<_, Option<String>>(11)?
                 .and_then(|s| NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").ok()),
         })
     }
@@ -478,5 +550,262 @@ mod tests {
 
         let batch = db.get_batch(batch_id).unwrap();
         assert_eq!(batch.invoice_count, 0);
+    }
+
+    // ========== 状态转换测试 ==========
+
+    #[test]
+    fn test_transition_draft_to_submitted() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Submitted);
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.approved_at.is_none());
+        assert!(batch.completed_at.is_none());
+        assert!(batch.rejected_at.is_none());
+    }
+
+    #[test]
+    fn test_transition_draft_to_rejected() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Rejected).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Rejected);
+        assert!(batch.rejected_at.is_some());
+        assert!(batch.submitted_at.is_none());
+    }
+
+    #[test]
+    fn test_transition_submitted_to_approved() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Approved);
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.approved_at.is_some());
+        assert!(batch.completed_at.is_none());
+        assert!(batch.rejected_at.is_none());
+    }
+
+    #[test]
+    fn test_transition_submitted_to_rejected() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        db.transition_batch_status(id, BatchStatus::Rejected).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Rejected);
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.rejected_at.is_some());
+    }
+
+    #[test]
+    fn test_transition_approved_to_completed() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+        db.transition_batch_status(id, BatchStatus::Completed).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Completed);
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.approved_at.is_some());
+        assert!(batch.completed_at.is_some());
+        assert!(batch.rejected_at.is_none());
+    }
+
+    #[test]
+    fn test_transition_approved_to_rejected() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+        db.transition_batch_status(id, BatchStatus::Rejected).unwrap();
+
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Rejected);
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.approved_at.is_some());
+        assert!(batch.rejected_at.is_some());
+    }
+
+    #[test]
+    fn test_reject_draft_to_completed() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let result = db.transition_batch_status(id, BatchStatus::Completed);
+        assert!(result.is_err());
+        match result {
+            Err(StoreError::InvalidStateTransition { from, to }) => {
+                assert_eq!(from, "Draft");
+                assert_eq!(to, "Completed");
+            }
+            _ => panic!("Expected InvalidStateTransition error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_draft_to_approved() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let result = db.transition_batch_status(id, BatchStatus::Approved);
+        assert!(result.is_err());
+        match result {
+            Err(StoreError::InvalidStateTransition { from, to }) => {
+                assert_eq!(from, "Draft");
+                assert_eq!(to, "Approved");
+            }
+            _ => panic!("Expected InvalidStateTransition error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_submitted_to_completed() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        let result = db.transition_batch_status(id, BatchStatus::Completed);
+
+        assert!(result.is_err());
+        match result {
+            Err(StoreError::InvalidStateTransition { from, to }) => {
+                assert_eq!(from, "Submitted");
+                assert_eq!(to, "Completed");
+            }
+            _ => panic!("Expected InvalidStateTransition error"),
+        }
+    }
+
+    #[test]
+    fn test_reject_completed_to_any_state() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+        db.transition_batch_status(id, BatchStatus::Completed).unwrap();
+
+        // 尝试从 Completed 转换到任何状态都应该失败
+        let result = db.transition_batch_status(id, BatchStatus::Draft);
+        assert!(result.is_err());
+
+        let result = db.transition_batch_status(id, BatchStatus::Submitted);
+        assert!(result.is_err());
+
+        let result = db.transition_batch_status(id, BatchStatus::Approved);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reject_rejected_to_any_state() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Rejected).unwrap();
+
+        // 尝试从 Rejected 转换到任何状态都应该失败
+        let result = db.transition_batch_status(id, BatchStatus::Draft);
+        assert!(result.is_err());
+
+        let result = db.transition_batch_status(id, BatchStatus::Submitted);
+        assert!(result.is_err());
+
+        let result = db.transition_batch_status(id, BatchStatus::Approved);
+        assert!(result.is_err());
+
+        let result = db.transition_batch_status(id, BatchStatus::Completed);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reject_same_state_transition() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let result = db.transition_batch_status(id, BatchStatus::Draft);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_transition_nonexistent_batch() {
+        let db = LedgerDb::new(":memory:").unwrap();
+
+        let result = db.transition_batch_status(99999, BatchStatus::Submitted);
+        assert!(result.is_err());
+        // get_batch() 返回 Database 错误（QueryReturnedNoRows）
+        match result {
+            Err(StoreError::Database(_)) => {},
+            _ => panic!("Expected Database error for nonexistent batch"),
+        }
+    }
+
+    #[test]
+    fn test_timestamp_preservation() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        let batch1 = db.get_batch(id).unwrap();
+        let submitted_at = batch1.submitted_at.unwrap();
+
+        // 等待一小段时间确保时间戳不同
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+        let batch2 = db.get_batch(id).unwrap();
+
+        // submitted_at 应该保持不变
+        assert_eq!(batch2.submitted_at.unwrap(), submitted_at);
+        // approved_at 应该是新的
+        assert!(batch2.approved_at.is_some());
+    }
+
+    #[test]
+    fn test_full_happy_path_lifecycle() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let id = db.create_batch("完整流程测试", "2026-07").unwrap();
+
+        // Draft → Submitted
+        db.transition_batch_status(id, BatchStatus::Submitted).unwrap();
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Submitted);
+        assert!(batch.submitted_at.is_some());
+
+        // Submitted → Approved
+        db.transition_batch_status(id, BatchStatus::Approved).unwrap();
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Approved);
+        assert!(batch.approved_at.is_some());
+
+        // Approved → Completed
+        db.transition_batch_status(id, BatchStatus::Completed).unwrap();
+        let batch = db.get_batch(id).unwrap();
+        assert_eq!(batch.status, BatchStatus::Completed);
+        assert!(batch.completed_at.is_some());
+
+        // 验证所有时间戳都存在
+        assert!(batch.submitted_at.is_some());
+        assert!(batch.approved_at.is_some());
+        assert!(batch.completed_at.is_some());
+        assert!(batch.rejected_at.is_none());
     }
 }

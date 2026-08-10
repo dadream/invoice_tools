@@ -132,6 +132,66 @@ pub struct ParsedInvoice {
 - `store.rs`: Sample persistence with sanitized filenames
 - `manifest_gen.rs`: Ground truth skeleton generation for manual annotation
 
+**invoice-store:**
+- `models.rs`: Core data types (Batch, BatchStatus, ReportedInvoice, Account, Credential)
+- `ledger_db.rs`: ledger.db management (batches and reported invoices)
+- `accounts_db.rs`: accounts.db management (email accounts and credentials)
+- `crypto.rs`: AES-256-GCM encryption for credentials
+- `keychain.rs`: OS keychain integration for master key storage
+
+### Batch State Machine (invoice-store)
+
+The system enforces a strict state transition validation for expense report batches:
+
+**Valid Transitions:**
+```
+Draft → Submitted → Approved → Completed (happy path)
+  ↓         ↓          ↓
+Rejected  Rejected  Rejected (rejection paths)
+```
+
+**State Transition Matrix:**
+| From | To | Timestamp Set |
+|------|-------|--------------|
+| Draft | Submitted | `submitted_at` |
+| Draft | Rejected | `rejected_at` |
+| Submitted | Approved | `approved_at` |
+| Submitted | Rejected | `rejected_at` |
+| Approved | Completed | `completed_at` |
+| Approved | Rejected | `rejected_at` |
+
+**Terminal States:** `Completed` and `Rejected` cannot transition to any other state.
+
+**API Usage:**
+```rust
+use invoice_store::{LedgerDb, BatchStatus};
+
+let db = LedgerDb::new("ledger.db")?;
+
+// Create a batch (starts in Draft state)
+let batch_id = db.create_batch("2026年7月出差", "2026-07")?;
+
+// Valid transition with validation
+db.transition_batch_status(batch_id, BatchStatus::Submitted)?;
+db.transition_batch_status(batch_id, BatchStatus::Approved)?;
+db.transition_batch_status(batch_id, BatchStatus::Completed)?;
+
+// Invalid transition (returns InvalidStateTransition error)
+let result = db.transition_batch_status(batch_id, BatchStatus::Draft);
+assert!(result.is_err());
+```
+
+**Error Handling:**
+- `StoreError::InvalidStateTransition { from, to }`: Illegal state transition attempted
+- `StoreError::Database(_)`: Batch not found or database error
+- All timestamp fields (`submitted_at`, `approved_at`, `completed_at`, `rejected_at`) are automatically managed
+
+**Implementation:**
+- 20 unit tests covering all valid and invalid transitions
+- Timestamp preservation across transitions
+- Full lifecycle integration test (Draft → Submitted → Approved → Completed)
+- See `crates/invoice-store/src/ledger_db.rs` for implementation details
+
 ### Tag Hints System
 
 XML/OFD invoices use non-standard tag names. The manifest.toml contains `[hints]` mapping field names to candidate tags:
