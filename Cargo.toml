@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/invoice-collect", "crates/invoice-parse", "crates/invoice-grouping"]
+members = ["crates/invoice-collect", "crates/invoice-parse", "crates/invoice-grouping", "crates/invoice-store"]
 resolver = "2"
 
 [workspace.package]

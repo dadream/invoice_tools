@@ -1,0 +1,26 @@
+[package]
+name = "invoice-store"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Cryptography
+aes-gcm = "0.10"
+keyring = "3.6"
+
+# Serialization
+serde.workspace = true
+
+# Decimal handling
+rust_decimal.workspace = true
+
+# Time handling
+chrono.workspace = true
