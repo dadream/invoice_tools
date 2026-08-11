@@ -77,6 +77,7 @@ fn main() {
             commands::invoice::clear_duplicate_flag,
             commands::export::export_batch_excel,
             commands::export::export_batch_pdf,
+            commands::pipeline::start_pipeline,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 应用运行失败");

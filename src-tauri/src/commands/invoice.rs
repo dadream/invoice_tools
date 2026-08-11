@@ -147,7 +147,7 @@ fn signature_status_to_string(status: &SignatureStatus) -> &'static str {
 }
 
 /// 解析侧票种 → 存储侧票种。两者是**不同类型**的独立枚举，必须显式映射。
-fn to_store_ticket_type(t: ParseTicketType) -> StoreTicketType {
+pub(crate) fn to_store_ticket_type(t: ParseTicketType) -> StoreTicketType {
     match t {
         ParseTicketType::Rail => StoreTicketType::Rail,
         ParseTicketType::Flight => StoreTicketType::Flight,
@@ -192,7 +192,7 @@ fn parse_error_message(err: &ParseError) -> String {
 /// `fixtures/manifest.toml` 没有全局 `[hints]` 段（hints 是逐样本的
 /// `[sample.xml_tag_hints]`），且 `fixtures/` 是开发夹具、不随应用分发，
 /// 因此这里内置一份从全部样本聚合出的标签并集。
-fn builtin_hints() -> TagHints {
+pub(crate) fn builtin_hints() -> TagHints {
     TagHints {
         invoice_number: vec!["InvoiceNumber".into(), "EIid".into()],
         issue_date: vec!["IssueTime".into(), "RequestTime".into()],

@@ -52,6 +52,17 @@ pub fn export_batch_excel(
         .list_invoices_by_batch(batch_id)
         .map_err(|e| AppError::database(format!("获取发票列表失败: {}", e)))?;
 
+    build_excel_bytes(&batch, &invoices)
+}
+
+/// 生成批次 Excel 字节流（与 [`export_batch_excel`] 共用的核心逻辑）。
+///
+/// 独立于 Tauri `State` 之外，便于流水线（H1）在已持有数据时直接复用，
+/// 无需二次查库或重复排版代码。
+pub fn build_excel_bytes(
+    batch: &invoice_store::models::Batch,
+    invoices: &[invoice_store::models::ReportedInvoice],
+) -> AppResult<Vec<u8>> {
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
 
@@ -214,7 +225,7 @@ pub fn export_batch_excel(
         .map_err(|e| AppError::internal(format!("Excel 生成失败: {}", e)))?;
 
     tracing::info!(
-        batch_id,
+        batch_id = batch.id,
         batch_name = %batch.name,
         invoice_count = invoices.len(),
         size_bytes = buf.len(),

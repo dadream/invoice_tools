@@ -120,8 +120,19 @@ mod tests {
     /// 形状不合法的假密码，用于触发告警分支
     const FAKE_BAD_SHAPE: &str = "NotAnAuthCode!";
 
+    /// 环境变量是进程级共享状态，而 cargo 默认并行跑同一二进制内的测试。
+    /// 任何 set_var/remove_var 都会污染其他用例（典型症状：remove_var 的用例
+    /// 偶发读到别人刚写入的值）。所有触碰 `ENV_PASSWORD` 的测试统一先取此锁。
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// 取锁；忽略前一个用例 panic 导致的中毒状态，锁保护的只是串行性。
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
     fn qq_domain_maps_to_qq_imap_host() {
+        let _guard = env_guard();
         std::env::set_var(ENV_PASSWORD, FAKE_AUTH_CODE);
         let cfg = ImapConfig::from_env(FAKE_QQ_USER).unwrap();
         assert_eq!(cfg.host, "imap.qq.com");
@@ -131,6 +142,7 @@ mod tests {
 
     #[test]
     fn debug_output_never_contains_password() {
+        let _guard = env_guard();
         let sentinel = "sentinel-must-not-appear";
         std::env::set_var(ENV_PASSWORD, sentinel);
         let cfg = ImapConfig::from_env(FAKE_QQ_USER).unwrap();
@@ -141,6 +153,7 @@ mod tests {
 
     #[test]
     fn missing_env_var_mentions_authorization_code() {
+        let _guard = env_guard();
         std::env::remove_var(ENV_PASSWORD);
         let err = ImapConfig::from_env(FAKE_QQ_USER).unwrap_err();
         assert!(err.to_string().contains("授权码"), "实际: {err}");
@@ -148,6 +161,7 @@ mod tests {
 
     #[test]
     fn account_password_shape_triggers_warning() {
+        let _guard = env_guard();
         // 账号登录密码的典型形状（含大写和符号）不符合授权码规则
         std::env::set_var(ENV_PASSWORD, FAKE_BAD_SHAPE);
         let cfg = ImapConfig::from_env(FAKE_QQ_USER).unwrap();
@@ -157,6 +171,7 @@ mod tests {
 
     #[test]
     fn valid_authorization_code_produces_no_warning() {
+        let _guard = env_guard();
         std::env::set_var(ENV_PASSWORD, FAKE_AUTH_CODE);
         let cfg = ImapConfig::from_env(FAKE_QQ_USER).unwrap();
         assert!(cfg.warn_if_password_looks_wrong().is_none());
@@ -176,6 +191,7 @@ mod tests {
 
     #[test]
     fn unsupported_domain_is_rejected() {
+        let _guard = env_guard();
         std::env::set_var(ENV_PASSWORD, "x");
         let err = ImapConfig::from_env("someone@example.org").unwrap_err();
         assert!(err.to_string().contains("暂不支持"), "实际: {err}");
