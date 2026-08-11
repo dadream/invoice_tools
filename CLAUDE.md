@@ -192,18 +192,78 @@ assert!(result.is_err());
 - Full lifecycle integration test (Draft → Submitted → Approved → Completed)
 - See `crates/invoice-store/src/ledger_db.rs` for implementation details
 
-### Tag Hints System
+### Desktop App (src-tauri + ui)
 
-XML/OFD invoices use non-standard tag names. The manifest.toml contains `[hints]` mapping field names to candidate tags:
+Tauri v2 shell with a Svelte 5 frontend. **Always `source scripts/tauri-env.sh` before any
+cargo build/test touching `invoice-assistant`** — it points at the no-sudo user sysroot at
+`~/.local/tauri-sysroot`; without it, linking fails.
 
-```toml
-[hints]
-invoice_number = ["Fphm", "InvoiceNumber"]
-issue_date = ["Kprq"]
-total_amount = ["Jshj"]
+```bash
+source scripts/tauri-env.sh
+cargo test -p invoice-assistant
+cd ui && npm run check && npm run build   # must stay 0 errors / 0 warnings
 ```
 
-The parser tries each candidate in order until a match is found. This allows handling multiple invoice formats without hardcoding.
+Databases live under `~/.invoice-assistant/` (`ledger.db`, `accounts.db`), created on first run.
+
+**IPC commands** (`src-tauri/src/commands/`), all returning `AppResult<T>` whose error
+serializes as `{kind, message, recoverable}`:
+
+| Module | Commands |
+|--------|----------|
+| `base.rs` | `greet`, `get_version`, `health_check`, `trigger_error` |
+| `batch.rs` | `list_batches`, `get_batch`, `create_batch`, `transition_batch_status`, `delete_batch` |
+| `invoice.rs` | `parse_invoice`, `check_duplicate`, `add_invoice_to_batch`, `list_batch_invoices`, `delete_invoice` |
+
+Frontend calls go through `invokeSafe<T>()` (`ui/src/lib/ipc.ts`), which never throws and
+returns a discriminated result.
+
+#### IPC gotchas
+
+- **Two casings coexist, by design.** `#[tauri::command]` rewrites *argument* names to
+  camelCase (`new_status` → `newStatus`), while DTO *fields* stay snake_case via serde.
+  So `invokeSafe('transition_batch_status', { id, newStatus })` returns
+  `{ total_amount, invoice_count }`. Getting this wrong fails at runtime only, with
+  `missing required key ...` — type-checking will not catch it.
+- **`State` must be the last parameter** in a command signature.
+- **`File.path` does not exist** in a Tauri v2 webview. Real filesystem paths come from
+  `@tauri-apps/plugin-dialog`'s `open()` or `getCurrentWebview().onDragDropEvent()`
+  (`ui/src/lib/invoice.ts` wraps both).
+- **Two separate `TicketType` enums**: `invoice_parse::model::TicketType` (parse output,
+  no string helpers) vs `invoice_store::models::TicketType` (DB storage, has
+  `to_str()`/`from_str()`). Same variants, different types — convert explicitly.
+- **Missing rows are not `NotFound`.** rusqlite returns `QueryReturnedNoRows`, which
+  `#[from]` folds into `StoreError::Database`. Use `OptionalExtension::optional()` for
+  existence checks; never match `NotFound`.
+- **Wrap parse calls in `catch_unwind` at the command layer.** `pdf-extract` asserts on
+  some font encodings; `pdf_text` guards its own path but the flat-text fallback does not,
+  so a panic would otherwise kill the process (reproducible with sample 06).
+- **Never surface `ParseError` via `Display`** — it embeds file paths and raw field values.
+  Route it through `parse_error_message()`, which keeps only category and field name.
+
+### Tag Hints System
+
+XML/OFD invoices use non-standard tag names, so parsers take a `TagHints` struct mapping
+each field to candidate tags and try them in order until one matches.
+
+Hints are declared **per sample** in manifest.toml as `[sample.xml_tag_hints]` — there is
+**no global `[hints]` section**:
+
+```toml
+[[sample]]
+path = "samples/01-vat-....xml"
+# ...expected values...
+
+[sample.xml_tag_hints]
+invoice_number = ["InvoiceNumber", "EIid"]
+issue_date = ["IssueTime", "RequestTime"]
+total_amount = ["TotalTax-includedAmount"]
+```
+
+Since `fixtures/` is a dev-only fixture and is not shipped, the desktop app cannot load
+hints from it. `src-tauri/src/commands/invoice.rs::builtin_hints()` carries a compiled-in
+union of all sample hints instead. Extending hints for a new format means updating **both**
+the manifest (for `verify-all`) and `builtin_hints()` (for the app).
 
 ### Ground Truth and Verification
 
