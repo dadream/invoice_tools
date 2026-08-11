@@ -22,8 +22,6 @@ use crate::AppState;
 /// 流水线配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct PipelineConfig {
-    pub email: String,
-    pub password: String,
     pub batch_name: String,
     pub month: String, // "2026-07"
     pub date_range: DateRangeDto,
@@ -72,9 +70,9 @@ pub async fn start_pipeline(
 
     tracing::info!(
         pipeline_id = %pipeline_id,
-        email = %config.email,
         batch_name = %config.batch_name,
-        "流水线启动"
+        month = %config.month,
+        "流水线启动请求"
     );
 
     // 克隆必要的数据，传给异步任务
@@ -97,11 +95,38 @@ async fn run_pipeline_impl(
     pipeline_id: String,
     config: PipelineConfig,
 ) -> AppResult<()> {
+    // 从 accounts_db 读取第一个邮箱账号
+    let (email, password) = {
+        let state = app.state::<Mutex<AppState>>();
+        let app_state = state.lock().unwrap();
+        let accounts_db = app_state.accounts_db()?;
+
+        let accounts = accounts_db.list_accounts()
+            .map_err(|e| AppError::database(format!("读取账号列表失败: {}", e)))?;
+
+        if accounts.is_empty() {
+            return Err(AppError::validation("请先在设置中添加邮箱账号".to_string()));
+        }
+
+        let account = &accounts[0];
+        let password = accounts_db.get_credential(account.id)
+            .map_err(|e| AppError::database(format!("读取账号凭证失败: {}", e)))?;
+
+        (account.email.clone(), password)
+    };
+
+    tracing::info!(
+        pipeline_id = %pipeline_id,
+        email = %email,
+        batch_name = %config.batch_name,
+        "流水线启动（从 accounts.db 读取账号）"
+    );
+
     // 从 app 中获取 state
     let state = app.state::<Mutex<AppState>>();
     // Stage 1: collect
     emit_progress(&app, &pipeline_id, "collect", 0.0, 0, None, "连接邮箱服务器...");
-    let files = match collect_invoices(&app, &pipeline_id, &config).await {
+    let files = match collect_invoices(&app, &pipeline_id, &email, &password, &config).await {
         Ok(f) => f,
         Err(e) => {
             emit_error(&app, &pipeline_id, "collect", &e.to_string());
@@ -198,6 +223,8 @@ async fn run_pipeline_impl(
 async fn collect_invoices(
     app: &AppHandle,
     pipeline_id: &str,
+    email: &str,
+    password: &str,
     config: &PipelineConfig,
 ) -> AppResult<Vec<PathBuf>> {
     // 解析日期范围
@@ -205,7 +232,7 @@ async fn collect_invoices(
         .map_err(|e| AppError::validation(format!("日期范围格式错误: {}", e)))?;
 
     // 构建 IMAP 配置
-    let domain = config.email.split('@').nth(1).unwrap_or("");
+    let domain = email.split('@').nth(1).unwrap_or("");
     let host = match domain.to_lowercase().as_str() {
         "qq.com" | "vip.qq.com" | "foxmail.com" => "imap.qq.com",
         "163.com" => "imap.163.com",
@@ -218,8 +245,8 @@ async fn collect_invoices(
     let imap_config = ImapConfig {
         host: host.to_string(),
         port: 993,
-        username: config.email.clone(),
-        password: config.password.clone(),
+        username: email.to_string(),
+        password: password.to_string(),
     };
 
     emit_progress(app, pipeline_id, "collect", 0.1, 0, None, "连接 IMAP 服务器...");

@@ -24,8 +24,6 @@ interface PipelineComplete {
 }
 
 // 组件状态
-let email = $state('');
-let password = $state('');
 let batchName = $state('');
 let month = $state('2026-08');
 let dateStart = $state('2026-08-01');
@@ -56,8 +54,8 @@ const stageNames: Record<string, string> = {
 async function startPipeline(e: Event) {
   e.preventDefault();
 
-  if (!email || !password || !batchName) {
-    errorMessage = '请填写所有必填字段';
+  if (!batchName) {
+    errorMessage = '请填写批次名称';
     return;
   }
 
@@ -70,8 +68,6 @@ async function startPipeline(e: Event) {
 
   const result = await invokeSafe<string>('start_pipeline', {
     config: {
-      email,
-      password,
       batch_name: batchName,
       month,
       date_range: {
@@ -168,32 +164,11 @@ function reset() {
 <div class="pipeline-runner">
   <h1>发票流水线</h1>
   <p class="subtitle">端到端自动化：从邮箱采集到最终导出</p>
+  <p class="hint">💡 邮箱账号将自动从设置中读取（使用第一个账号）</p>
 
   {#if !isRunning && !completedResult}
     <!-- 配置表单 -->
     <form onsubmit={startPipeline}>
-      <div class="form-group">
-        <label for="email">邮箱地址 *</label>
-        <input
-          type="email"
-          id="email"
-          bind:value={email}
-          placeholder="your-email@example.com"
-          required
-        />
-      </div>
-
-      <div class="form-group">
-        <label for="password">邮箱密码/授权码 *</label>
-        <input
-          type="password"
-          id="password"
-          bind:value={password}
-          placeholder="邮箱密码或 IMAP 授权码"
-          required
-        />
-      </div>
-
       <div class="form-group">
         <label for="batchName">批次名称 *</label>
         <input
@@ -338,6 +313,12 @@ h1 {
 
 .subtitle {
   color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.hint {
+  color: #999;
+  font-size: 0.9rem;
   margin-bottom: 2rem;
 }
 
