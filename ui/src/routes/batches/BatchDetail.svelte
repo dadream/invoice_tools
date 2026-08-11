@@ -22,6 +22,8 @@
   let invoicesError = $state<string | null>(null)
   // 待确认的解析结果；非空时用卡片替换选择区
   let pending = $state<{ parsed: ParsedInvoice; ticketType: TicketType } | null>(null)
+  // 导出状态
+  let exporting = $state(false)
 
   // 只有草稿批次能加票/删票，与后端校验一致（前后端双重拦截）
   const canEdit = $derived(batch?.status === 'draft')
@@ -85,6 +87,49 @@
     } else {
       alert(describeError(result.error))
     }
+  }
+
+  async function exportExcel() {
+    if (!batch) return
+
+    exporting = true
+    const result = await invokeSafe<number[]>('export_batch_excel', { batchId })
+    exporting = false
+
+    if (!result.ok) {
+      alert(`导出失败: ${describeError(result.error)}`)
+      return
+    }
+
+    const blob = new Blob([new Uint8Array(result.data)], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    downloadBlob(blob, `${batch.name}-明细表.xlsx`)
+  }
+
+  async function exportPdf() {
+    if (!batch) return
+
+    exporting = true
+    const result = await invokeSafe<number[]>('export_batch_pdf', { batchId })
+    exporting = false
+
+    if (!result.ok) {
+      alert(`生成失败: ${describeError(result.error)}`)
+      return
+    }
+
+    const blob = new Blob([new Uint8Array(result.data)], { type: 'application/pdf' })
+    downloadBlob(blob, `${batch.name}-台账.pdf`)
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   $effect(() => {
@@ -189,6 +234,18 @@
     </section>
 
     <section class="actions">
+      <h3>导出</h3>
+      <div class="export-buttons">
+        <button class="btn-export" onclick={exportExcel} disabled={exporting}>
+          {exporting ? '导出中...' : '📊 导出 Excel'}
+        </button>
+        <button class="btn-export" onclick={exportPdf} disabled={exporting}>
+          {exporting ? '生成中...' : '📄 导出 PDF'}
+        </button>
+      </div>
+    </section>
+
+    <section class="actions">
       <h3>状态操作</h3>
       {#if ALLOWED_TRANSITIONS[batch.status].length > 0}
         <div class="action-buttons">
@@ -226,6 +283,19 @@
   .status-badge { padding: 0.25rem 0.5rem; border-radius: 4px; color: #fff; font-size: 0.85rem; }
 
   .actions { padding-top: 1rem; border-top: 1px solid #eee; }
+  .export-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-export {
+    padding: 0.5rem 1rem;
+    background: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .btn-export:hover:not(:disabled) { background: #218838; }
+  .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .btn-action {
     padding: 0.5rem 1rem;

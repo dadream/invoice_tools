@@ -31,9 +31,13 @@ invoice-collect = { path = "../crates/invoice-collect" }
 invoice-grouping = { path = "../crates/invoice-grouping" }
 invoice-store = { path = "../crates/invoice-store" }
 
+# D 输出模块
+rust_xlsxwriter = "0.97"
+rust_decimal = { workspace = true }
+printpdf = "0.7"
+
 [dev-dependencies]
 # 仅测试用：构造 ParsedInvoice / ReportedInvoice 夹具校验 DTO 序列化
-rust_decimal = { workspace = true }
 
 [features]
 default = ["custom-protocol"]
