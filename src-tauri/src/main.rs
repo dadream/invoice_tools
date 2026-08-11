@@ -58,6 +58,7 @@ fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(app_state))
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::base::greet,
             commands::base::get_version,
@@ -68,6 +69,11 @@ fn main() {
             commands::batch::create_batch,
             commands::batch::transition_batch_status,
             commands::batch::delete_batch,
+            commands::invoice::parse_invoice,
+            commands::invoice::check_duplicate,
+            commands::invoice::add_invoice_to_batch,
+            commands::invoice::list_batch_invoices,
+            commands::invoice::delete_invoice,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 应用运行失败");

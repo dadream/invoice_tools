@@ -35,9 +35,16 @@
   }
 </script>
 
-<div class="modal-overlay" onclick={onCancel} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && onCancel()}>
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-    <h2>创建批次</h2>
+<!-- 只在点到遮罩本身时关闭，省掉内层 stopPropagation（那会要求内层再挂键盘处理器） -->
+<div
+  class="modal-overlay"
+  onclick={(e) => e.target === e.currentTarget && onCancel()}
+  role="button"
+  tabindex="0"
+  onkeydown={(e) => e.key === 'Escape' && onCancel()}
+>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <h2 id="modal-title">创建批次</h2>
 
     <form onsubmit={handleSubmit}>
       <div class="form-group">

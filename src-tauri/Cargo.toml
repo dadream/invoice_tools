@@ -13,6 +13,8 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 tauri = { version = "2.11.5", features = ["devtools"] }
 tauri-plugin-shell = "2.3.5"
+# 文件选择对话框：webview 的 File 对象拿不到文件系统路径，必须走此插件
+tauri-plugin-dialog = "2.7.2"
 serde = { workspace = true }
 serde_json = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
@@ -28,6 +30,10 @@ invoice-parse = { path = "../crates/invoice-parse" }
 invoice-collect = { path = "../crates/invoice-collect" }
 invoice-grouping = { path = "../crates/invoice-grouping" }
 invoice-store = { path = "../crates/invoice-store" }
+
+[dev-dependencies]
+# 仅测试用：构造 ParsedInvoice / ReportedInvoice 夹具校验 DTO 序列化
+rust_decimal = { workspace = true }
 
 [features]
 default = ["custom-protocol"]

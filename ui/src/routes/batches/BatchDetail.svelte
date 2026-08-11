@@ -1,7 +1,10 @@
 <script lang="ts">
   import { invokeSafe, describeError } from '../../lib/ipc'
-  import type { Batch } from '../../lib/types'
+  import type { Batch, Invoice, ParsedInvoice, TicketType } from '../../lib/types'
   import { STATUS_LABELS, STATUS_COLORS, ALLOWED_TRANSITIONS, formatAmount, formatDate } from '../../lib/types'
+  import InvoicePicker from '../invoices/InvoicePicker.svelte'
+  import ParseResultCard from '../invoices/ParseResultCard.svelte'
+  import InvoiceList from '../invoices/InvoiceList.svelte'
 
   interface Props {
     batchId: number
@@ -14,6 +17,14 @@
   let loading = $state(true)
   let error = $state<string | null>(null)
   let transitioning = $state(false)
+
+  let invoices = $state<Invoice[]>([])
+  let invoicesError = $state<string | null>(null)
+  // 待确认的解析结果；非空时用卡片替换选择区
+  let pending = $state<{ parsed: ParsedInvoice; ticketType: TicketType } | null>(null)
+
+  // 只有草稿批次能加票/删票，与后端校验一致（前后端双重拦截）
+  const canEdit = $derived(batch?.status === 'draft')
 
   async function loadBatch() {
     loading = true
@@ -28,19 +39,47 @@
     }
   }
 
+  async function loadInvoices() {
+    invoicesError = null
+    const result = await invokeSafe<Invoice[]>('list_batch_invoices', { batchId })
+
+    if (result.ok) {
+      invoices = result.data
+    } else {
+      invoices = []
+      invoicesError = describeError(result.error)
+    }
+  }
+
+  /** 加票/删票后批次的金额合计与张数都会变，批次和列表都要刷新 */
+  async function refreshAll() {
+    await loadBatch()
+    await loadInvoices()
+    await onUpdate()
+  }
+
+  async function handleAdded() {
+    pending = null
+    await refreshAll()
+  }
+
   async function handleTransition(newStatus: string) {
     if (!confirm(`确定要将批次状态改为"${STATUS_LABELS[newStatus as keyof typeof STATUS_LABELS]}"吗？`)) {
       return
     }
 
     transitioning = true
+    // 参数名必须是 camelCase：#[tauri::command] 默认把 Rust 的 new_status
+    // 重写为 newStatus（DTO 字段仍是 snake_case，两套大小写并存）
     const result = await invokeSafe<void>('transition_batch_status', {
       id: batchId,
-      new_status: newStatus,
+      newStatus,
     })
     transitioning = false
 
     if (result.ok) {
+      // 离开 Draft 后不能再加票，丢弃未确认的解析结果
+      pending = null
       await loadBatch()
       await onUpdate()
     } else {
@@ -49,7 +88,12 @@
   }
 
   $effect(() => {
+    // 读一下 batchId 让 effect 跟踪它；切批次时丢弃上一张待确认的票，
+    // 否则会把 A 批次解析出的发票加到 B 批次
+    batchId
+    pending = null
     loadBatch()
+    loadInvoices()
   })
 </script>
 
@@ -116,6 +160,34 @@
       </dl>
     </section>
 
+    <section class="info-section invoice-section">
+      {#if canEdit}
+        {#if pending}
+          <ParseResultCard
+            {batchId}
+            parsed={pending.parsed}
+            ticketType={pending.ticketType}
+            onAdded={handleAdded}
+            onCancel={() => (pending = null)}
+          />
+        {:else}
+          <InvoicePicker
+            onParsed={(parsed, ticketType) => (pending = { parsed, ticketType })}
+          />
+        {/if}
+      {/if}
+
+      {#if invoicesError}
+        <p class="error" role="alert">{invoicesError}</p>
+      {/if}
+
+      <InvoiceList {invoices} {canEdit} onDeleted={refreshAll} />
+
+      {#if !canEdit}
+        <p class="locked">当前状态不是草稿，不能增删发票</p>
+      {/if}
+    </section>
+
     <section class="actions">
       <h3>状态操作</h3>
       {#if ALLOWED_TRANSITIONS[batch.status].length > 0}
@@ -168,6 +240,9 @@
   .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .no-actions { color: #999; font-size: 0.9rem; }
+
+  .invoice-section { padding-top: 1rem; border-top: 1px solid #eee; }
+  .locked { margin: 0; color: #999; font-size: 0.8rem; }
 
   .loading, .error { padding: 2rem 1rem; text-align: center; }
   .error { color: #c33; }

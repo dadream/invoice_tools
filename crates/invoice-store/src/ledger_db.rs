@@ -2,7 +2,7 @@
 //!
 //! 管理报销批次和已报销发票记录
 
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use chrono::{Utc, NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use std::path::Path;
@@ -292,6 +292,40 @@ impl LedgerDb {
         Ok(invoices)
     }
 
+    /// 按发票号码查找已报销记录（全库范围，跨批次查重）
+    ///
+    /// 返回 `None` 表示该发票尚未被任何批次使用。
+    /// 注意：`query_row` 无行时返回 `QueryReturnedNoRows`（会落进 `StoreError::Database`），
+    /// 因此必须用 `optional()` 把"查不到"与"查询出错"区分开。
+    pub fn find_invoice_by_number(&self, invoice_number: &str) -> StoreResult<Option<ReportedInvoice>> {
+        let result = self.conn.query_row(
+            "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
+                    buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
+                    file_path, created_at, updated_at
+             FROM reported_invoices WHERE invoice_number = ?1",
+            params![invoice_number],
+            Self::parse_invoice_row,
+        ).optional()?;
+
+        Ok(result)
+    }
+
+    /// 按主键获取发票记录。返回 `None` 表示记录不存在。
+    ///
+    /// 与 `find_invoice_by_number` 同理，用 `optional()` 区分"查不到"与"查询出错"。
+    pub fn get_invoice(&self, id: i64) -> StoreResult<Option<ReportedInvoice>> {
+        let result = self.conn.query_row(
+            "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
+                    buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
+                    file_path, created_at, updated_at
+             FROM reported_invoices WHERE id = ?1",
+            params![id],
+            Self::parse_invoice_row,
+        ).optional()?;
+
+        Ok(result)
+    }
+
     /// 删除发票
     pub fn delete_invoice(&self, id: i64) -> StoreResult<()> {
         // 先获取 batch_id
@@ -550,6 +584,51 @@ mod tests {
 
         let batch = db.get_batch(batch_id).unwrap();
         assert_eq!(batch.invoice_count, 0);
+    }
+
+    #[test]
+    fn find_invoice_by_number_returns_existing_record() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("88.80").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Flight,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        };
+
+        let invoice_id = db.add_invoice(&invoice).unwrap();
+
+        let found = db.find_invoice_by_number("12345678901234567890").unwrap();
+        let found = found.expect("应找到已入库的发票");
+
+        assert_eq!(found.id, invoice_id);
+        assert_eq!(found.batch_id, batch_id);
+        assert_eq!(found.amount, Decimal::from_str("88.80").unwrap());
+        assert_eq!(found.ticket_type, TicketType::Flight);
+    }
+
+    #[test]
+    fn find_invoice_by_number_returns_none_when_absent() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        db.create_batch("测试批次", "2026-07").unwrap();
+
+        // 无行时必须是 Ok(None)，不能是 Err(QueryReturnedNoRows)
+        let result = db.find_invoice_by_number("00000000000000000000");
+        assert!(result.is_ok(), "查不到记录不应返回错误");
+        assert!(result.unwrap().is_none());
     }
 
     // ========== 状态转换测试 ==========
