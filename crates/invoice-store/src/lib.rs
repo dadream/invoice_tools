@@ -18,6 +18,10 @@ pub mod models;
 pub mod accounts_db;
 pub mod ledger_db;
 
+// Re-export commonly used types
+pub use ledger_db::LedgerDb;
+pub use accounts_db::AccountsDb;
+
 /// Result type alias for store operations
 pub type StoreResult<T> = Result<T, StoreError>;
 

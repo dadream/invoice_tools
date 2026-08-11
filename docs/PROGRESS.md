@@ -4,7 +4,7 @@
 > 更新规则：每完成一个模块/任务后立即更新
 > 验证方式：`bash scripts/verify-progress.sh`
 
-**最后更新**：2026-08-10（commit 6f6d71e）
+**最后更新**：2026-08-11（commit pending - S0.6）
 
 ---
 
@@ -32,6 +32,9 @@ ls docs/tasks/*.md               # 实施报告
 | **M2 解析 L0/L1** | `invoice-parse` | 69/69 通过 | ✅ 64 样本回归，35.9% 全字段通过 | f13bb27 |
 | **M2 字段提取** | `invoice-parse` | 11/11 通过 | ✅ city/departure_time/checkin_date | 6f6d71e |
 | **M4 归组引擎** | `invoice-grouping` | 21/21 通过 | ✅ 20 合成场景 + 5 类歧义 | 831b07f |
+| **S0.4 加密存储** | `invoice-store` | 49/49 通过 | ✅ 双库 + Keychain 集成 | pending |
+| **S0.5 批次状态机** | `invoice-store` | 20/20 通过 | ✅ 完整状态转换验证 | pending |
+| **S0.6 批次 CRUD UI** | `invoice-assistant` | 208 通过 | ✅ 5命令+3组件，手动测试通过 | pending |
 
 **已知失败测试**（环境问题，非代码缺陷）：
 - `invoice-collect::config::tests::account_password_shape_triggers_warning`
@@ -45,14 +48,12 @@ ls docs/tasks/*.md               # 实施报告
 | 模块 | 依赖 | 优先级 | 说明 |
 |---|---|---|---|
 | **M3 校验与去重** | M2 ✅ | **P0** | 流水线必经环节，含跨月台账 |
-| **S0.4 加密存储** | - | P0 | SQLite 双库 + Keychain |
-| **S0.5 批次状态机** | S0.4 | P0 | 断点续跑 |
+| **S0.7 发票添加流程** | S0.6 ✅ | **P0** | 批次内发票关联与金额计算 |
 | **M6 输出** | M2 ✅ | P1 | Excel/打印件/PDF 渲染 |
 | **F2 GenericAdapter** | M6 | P1 | 纯本地模式 |
 | **M5 审核界面** | M2 ✅ + M4 ✅ | P1 | 需 Tauri 骨架 |
-| **S0.2 Tauri 骨架** | - | ✅ | Linux 已验证 / Win+macOS 未验证 |
 | **M7-B Concur 邮件收单** | M6 | P2 | 方案 B |
-| **E 计费** | S0.4 | P2 | 账号 + 扣费 + 试运行 |
+| **E 计费** | S0.4 ✅ | P2 | 账号 + 扣费 + 试运行 |
 | **H1 流水线串联** | 全部 | P3 | 端到端集成 |
 
 ---

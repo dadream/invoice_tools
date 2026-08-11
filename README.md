@@ -112,8 +112,17 @@ try {
 
 ### 可用命令
 
+#### 基础命令
 - `greet(name: string) -> string` - 测试命令
 - `get_version() -> VersionInfo` - 获取应用版本
+- `health_check() -> HealthInfo` - 健康检查
+
+#### 批次管理
+- `list_batches() -> Vec<BatchDto>` - 列出所有批次
+- `get_batch(id: i64) -> BatchDto` - 获取批次详情
+- `create_batch(name: string, month: string) -> i64` - 创建新批次
+- `transition_batch_status(id: i64, new_status: string) -> ()` - 转换批次状态
+- `delete_batch(id: i64) -> ()` - 删除草稿批次
 
 ## 架构说明
 
@@ -151,14 +160,15 @@ pub enum AppError {
 ## 开发进度
 
 - [x] S0.1 技术验证（invoice-parse）
+- [x] S0.2 Tauri 骨架
 - [x] S0.3 核心数据模型
 - [x] S0.4 加密存储（invoice-store）
+- [x] S0.5 批次状态机
+- [x] **S0.6 批次 CRUD UI** ← 当前
 - [x] A 采集模块（invoice-collect）
 - [x] B 解析模块（invoice-parse）
 - [x] C 归组引擎（invoice-grouping）
-- [x] **S0.2 Tauri 骨架** ← 当前
-- [ ] S0.5 批次状态机
-- [ ] S0.6 错误分类
+- [ ] S0.7 发票添加流程
 - [ ] G1 校验去重
 - [ ] G2 审核界面
 - [ ] H1 流水线集成
