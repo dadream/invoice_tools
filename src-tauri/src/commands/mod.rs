@@ -3,3 +3,4 @@ pub mod base;
 pub mod export;
 pub mod invoice;
 pub mod pipeline;
+pub mod settings;

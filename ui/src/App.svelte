@@ -1,10 +1,11 @@
 <script lang="ts">
   import BatchList from './routes/batches/BatchList.svelte'
   import PipelineRunner from './routes/pipeline/PipelineRunner.svelte'
+  import SettingsPage from './routes/settings/+page.svelte'
 
-  let currentRoute = $state<'batches' | 'pipeline'>('batches');
+  let currentRoute = $state<'batches' | 'pipeline' | 'settings'>('batches');
 
-  function navigateTo(route: 'batches' | 'pipeline') {
+  function navigateTo(route: 'batches' | 'pipeline' | 'settings') {
     currentRoute = route;
   }
 </script>
@@ -27,6 +28,13 @@
       >
         流水线
       </button>
+      <button
+        class="nav-link"
+        class:active={currentRoute === 'settings'}
+        onclick={() => navigateTo('settings')}
+      >
+        ⚙️ 设置
+      </button>
     </div>
   </div>
 </nav>
@@ -36,6 +44,8 @@
     <BatchList />
   {:else if currentRoute === 'pipeline'}
     <PipelineRunner />
+  {:else if currentRoute === 'settings'}
+    <SettingsPage />
   {/if}
 </main>
 

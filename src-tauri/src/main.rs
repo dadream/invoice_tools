@@ -9,20 +9,28 @@ mod error;
 mod logger;
 
 use error::{AppError, AppResult};
-use invoice_store::LedgerDb;
+use invoice_store::{AccountsDb, LedgerDb};
 
-/// 应用共享状态，持有 ledger.db 数据库连接
+/// 应用共享状态，持有数据库连接
 pub struct AppState {
     ledger_db: Option<LedgerDb>,
+    accounts_db: Option<AccountsDb>,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        Self { ledger_db: None }
+        Self {
+            ledger_db: None,
+            accounts_db: None,
+        }
     }
 
     pub fn ledger_db(&self) -> AppResult<&LedgerDb> {
-        self.ledger_db.as_ref().ok_or_else(|| AppError::internal("数据库未初始化"))
+        self.ledger_db.as_ref().ok_or_else(|| AppError::internal("ledger.db 未初始化"))
+    }
+
+    pub fn accounts_db(&self) -> AppResult<&AccountsDb> {
+        self.accounts_db.as_ref().ok_or_else(|| AppError::internal("accounts.db 未初始化"))
     }
 
     pub fn init_ledger_db(&mut self) -> AppResult<()> {
@@ -34,13 +42,21 @@ impl AppState {
                 format!("{}/.invoice-assistant", home)
             });
 
-        let db_path = PathBuf::from(data_dir).join("ledger.db");
-        std::fs::create_dir_all(db_path.parent().unwrap())?;
+        let ledger_path = PathBuf::from(&data_dir).join("ledger.db");
+        let accounts_path = PathBuf::from(&data_dir).join("accounts.db");
+        std::fs::create_dir_all(&data_dir)?;
 
-        self.ledger_db = Some(LedgerDb::new(&db_path)
-            .map_err(|e| AppError::database(format!("初始化数据库失败: {}", e)))?);
+        self.ledger_db = Some(LedgerDb::new(&ledger_path)
+            .map_err(|e| AppError::database(format!("初始化 ledger.db 失败: {}", e)))?);
 
-        tracing::info!(path = %db_path.display(), "ledger.db 已初始化");
+        self.accounts_db = Some(AccountsDb::new(&accounts_path)
+            .map_err(|e| AppError::database(format!("初始化 accounts.db 失败: {}", e)))?);
+
+        tracing::info!(
+            ledger_path = %ledger_path.display(),
+            accounts_path = %accounts_path.display(),
+            "数据库已初始化"
+        );
         Ok(())
     }
 }
@@ -78,6 +94,15 @@ fn main() {
             commands::export::export_batch_excel,
             commands::export::export_batch_pdf,
             commands::pipeline::start_pipeline,
+            commands::settings::list_accounts,
+            commands::settings::add_account,
+            commands::settings::delete_account,
+            commands::settings::test_account_connection,
+            commands::settings::get_setting,
+            commands::settings::set_setting,
+            commands::settings::get_all_settings,
+            commands::settings::get_grouping_rules,
+            commands::settings::save_grouping_rules,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 应用运行失败");

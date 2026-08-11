@@ -91,6 +91,16 @@ impl LedgerDb {
             [],
         )?;
 
+        // 创建 settings 表（应用配置）
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
+
         // 数据库迁移：user_version 0 → 1（添加验签与去重字段）
         self.migrate_schema()?;
 
@@ -465,6 +475,41 @@ impl LedgerDb {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(invoices)
+    }
+
+    /// 获取应用设置
+    pub fn get_setting(&self, key: &str) -> StoreResult<Option<String>> {
+        let result = self.conn.query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            params![key],
+            |row| row.get(0)
+        ).optional()?;
+        Ok(result)
+    }
+
+    /// 设置应用配置（INSERT OR REPLACE）
+    pub fn set_setting(&self, key: &str, value: &str) -> StoreResult<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at)
+             VALUES (?1, ?2, datetime('now'))",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    /// 获取所有设置
+    pub fn get_all_settings(&self) -> StoreResult<std::collections::HashMap<String, String>> {
+        let mut stmt = self.conn.prepare("SELECT key, value FROM settings")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        let mut map = std::collections::HashMap::new();
+        for row in rows {
+            let (k, v) = row?;
+            map.insert(k, v);
+        }
+        Ok(map)
     }
 
     /// 更新批次统计信息（总金额和发票数量）
@@ -1414,5 +1459,28 @@ mod tests {
         assert_eq!(retrieved.verification_result, Some("valid".to_string()));
         assert_eq!(retrieved.is_duplicate, true);
         assert_eq!(retrieved.duplicate_reason, Some("测试重复".to_string()));
+    }
+
+    #[test]
+    fn settings_crud_operations() {
+        let db = LedgerDb::new(":memory:").unwrap();
+
+        // 设置不存在时返回 None
+        assert_eq!(db.get_setting("home_city").unwrap(), None);
+
+        // 写入设置
+        db.set_setting("home_city", "北京").unwrap();
+        assert_eq!(db.get_setting("home_city").unwrap(), Some("北京".to_string()));
+
+        // 更新设置
+        db.set_setting("home_city", "上海").unwrap();
+        assert_eq!(db.get_setting("home_city").unwrap(), Some("上海".to_string()));
+
+        // 写入多个设置
+        db.set_setting("grouping_config", r#"{"weekend_days":[0,6]}"#).unwrap();
+        let all = db.get_all_settings().unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all.get("home_city"), Some(&"上海".to_string()));
+        assert!(all.get("grouping_config").unwrap().contains("weekend_days"));
     }
 }
