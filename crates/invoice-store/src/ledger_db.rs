@@ -69,6 +69,9 @@ impl LedgerDb {
                 file_path TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
+                verification_result TEXT,
+                is_duplicate INTEGER DEFAULT 0,
+                duplicate_reason TEXT,
                 FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE
             )",
             [],
@@ -87,6 +90,57 @@ impl LedgerDb {
             "CREATE INDEX IF NOT EXISTS idx_invoices_number ON reported_invoices(invoice_number)",
             [],
         )?;
+
+        // 数据库迁移：user_version 0 → 1（添加验签与去重字段）
+        self.migrate_schema()?;
+
+        Ok(())
+    }
+
+    /// 执行数据库迁移
+    fn migrate_schema(&self) -> StoreResult<()> {
+        let version: i32 = self.conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+
+        match version {
+            0 => {
+                // 检查字段是否已存在（避免重复迁移）
+                let column_exists: Result<String, _> = self.conn.query_row(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='reported_invoices'",
+                    [],
+                    |row| row.get(0)
+                );
+
+                if let Ok(schema) = column_exists {
+                    // 只在字段不存在时才执行 ALTER TABLE
+                    if !schema.contains("verification_result") {
+                        self.conn.execute(
+                            "ALTER TABLE reported_invoices ADD COLUMN verification_result TEXT",
+                            [],
+                        )?;
+                        self.conn.execute(
+                            "ALTER TABLE reported_invoices ADD COLUMN is_duplicate INTEGER DEFAULT 0",
+                            [],
+                        )?;
+                        self.conn.execute(
+                            "ALTER TABLE reported_invoices ADD COLUMN duplicate_reason TEXT",
+                            [],
+                        )?;
+                    }
+                }
+
+                // 更新版本号
+                self.conn.execute("PRAGMA user_version = 1", [])?;
+            }
+            1 => {
+                // 当前版本，无需迁移
+            }
+            _ => {
+                return Err(StoreError::Internal(format!(
+                    "Unknown database version: {}",
+                    version
+                )));
+            }
+        }
 
         Ok(())
     }
@@ -248,8 +302,8 @@ impl LedgerDb {
             "INSERT INTO reported_invoices (
                 batch_id, invoice_number, issue_date, amount, tax_amount,
                 buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
-                file_path, created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                file_path, created_at, updated_at, verification_result, is_duplicate, duplicate_reason
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 invoice.batch_id,
                 invoice.invoice_number,
@@ -265,6 +319,9 @@ impl LedgerDb {
                 invoice.file_path,
                 now,
                 now,
+                invoice.verification_result,
+                if invoice.is_duplicate { 1 } else { 0 },
+                invoice.duplicate_reason,
             ],
         )?;
 
@@ -281,7 +338,7 @@ impl LedgerDb {
         let mut stmt = self.conn.prepare(
             "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
                     buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
-                    file_path, created_at, updated_at
+                    file_path, created_at, updated_at, verification_result, is_duplicate, duplicate_reason
              FROM reported_invoices WHERE batch_id = ?1 ORDER BY issue_date"
         )?;
 
@@ -301,7 +358,7 @@ impl LedgerDb {
         let result = self.conn.query_row(
             "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
                     buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
-                    file_path, created_at, updated_at
+                    file_path, created_at, updated_at, verification_result, is_duplicate, duplicate_reason
              FROM reported_invoices WHERE invoice_number = ?1",
             params![invoice_number],
             Self::parse_invoice_row,
@@ -317,7 +374,7 @@ impl LedgerDb {
         let result = self.conn.query_row(
             "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
                     buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
-                    file_path, created_at, updated_at
+                    file_path, created_at, updated_at, verification_result, is_duplicate, duplicate_reason
              FROM reported_invoices WHERE id = ?1",
             params![id],
             Self::parse_invoice_row,
@@ -346,8 +403,68 @@ impl LedgerDb {
 
         // 更新批次统计
         self.update_batch_stats(batch_id)?;
+        Ok(())
+    }
+
+    /// 清除发票的重复标记（用户确认不是重复后调用）
+    pub fn clear_duplicate_flag(&self, id: i64) -> StoreResult<()> {
+        let rows = self.conn.execute(
+            "UPDATE reported_invoices SET is_duplicate = 0, duplicate_reason = NULL WHERE id = ?1",
+            params![id],
+        )?;
+
+        if rows == 0 {
+            return Err(StoreError::NotFound(format!("Invoice {}", id)));
+        }
 
         Ok(())
+    }
+
+    /// 按多字段组合查找疑似重复（不含自身 id）
+    ///
+    /// 匹配规则：发票号完全一致 **或** (金额+日期+票种) 三项一致
+    ///
+    /// # 参数
+    /// - `invoice_number`: 发票号
+    /// - `amount`: 金额
+    /// - `issue_date`: 开票日期
+    /// - `ticket_type`: 票据类型（字符串形式，如 "rail"）
+    /// - `exclude_id`: 排除指定 ID（用于编辑场景，避免匹配自身）
+    ///
+    /// # 返回
+    /// 匹配的发票列表（可能为空）
+    pub fn find_potential_duplicates(
+        &self,
+        invoice_number: &str,
+        amount: &Decimal,
+        issue_date: &NaiveDate,
+        ticket_type: &str,
+        exclude_id: Option<i64>,
+    ) -> StoreResult<Vec<ReportedInvoice>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, batch_id, invoice_number, issue_date, amount, tax_amount,
+                    buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
+                    file_path, created_at, updated_at, verification_result, is_duplicate, duplicate_reason
+             FROM reported_invoices
+             WHERE (invoice_number = ?1
+                    OR (amount = ?2 AND issue_date = ?3 AND ticket_type = ?4))
+               AND (?5 IS NULL OR id != ?5)"
+        )?;
+
+        let invoices = stmt
+            .query_map(
+                params![
+                    invoice_number,
+                    amount.to_string(),
+                    issue_date.format("%Y-%m-%d").to_string(),
+                    ticket_type,
+                    exclude_id,
+                ],
+                Self::parse_invoice_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(invoices)
     }
 
     /// 更新批次统计信息（总金额和发票数量）
@@ -421,6 +538,8 @@ impl LedgerDb {
         let ticket_type = TicketType::from_str(&ticket_type_str)
             .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(StoreError::Internal(format!("Invalid ticket type: {}", ticket_type_str)))))?;
 
+        let is_duplicate_int: i32 = row.get(16)?;
+
         Ok(ReportedInvoice {
             id: row.get(0)?,
             batch_id: row.get(1)?,
@@ -442,6 +561,9 @@ impl LedgerDb {
                 .map_err(|e| rusqlite::Error::FromSqlConversionFailure(13, rusqlite::types::Type::Text, Box::new(e)))?,
             updated_at: NaiveDateTime::parse_from_str(&row.get::<_, String>(14)?, "%Y-%m-%d %H:%M:%S")
                 .map_err(|e| rusqlite::Error::FromSqlConversionFailure(14, rusqlite::types::Type::Text, Box::new(e)))?,
+            verification_result: row.get(15)?,
+            is_duplicate: is_duplicate_int != 0,
+            duplicate_reason: row.get(17)?,
         })
     }
 }
@@ -497,6 +619,9 @@ mod tests {
             file_path: "/path/to/invoice.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         db.add_invoice(&invoice).unwrap();
@@ -528,6 +653,9 @@ mod tests {
             file_path: "/path/to/invoice1.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         let invoice2 = ReportedInvoice {
@@ -546,6 +674,9 @@ mod tests {
             file_path: "/path/to/invoice2.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         db.add_invoice(&invoice1).unwrap();
@@ -577,6 +708,9 @@ mod tests {
             file_path: "/path/to/invoice.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         let invoice_id = db.add_invoice(&invoice).unwrap();
@@ -607,6 +741,9 @@ mod tests {
             file_path: "/path/to/invoice.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         let invoice_id = db.add_invoice(&invoice).unwrap();
@@ -886,5 +1023,396 @@ mod tests {
         assert!(batch.approved_at.is_some());
         assert!(batch.completed_at.is_some());
         assert!(batch.rejected_at.is_none());
+    }
+
+    // ========== 新字段与去重测试 ==========
+
+    #[test]
+    fn test_new_fields_in_invoice() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: Some("valid".to_string()),
+            is_duplicate: true,
+            duplicate_reason: Some("发票号完全一致".to_string()),
+        };
+
+        let invoice_id = db.add_invoice(&invoice).unwrap();
+
+        // 通过 get_invoice 读取
+        let retrieved = db.get_invoice(invoice_id).unwrap().expect("发票应存在");
+        assert_eq!(retrieved.verification_result, Some("valid".to_string()));
+        assert_eq!(retrieved.is_duplicate, true);
+        assert_eq!(retrieved.duplicate_reason, Some("发票号完全一致".to_string()));
+
+        // 通过 list_invoices_by_batch 读取
+        let invoices = db.list_invoices_by_batch(batch_id).unwrap();
+        assert_eq!(invoices.len(), 1);
+        assert_eq!(invoices[0].verification_result, Some("valid".to_string()));
+        assert_eq!(invoices[0].is_duplicate, true);
+    }
+
+    #[test]
+    fn test_find_potential_duplicates_by_invoice_number() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        db.add_invoice(&invoice).unwrap();
+
+        // 按相同发票号查询（金额、日期、票种不同）
+        let duplicates = db.find_potential_duplicates(
+            "12345678901234567890",
+            &Decimal::from_str("200.00").unwrap(), // 不同金额
+            &NaiveDate::from_ymd_opt(2026, 7, 20).unwrap(), // 不同日期
+            "flight", // 不同票种
+            None,
+        ).unwrap();
+
+        assert_eq!(duplicates.len(), 1);
+        assert_eq!(duplicates[0].invoice_number, "12345678901234567890");
+    }
+
+    #[test]
+    fn test_find_potential_duplicates_by_three_fields() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "11111111111111111111".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        db.add_invoice(&invoice).unwrap();
+
+        // 按金额+日期+票种查询（发票号不同）
+        let duplicates = db.find_potential_duplicates(
+            "22222222222222222222", // 不同发票号
+            &Decimal::from_str("100.00").unwrap(),
+            &NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            "rail",
+            None,
+        ).unwrap();
+
+        assert_eq!(duplicates.len(), 1);
+        assert_eq!(duplicates[0].invoice_number, "11111111111111111111");
+    }
+
+    #[test]
+    fn test_find_potential_duplicates_exclude_self() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        let invoice_id = db.add_invoice(&invoice).unwrap();
+
+        // 查询自身，排除自己
+        let duplicates = db.find_potential_duplicates(
+            "12345678901234567890",
+            &Decimal::from_str("100.00").unwrap(),
+            &NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            "rail",
+            Some(invoice_id),
+        ).unwrap();
+
+        assert_eq!(duplicates.len(), 0); // 应排除自身
+    }
+
+    #[test]
+    fn test_find_potential_duplicates_no_match() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        let invoice = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        db.add_invoice(&invoice).unwrap();
+
+        // 完全不匹配的查询
+        let duplicates = db.find_potential_duplicates(
+            "99999999999999999999",
+            &Decimal::from_str("200.00").unwrap(),
+            &NaiveDate::from_ymd_opt(2026, 7, 20).unwrap(),
+            "flight",
+            None,
+        ).unwrap();
+
+        assert_eq!(duplicates.len(), 0);
+    }
+
+    #[test]
+    fn test_find_potential_duplicates_multiple_matches() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("测试批次", "2026-07").unwrap();
+
+        // 添加两张票：相同金额、日期、票种，不同发票号
+        let invoice1 = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "11111111111111111111".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice1.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        let invoice2 = ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "22222222222222222222".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            amount: Decimal::from_str("100.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Rail,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/invoice2.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
+        };
+
+        db.add_invoice(&invoice1).unwrap();
+        db.add_invoice(&invoice2).unwrap();
+
+        // 查询第三张同样的票
+        let duplicates = db.find_potential_duplicates(
+            "33333333333333333333",
+            &Decimal::from_str("100.00").unwrap(),
+            &NaiveDate::from_ymd_opt(2026, 7, 15).unwrap(),
+            "rail",
+            None,
+        ).unwrap();
+
+        assert_eq!(duplicates.len(), 2);
+    }
+
+    #[test]
+    fn test_database_migration_from_v0_to_v1() {
+        use rusqlite::Connection;
+        use std::path::PathBuf;
+        use tempfile::tempdir;
+
+        // 创建临时目录
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+
+        // 步骤1：创建旧版数据库（无新字段）
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
+
+            // 创建旧版 reported_invoices 表（无新字段）
+            conn.execute(
+                "CREATE TABLE reported_invoices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id INTEGER NOT NULL,
+                    invoice_number TEXT NOT NULL,
+                    issue_date TEXT NOT NULL,
+                    amount TEXT NOT NULL,
+                    tax_amount TEXT,
+                    buyer_name TEXT,
+                    seller_name TEXT,
+                    ticket_type TEXT NOT NULL,
+                    city TEXT,
+                    departure_time TEXT,
+                    checkin_date TEXT,
+                    file_path TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )",
+                [],
+            ).unwrap();
+
+            // 创建 batches 表
+            conn.execute(
+                "CREATE TABLE batches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    month TEXT NOT NULL,
+                    status INTEGER NOT NULL DEFAULT 0,
+                    total_amount TEXT NOT NULL,
+                    invoice_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    submitted_at TEXT,
+                    approved_at TEXT,
+                    completed_at TEXT,
+                    rejected_at TEXT
+                )",
+                [],
+            ).unwrap();
+
+            // 插入旧数据
+            let now = "2026-07-15 12:00:00";
+            conn.execute(
+                "INSERT INTO batches (name, month, status, total_amount, invoice_count, created_at, updated_at)
+                 VALUES ('旧批次', '2026-07', 0, '0', 0, ?1, ?2)",
+                params![now, now],
+            ).unwrap();
+
+            conn.execute(
+                "INSERT INTO reported_invoices (
+                    batch_id, invoice_number, issue_date, amount, tax_amount,
+                    buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
+                    file_path, created_at, updated_at
+                 ) VALUES (1, '12345678901234567890', '2026-07-15', '100.00', NULL,
+                           NULL, NULL, 'rail', NULL, NULL, NULL,
+                           '/path/to/invoice.xml', ?1, ?2)",
+                params![now, now],
+            ).unwrap();
+
+            // user_version 保持为 0
+            let version: i32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+            assert_eq!(version, 0);
+        }
+
+        // 步骤2：用 LedgerDb::new 打开，触发迁移
+        let db = LedgerDb::new(&db_path).unwrap();
+
+        // 步骤3：验证迁移成功
+        let version: i32 = db.conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, 1);
+
+        // 步骤4：验证旧数据可读，新字段有默认值
+        let invoice = db.get_invoice(1).unwrap().expect("旧数据应存在");
+        assert_eq!(invoice.invoice_number, "12345678901234567890");
+        assert_eq!(invoice.verification_result, None);
+        assert_eq!(invoice.is_duplicate, false); // 默认 0
+        assert_eq!(invoice.duplicate_reason, None);
+
+        // 步骤5：验证可以插入带新字段的数据
+        let new_invoice = ReportedInvoice {
+            id: 0,
+            batch_id: 1,
+            invoice_number: "99999999999999999999".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 7, 20).unwrap(),
+            amount: Decimal::from_str("200.00").unwrap(),
+            tax_amount: None,
+            buyer_name: None,
+            seller_name: None,
+            ticket_type: TicketType::Flight,
+            city: None,
+            departure_time: None,
+            checkin_date: None,
+            file_path: "/path/to/new.xml".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+            verification_result: Some("valid".to_string()),
+            is_duplicate: true,
+            duplicate_reason: Some("测试重复".to_string()),
+        };
+
+        let new_id = db.add_invoice(&new_invoice).unwrap();
+        let retrieved = db.get_invoice(new_id).unwrap().expect("新数据应存在");
+        assert_eq!(retrieved.verification_result, Some("valid".to_string()));
+        assert_eq!(retrieved.is_duplicate, true);
+        assert_eq!(retrieved.duplicate_reason, Some("测试重复".to_string()));
     }
 }

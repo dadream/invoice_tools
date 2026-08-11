@@ -34,6 +34,9 @@ fn full_batch_lifecycle() {
         file_path: "/tmp/invoice.xml".to_string(),
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
+        verification_result: None,
+        is_duplicate: false,
+        duplicate_reason: None,
     };
 
     db.add_invoice(&invoice).unwrap();
@@ -83,6 +86,9 @@ fn multiple_batches_and_invoices() {
             file_path: format!("/tmp/invoice{}.xml", i),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
         db.add_invoice(&invoice).unwrap();
     }
@@ -104,6 +110,9 @@ fn multiple_batches_and_invoices() {
         file_path: "/tmp/invoice3.xml".to_string(),
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
+        verification_result: None,
+        is_duplicate: false,
+        duplicate_reason: None,
     };
     db.add_invoice(&invoice).unwrap();
 
@@ -147,6 +156,9 @@ fn database_persistence_with_invoices() {
             file_path: "/tmp/persistent.xml".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: None,
+            is_duplicate: false,
+            duplicate_reason: None,
         };
         db.add_invoice(&invoice).unwrap();
         batch_id

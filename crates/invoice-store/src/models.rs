@@ -189,6 +189,15 @@ pub struct ReportedInvoice {
 
     /// 更新时间
     pub updated_at: NaiveDateTime,
+
+    /// 签章验证结果（"valid"/"invalid"/"not_signed" 或 NULL）
+    pub verification_result: Option<String>,
+
+    /// 是否标记为重复
+    pub is_duplicate: bool,
+
+    /// 重复原因说明
+    pub duplicate_reason: Option<String>,
 }
 
 /// 票据类型

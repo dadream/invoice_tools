@@ -7,7 +7,6 @@
 use std::path::Path;
 use std::sync::Mutex;
 
-use chrono::Utc;
 use serde::Serialize;
 use tauri::State;
 
@@ -15,6 +14,7 @@ use invoice_parse::manifest::TagHints;
 use invoice_parse::model::{
     ParseError, ParseLevel, ParsedInvoice, TicketType as ParseTicketType,
 };
+use invoice_parse::verify::SignatureStatus;
 use invoice_store::models::{BatchStatus, ReportedInvoice, TicketType as StoreTicketType};
 
 use crate::error::{AppError, AppResult};
@@ -43,6 +43,8 @@ pub struct ParsedInvoiceDto {
     pub departure_time: Option<String>,
     pub checkin_date: Option<String>,
     pub source_path: String,
+    /// valid/invalid/not_signed/not_applicable
+    pub verification_result: String,
 }
 
 impl From<ParsedInvoice> for ParsedInvoiceDto {
@@ -62,6 +64,7 @@ impl From<ParsedInvoice> for ParsedInvoiceDto {
             departure_time: p.departure_time.map(|dt| dt.format(DATETIME_FMT).to_string()),
             checkin_date: p.checkin_date.map(|d| d.format(DATE_FMT).to_string()),
             source_path: p.source_path.display().to_string(),
+            verification_result: String::new(), // 由调用方单独填充
         }
     }
 }
@@ -110,8 +113,19 @@ impl From<ReportedInvoice> for InvoiceDto {
 #[derive(Debug, Clone, Serialize)]
 pub struct DuplicateCheckDto {
     pub is_duplicate: bool,
-    pub existing_batch_id: Option<i64>,
-    pub existing_batch_name: Option<String>,
+    pub match_type: Option<String>,  // "exact" / "fuzzy" / null
+    pub existing_invoices: Vec<InvoiceSummaryDto>,
+}
+
+/// 发票摘要 DTO（用于查重结果）
+#[derive(Debug, Clone, Serialize)]
+pub struct InvoiceSummaryDto {
+    pub id: i64,
+    pub batch_id: i64,
+    pub batch_name: String,
+    pub invoice_number: String,
+    pub amount: String,
+    pub issue_date: String,
 }
 
 fn parse_level_to_string(level: ParseLevel) -> &'static str {
@@ -120,6 +134,15 @@ fn parse_level_to_string(level: ParseLevel) -> &'static str {
         ParseLevel::L1 => "L1",
         ParseLevel::L2 => "L2",
         ParseLevel::L4 => "L4",
+    }
+}
+
+/// 将 SignatureStatus 转为字符串（供前端展示）
+fn signature_status_to_string(status: &SignatureStatus) -> &'static str {
+    match status {
+        SignatureStatus::Valid => "valid",
+        SignatureStatus::Invalid { .. } => "invalid",
+        SignatureStatus::NotSigned => "not_signed",
     }
 }
 
@@ -245,39 +268,114 @@ fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<ParsedInvoice> {
 #[tauri::command]
 pub fn parse_invoice(path: String, ticket_type: Option<String>) -> AppResult<ParsedInvoiceDto> {
     let parsed = do_parse(&path, ticket_type.as_deref())?;
-    Ok(parsed.into())
+
+    // 验签：根据扩展名调用对应验签函数
+    let p = Path::new(&path);
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    let bytes = std::fs::read(p)
+        .map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
+
+    let verification_result = match ext.as_str() {
+        "xml" => {
+            match invoice_parse::verify::verify_xml_signature(&bytes, p) {
+                Ok(status) => signature_status_to_string(&status).to_string(),
+                Err(_) => "invalid".to_string(),
+            }
+        }
+        "ofd" => {
+            match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
+                Ok(status) => signature_status_to_string(&status).to_string(),
+                Err(_) => "invalid".to_string(),
+            }
+        }
+        "pdf" => "not_applicable".to_string(),
+        _ => "not_applicable".to_string(),
+    };
+
+    let mut dto = ParsedInvoiceDto::from(parsed);
+    dto.verification_result = verification_result;
+    Ok(dto)
 }
 
-/// 按发票号跨批次查重。查不到不是错误，返回 `is_duplicate: false`。
+/// 按多字段组合查重：发票号精确匹配 或 (金额+日期+票种) 模糊匹配
 #[tauri::command]
 pub fn check_duplicate(
     invoice_number: String,
+    amount: String,
+    issue_date: String,
+    ticket_type: String,
     state: State<Mutex<AppState>>,
 ) -> AppResult<DuplicateCheckDto> {
+    use chrono::NaiveDate;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
     let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
-    let existing = db
-        .find_invoice_by_number(&invoice_number)
+    // 解析参数
+    let amount_decimal = Decimal::from_str(&amount)
+        .map_err(|_| AppError::validation("金额格式无效"))?;
+    let issue_date_parsed = NaiveDate::parse_from_str(&issue_date, DATE_FMT)
+        .map_err(|_| AppError::validation("日期格式无效"))?;
+
+    // 调用数据库查重
+    let duplicates = db
+        .find_potential_duplicates(
+            &invoice_number,
+            &amount_decimal,
+            &issue_date_parsed,
+            &ticket_type,
+            None,
+        )
         .map_err(|e| AppError::database(format!("查重失败: {}", e)))?;
 
-    let Some(existing) = existing else {
+    if duplicates.is_empty() {
         return Ok(DuplicateCheckDto {
             is_duplicate: false,
-            existing_batch_id: None,
-            existing_batch_name: None,
+            match_type: None,
+            existing_invoices: vec![],
         });
-    };
+    }
 
-    // 批次可能已被删除（外键级联理论上不会留孤儿，但读失败不该阻断查重结论）
-    let batch_name = db.get_batch(existing.batch_id).ok().map(|b| b.name);
+    // 判断匹配类型：命中发票号 → exact，否则 → fuzzy
+    let has_exact_match = duplicates.iter().any(|inv| inv.invoice_number == invoice_number);
+    let match_type = if has_exact_match { "exact" } else { "fuzzy" };
 
-    tracing::info!(batch_id = existing.batch_id, "查重命中，发票已在其他批次报销");
+    // 构造摘要 DTO，查询每个发票的批次名称
+    let mut summaries = Vec::new();
+    for inv in duplicates {
+        let batch_name = db
+            .get_batch(inv.batch_id)
+            .ok()
+            .map(|b| b.name)
+            .unwrap_or_else(|| "未知批次".to_string());
+
+        summaries.push(InvoiceSummaryDto {
+            id: inv.id,
+            batch_id: inv.batch_id,
+            batch_name,
+            invoice_number: inv.invoice_number,
+            amount: inv.amount.to_string(),
+            issue_date: inv.issue_date.format(DATE_FMT).to_string(),
+        });
+    }
+
+    tracing::info!(
+        match_type = match_type,
+        count = summaries.len(),
+        "查重命中"
+    );
 
     Ok(DuplicateCheckDto {
         is_duplicate: true,
-        existing_batch_id: Some(existing.batch_id),
-        existing_batch_name: batch_name,
+        match_type: Some(match_type.to_string()),
+        existing_invoices: summaries,
     })
 }
 
@@ -291,6 +389,8 @@ pub fn add_invoice_to_batch(
     ticket_type: Option<String>,
     state: State<Mutex<AppState>>,
 ) -> AppResult<InvoiceDto> {
+    use chrono::Utc;
+
     let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
@@ -305,16 +405,59 @@ pub fn add_invoice_to_batch(
     // 2. 重新解析
     let parsed = do_parse(&path, ticket_type.as_deref())?;
 
-    // 3. 再查一次重复，防 TOCTOU
-    let existing = db
-        .find_invoice_by_number(&parsed.invoice_number)
-        .map_err(|e| AppError::database(format!("查重失败: {}", e)))?;
-    if existing.is_some() {
-        return Err(AppError::validation("该发票已报销"));
-    }
+    // 3. 验签
+    let p = Path::new(&path);
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
 
-    // 4. 构造 ReportedInvoice。id 由自增填充；created_at/updated_at 由 add_invoice 内部写。
-    //    ReportedInvoice 没有 tax_rate/parse_level/confidence 列，解析级别只在确认阶段展示。
+    let bytes = std::fs::read(p)
+        .map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
+
+    let verification_result = match ext.as_str() {
+        "xml" => {
+            match invoice_parse::verify::verify_xml_signature(&bytes, p) {
+                Ok(status) => Some(signature_status_to_string(&status).to_string()),
+                Err(_) => Some("invalid".to_string()),
+            }
+        }
+        "ofd" => {
+            match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
+                Ok(status) => Some(signature_status_to_string(&status).to_string()),
+                Err(_) => Some("invalid".to_string()),
+            }
+        }
+        "pdf" => Some("not_applicable".to_string()),
+        _ => None,
+    };
+
+    // 4. 查重（不阻断，但标记）
+    let store_ticket_type = to_store_ticket_type(parsed.ticket_type);
+    let duplicates = db
+        .find_potential_duplicates(
+            &parsed.invoice_number,
+            &parsed.total_amount,
+            &parsed.issue_date,
+            store_ticket_type.to_str(),
+            None,
+        )
+        .map_err(|e| AppError::database(format!("查重失败: {}", e)))?;
+
+    let (is_duplicate, duplicate_reason) = if !duplicates.is_empty() {
+        let has_exact = duplicates.iter().any(|inv| inv.invoice_number == parsed.invoice_number);
+        let reason = if has_exact {
+            format!("发票号一致（已存在 {} 条记录）", duplicates.len())
+        } else {
+            format!("金额+日期+票种一致（已存在 {} 条记录）", duplicates.len())
+        };
+        (true, Some(reason))
+    } else {
+        (false, None)
+    };
+
+    // 5. 构造 ReportedInvoice。id 由自增填充；created_at/updated_at 由 add_invoice 内部写。
     let now = Utc::now().naive_utc();
     let record = ReportedInvoice {
         id: 0,
@@ -325,7 +468,7 @@ pub fn add_invoice_to_batch(
         tax_amount: parsed.tax_amount,
         buyer_name: parsed.buyer_name.clone(),
         seller_name: parsed.seller_name.clone(),
-        ticket_type: to_store_ticket_type(parsed.ticket_type),
+        ticket_type: store_ticket_type,
         city: parsed.city.clone(),
         departure_time: parsed.departure_time,
         checkin_date: parsed.checkin_date,
@@ -335,6 +478,9 @@ pub fn add_invoice_to_batch(
             .unwrap_or(path),
         created_at: now,
         updated_at: now,
+        verification_result,
+        is_duplicate,
+        duplicate_reason,
     };
 
     let invoice_id = db
@@ -345,10 +491,11 @@ pub fn add_invoice_to_batch(
         batch_id,
         invoice_id,
         parse_level = parse_level_to_string(parsed.parse_level),
+        is_duplicate,
         "发票已加入批次"
     );
 
-    // 5. 回读，让前端拿到 DB 生成的 id 与时间戳
+    // 6. 回读，让前端拿到 DB 生成的 id 与时间戳
     let stored = db
         .list_invoices_by_batch(batch_id)
         .map_err(|e| AppError::database(format!("回读发票失败: {}", e)))?
@@ -398,6 +545,19 @@ pub fn delete_invoice(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResu
         .map_err(|e| AppError::database(format!("删除发票失败: {}", e)))?;
 
     tracing::info!(invoice_id, batch_id = invoice.batch_id, "发票已从批次删除");
+    Ok(())
+}
+
+/// 清除发票的重复标记（用户确认不是重复后调用）
+#[tauri::command]
+pub fn clear_duplicate_flag(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
+    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let db = app_state.ledger_db()?;
+
+    db.clear_duplicate_flag(invoice_id)
+        .map_err(|e| AppError::database(format!("清除重复标记失败: {}", e)))?;
+
+    tracing::info!(invoice_id, "已清除发票重复标记");
     Ok(())
 }
 
@@ -459,6 +619,16 @@ mod tests {
         assert_eq!(ticket_type_from_str(""), ParseTicketType::Other);
         // 大小写敏感：Rail 不是词表里的值
         assert_eq!(ticket_type_from_str("Rail"), ParseTicketType::Other);
+    }
+
+    #[test]
+    fn signature_status_to_string_maps_all_variants() {
+        assert_eq!(signature_status_to_string(&SignatureStatus::Valid), "valid");
+        assert_eq!(
+            signature_status_to_string(&SignatureStatus::Invalid { reason: "test".into() }),
+            "invalid"
+        );
+        assert_eq!(signature_status_to_string(&SignatureStatus::NotSigned), "not_signed");
     }
 
     #[test]
@@ -592,14 +762,19 @@ mod tests {
             source_path: std::path::PathBuf::from("/tmp/a.xml"),
         };
 
-        let json = serde_json::to_value(ParsedInvoiceDto::from(parsed)).unwrap();
+        let mut dto = ParsedInvoiceDto::from(parsed);
+        dto.verification_result = "valid".to_string();
+
+        let json = serde_json::to_value(dto).unwrap();
         // 金额必须是字符串，不能是 JSON number（否则前端拿到 f64）
         assert_eq!(json["total_amount"], "553.00");
         assert_eq!(json["tax_amount"], "50.73");
         assert_eq!(json["issue_date"], "2026-07-03");
         assert_eq!(json["ticket_type"], "rail");
         assert_eq!(json["parse_level"], "L0");
+        assert_eq!(json["verification_result"], "valid");
         assert!(json["total_amount"].is_string());
+        assert!(json["verification_result"].is_string());
     }
 
     #[test]
@@ -624,6 +799,9 @@ mod tests {
             file_path: "/tmp/b.ofd".into(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            verification_result: Some("valid".into()),
+            is_duplicate: false,
+            duplicate_reason: None,
         };
 
         let json = serde_json::to_value(InvoiceDto::from(record)).unwrap();

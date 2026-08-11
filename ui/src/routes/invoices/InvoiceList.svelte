@@ -13,6 +13,7 @@
   let { invoices, canEdit, onDeleted }: Props = $props()
 
   let deletingId = $state<number | null>(null)
+  let clearingDuplicateId = $state<number | null>(null)
   let error = $state<string | null>(null)
 
   // 展示用合计：Number 求和有浮点误差，精确值以后端批次统计为准
@@ -31,6 +32,23 @@
       deletingId = null
     } else {
       deletingId = null
+      error = describeError(result.error)
+    }
+  }
+
+  async function handleClearDuplicate(id: number) {
+    if (!confirm('确定要取消重复标记吗？')) return
+
+    clearingDuplicateId = id
+    error = null
+
+    const result = await invokeSafe<void>('clear_duplicate_flag', { invoiceId: id })
+
+    if (result.ok) {
+      await onDeleted() // 刷新列表
+      clearingDuplicateId = null
+    } else {
+      clearingDuplicateId = null
       error = describeError(result.error)
     }
   }
@@ -59,14 +77,28 @@
       </thead>
       <tbody>
         {#each invoices as invoice (invoice.id)}
-          <tr>
-            <td class="number" title={invoice.invoice_number}>{invoice.invoice_number}</td>
+          <tr class:duplicate-row={invoice.is_duplicate}>
+            <td class="number" title={invoice.invoice_number}>
+              {invoice.invoice_number}
+              {#if invoice.is_duplicate}
+                <span class="duplicate-icon" title={invoice.duplicate_reason ?? '标记为重复'}>🔁</span>
+              {/if}
+            </td>
             <td>{invoice.issue_date}</td>
             <td>{TICKET_TYPE_LABELS[invoice.ticket_type] ?? invoice.ticket_type}</td>
             <td class="num">{formatAmount(invoice.amount)}</td>
             <td class="seller">{invoice.seller_name ?? '—'}</td>
             {#if canEdit}
-              <td>
+              <td class="actions">
+                {#if invoice.is_duplicate}
+                  <button
+                    class="btn-secondary btn-sm"
+                    onclick={() => handleClearDuplicate(invoice.id)}
+                    disabled={clearingDuplicateId === invoice.id}
+                  >
+                    {clearingDuplicateId === invoice.id ? '处理中' : '取消重复'}
+                  </button>
+                {/if}
                 <button
                   class="btn-danger btn-sm"
                   onclick={() => handleDelete(invoice.id)}
@@ -102,8 +134,14 @@
   .invoice-table tbody tr:hover { background: #f9f9f9; }
   .invoice-table .num { text-align: right; }
 
+  .duplicate-row { background: #fff0f0; }
+  .duplicate-row:hover { background: #ffe8e8 !important; }
+
   .number { font-family: ui-monospace, monospace; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .duplicate-icon { margin-left: 0.25rem; font-size: 0.9rem; cursor: help; }
   .seller { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .actions { display: flex; gap: 0.25rem; flex-wrap: wrap; }
 
   tfoot td { font-weight: 600; border-bottom: none; }
   .total { color: #0070f3; }
@@ -114,6 +152,9 @@
   .btn-danger { background: #c33; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
   .btn-danger:hover:not(:disabled) { background: #a22; }
   .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: #eee; color: #333; border: none; border-radius: 4px; cursor: pointer; }
+  .btn-secondary:hover:not(:disabled) { background: #ddd; }
+  .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-sm { padding: 0.2rem 0.45rem; font-size: 0.75rem; }
 
   .error {

@@ -69,6 +69,8 @@ export type TicketType = 'rail' | 'flight' | 'hotel' | 'city_transport' | 'meal'
 
 export type ParseLevel = 'L0' | 'L1' | 'L2' | 'L4'
 
+export type VerificationResult = 'valid' | 'invalid' | 'not_signed' | 'not_applicable'
+
 /** 解析结果，尚未入库。金额与税率是字符串（后端 Decimal），仅用于展示。 */
 export interface ParsedInvoice {
   invoice_number: string
@@ -85,6 +87,7 @@ export interface ParsedInvoice {
   departure_time: string | null
   checkin_date: string | null
   source_path: string
+  verification_result: VerificationResult
 }
 
 /** 已入库发票。金额列名是 `amount`（与 `ParsedInvoice.total_amount` 不同）。 */
@@ -103,12 +106,24 @@ export interface Invoice {
   checkin_date: string | null
   file_path: string
   created_at: string
+  verification_result: VerificationResult | null
+  is_duplicate: boolean
+  duplicate_reason: string | null
+}
+
+export interface InvoiceSummary {
+  id: number
+  batch_id: number
+  batch_name: string
+  invoice_number: string
+  amount: string
+  issue_date: string
 }
 
 export interface DuplicateCheck {
   is_duplicate: boolean
-  existing_batch_id: number | null
-  existing_batch_name: string | null
+  match_type: 'exact' | 'fuzzy' | null
+  existing_invoices: InvoiceSummary[]
 }
 
 /** 下拉框顺序；词表与后端 `StoreTicketType::to_str()` 一致。 */
@@ -144,6 +159,22 @@ export const PARSE_LEVEL_SEVERITY: Record<ParseLevel, 'ok' | 'warn' | 'danger'> 
   L1: 'ok',
   L2: 'warn',
   L4: 'danger',
+}
+
+/** 验签结果标签 */
+export const VERIFICATION_LABELS: Record<VerificationResult, string> = {
+  valid: '✓ 签名有效',
+  invalid: '✗ 签名无效',
+  not_signed: '未签名',
+  not_applicable: 'N/A',
+}
+
+/** 验签结果配色 */
+export const VERIFICATION_COLORS: Record<VerificationResult, string> = {
+  valid: 'green',
+  invalid: 'red',
+  not_signed: 'gray',
+  not_applicable: 'gray',
 }
 
 /**

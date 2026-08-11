@@ -74,6 +74,7 @@ fn main() {
             commands::invoice::add_invoice_to_batch,
             commands::invoice::list_batch_invoices,
             commands::invoice::delete_invoice,
+            commands::invoice::clear_duplicate_flag,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 应用运行失败");
