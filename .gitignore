@@ -8,6 +8,12 @@ fixtures/samples/
 .env.local
 *.eml
 
+# 真实发票数据的验证报告（含公司名/发票号/金额，绝不提交）
+/reports/
+
+# Claude Code 本地状态（worktrees 是整仓副本，数 GB）
+.claude/worktrees/
+
 # OCR 模型（大二进制，见 models/README.md）
 /models/*.onnx
 /models/*.txt

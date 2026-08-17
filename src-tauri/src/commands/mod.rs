@@ -2,5 +2,6 @@ pub mod batch;
 pub mod base;
 pub mod export;
 pub mod invoice;
+pub mod onboarding;
 pub mod pipeline;
 pub mod settings;

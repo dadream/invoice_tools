@@ -38,6 +38,7 @@ rust_decimal = { workspace = true }
 printpdf = "0.7"
 
 [dev-dependencies]
+calamine = "0.26"
 # 仅测试用：构造 ParsedInvoice / ReportedInvoice 夹具校验 DTO 序列化
 
 [features]

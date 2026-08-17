@@ -1,53 +1,77 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
+  import { invokeSafe } from './lib/ipc'
   import BatchList from './routes/batches/BatchList.svelte'
   import PipelineRunner from './routes/pipeline/PipelineRunner.svelte'
   import SettingsPage from './routes/settings/+page.svelte'
+  import WelcomeWizard from './routes/welcome/+page.svelte'
 
-  let currentRoute = $state<'batches' | 'pipeline' | 'settings'>('batches');
+  let currentRoute = $state<'batches' | 'pipeline' | 'settings' | 'welcome'>('batches')
+  let checkingFirstRun = $state(true)
 
   function navigateTo(route: 'batches' | 'pipeline' | 'settings') {
     currentRoute = route;
   }
+
+  async function checkFirstRun() {
+    const result = await invokeSafe<boolean>('is_first_run', {})
+    if (result.ok && result.data) {
+      currentRoute = 'welcome'
+    }
+    checkingFirstRun = false
+  }
+
+  onMount(() => {
+    checkFirstRun()
+  })
 </script>
 
-<nav class="navbar">
-  <div class="nav-container">
-    <h1 class="nav-title">发票助手</h1>
-    <div class="nav-links">
-      <button
-        class="nav-link"
-        class:active={currentRoute === 'batches'}
-        onclick={() => navigateTo('batches')}
-      >
-        批次管理
-      </button>
-      <button
-        class="nav-link"
-        class:active={currentRoute === 'pipeline'}
-        onclick={() => navigateTo('pipeline')}
-      >
-        流水线
-      </button>
-      <button
-        class="nav-link"
-        class:active={currentRoute === 'settings'}
-        onclick={() => navigateTo('settings')}
-      >
-        ⚙️ 设置
-      </button>
-    </div>
+{#if checkingFirstRun}
+  <div class="loading-screen">
+    <div class="loading-spinner">加载中...</div>
   </div>
-</nav>
+{:else if currentRoute === 'welcome'}
+  <WelcomeWizard />
+{:else}
+  <nav class="navbar">
+    <div class="nav-container">
+      <h1 class="nav-title">发票助手</h1>
+      <div class="nav-links">
+        <button
+          class="nav-link"
+          class:active={currentRoute === 'batches'}
+          onclick={() => navigateTo('batches')}
+        >
+          批次管理
+        </button>
+        <button
+          class="nav-link"
+          class:active={currentRoute === 'pipeline'}
+          onclick={() => navigateTo('pipeline')}
+        >
+          流水线
+        </button>
+        <button
+          class="nav-link"
+          class:active={currentRoute === 'settings'}
+          onclick={() => navigateTo('settings')}
+        >
+          ⚙️ 设置
+        </button>
+      </div>
+    </div>
+  </nav>
 
-<main class="container">
-  {#if currentRoute === 'batches'}
-    <BatchList />
-  {:else if currentRoute === 'pipeline'}
-    <PipelineRunner />
-  {:else if currentRoute === 'settings'}
-    <SettingsPage />
-  {/if}
-</main>
+  <main class="container">
+    {#if currentRoute === 'batches'}
+      <BatchList />
+    {:else if currentRoute === 'pipeline'}
+      <PipelineRunner />
+    {:else if currentRoute === 'settings'}
+      <SettingsPage />
+    {/if}
+  </main>
+{/if}
 
 <style>
   .navbar {
@@ -98,5 +122,18 @@
   .container {
     min-height: 100vh;
     background: #f5f5f5;
+  }
+
+  .loading-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+  }
+
+  .loading-spinner {
+    font-size: 1.2rem;
+    color: #666;
   }
 </style>

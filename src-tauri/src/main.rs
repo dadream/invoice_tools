@@ -103,6 +103,7 @@ fn main() {
             commands::settings::get_all_settings,
             commands::settings::get_grouping_rules,
             commands::settings::save_grouping_rules,
+            commands::onboarding::is_first_run,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 应用运行失败");
