@@ -383,10 +383,25 @@ async fn dedupe_invoices(
             None,
         ).map_err(|e| AppError::database(format!("查重失败: {}", e)))?;
 
-        if duplicates.is_empty() {
-            deduplicated.push(invoice.clone());
+        // find_potential_duplicates 返回的是"疑似"重复：发票号命中才是确定重复，
+        // 仅（金额+日期+票种）命中的可能是同日同额的不同商家发票，或同商家连号发票。
+        // 真实数据（2026-06）中两例：两家不同商户同日同为 143.40、同一商户两张连号 692.00。
+        // 静默丢弃会让用户丢失有效发票，因此只按发票号去重，模糊命中放行交由人工审核。
+        let confirmed = duplicates
+            .iter()
+            .any(|d| d.invoice_number == invoice.invoice_number);
+
+        if confirmed {
+            tracing::info!(invoice_number = %invoice.invoice_number, "跳过重复发票（发票号已存在）");
         } else {
-            tracing::info!(invoice_number = %invoice.invoice_number, "跳过重复发票");
+            if !duplicates.is_empty() {
+                tracing::warn!(
+                    invoice_number = %invoice.invoice_number,
+                    suspects = duplicates.len(),
+                    "疑似重复（金额+日期+票种命中），保留待人工确认"
+                );
+            }
+            deduplicated.push(invoice.clone());
         }
     }
 
