@@ -28,7 +28,9 @@ pub fn greet(name: String) -> AppResult<String> {
         return Err(AppError::validation("姓名不能为空"));
     }
     if trimmed.chars().count() > MAX_NAME_LEN {
-        return Err(AppError::validation(format!("姓名不能超过 {MAX_NAME_LEN} 个字符")));
+        return Err(AppError::validation(format!(
+            "姓名不能超过 {MAX_NAME_LEN} 个字符"
+        )));
     }
     tracing::info!(name_len = trimmed.chars().count(), "greet 调用成功");
     Ok(format!("你好，{trimmed}！欢迎使用发票报销助手。"))
@@ -101,14 +103,27 @@ mod tests {
     fn health_check_reports_log_dir() {
         let report = health_check().unwrap();
         assert!(report.ok);
-        assert!(report.log_dir.contains("logs"), "应含 logs: {}", report.log_dir);
+        assert!(
+            report.log_dir.contains("logs"),
+            "应含 logs: {}",
+            report.log_dir
+        );
     }
 
     #[test]
     fn trigger_error_maps_known_kinds() {
-        assert_eq!(trigger_error("network".into()).unwrap_err().kind(), ErrorKind::Network);
-        assert_eq!(trigger_error("database".into()).unwrap_err().kind(), ErrorKind::Database);
+        assert_eq!(
+            trigger_error("network".into()).unwrap_err().kind(),
+            ErrorKind::Network
+        );
+        assert_eq!(
+            trigger_error("database".into()).unwrap_err().kind(),
+            ErrorKind::Database
+        );
         // 未知分类归为 internal
-        assert_eq!(trigger_error("nonsense".into()).unwrap_err().kind(), ErrorKind::Internal);
+        assert_eq!(
+            trigger_error("nonsense".into()).unwrap_err().kind(),
+            ErrorKind::Internal
+        );
     }
 }

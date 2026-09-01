@@ -1,0 +1,35 @@
+name: Windows quality gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install locked UI dependencies
+        run: npm ci --prefix ui
+
+      - name: Install locked Rust toolchain components
+        shell: pwsh
+        run: rustup toolchain install 1.97.1 --component rustfmt --component clippy
+
+      - name: Run the same Windows quality gate as local development
+        shell: pwsh
+        run: .\scripts\verify-windows.ps1

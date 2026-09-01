@@ -18,3 +18,16 @@ mail-parser = "0.9"
 rust_decimal = { version = "1.36", features = ["serde"] }
 quick-xml = { version = "0.36", features = ["serialize"] }
 zip = "2.2"
+dirs = "6.0"
+zeroize = "1.9"
+url = "2.5"
+
+# Windows product validation needs source-line backtraces, not retained
+# variable-level debug state or unbounded incremental caches.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false

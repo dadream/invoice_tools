@@ -103,6 +103,11 @@ fn parse_content_xml(xml: &[u8], path: &Path) -> Result<Vec<TextBox>, ParseError
                     text.push_str(&s);
                 }
             }
+            // 数电票常把真实字段放在 CDATA 中。只处理 Event::Text 会留下标签、
+            // 丢掉发票号码/日期/金额，最终把一张有效 OFD 错送到“配套材料待处理”。
+            Ok(Event::CData(e)) if in_text_code => {
+                text.push_str(&String::from_utf8_lossy(e.as_ref()));
+            }
             Ok(Event::End(e)) => {
                 let name = local_tag(e.name().as_ref());
                 if name == "TextCode" {
@@ -149,7 +154,10 @@ fn local_tag(raw: &[u8]) -> String {
 /// `Boundary="x y w h"`，单位毫米。
 fn parse_boundary(raw: &[u8]) -> Option<(f32, f32, f32, f32)> {
     let s = String::from_utf8_lossy(raw);
-    let v: Vec<f32> = s.split_whitespace().filter_map(|p| p.parse().ok()).collect();
+    let v: Vec<f32> = s
+        .split_whitespace()
+        .filter_map(|p| p.parse().ok())
+        .collect();
     if v.len() == 4 {
         Some((v[0], v[1], v[2], v[3]))
     } else {
@@ -176,7 +184,8 @@ mod tests {
         {
             let mut zip = zip::ZipWriter::new(Cursor::new(&mut buf));
             let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
-            zip.start_file("Doc_0/Pages/Page_0/Content.xml", opts).unwrap();
+            zip.start_file("Doc_0/Pages/Page_0/Content.xml", opts)
+                .unwrap();
             zip.write_all(content_xml.as_bytes()).unwrap();
             zip.finish().unwrap();
         }
@@ -207,9 +216,15 @@ mod tests {
     #[test]
     fn extracts_text_with_coordinates() {
         let boxes = extract_text_boxes(&make_ofd(CLEAN), Path::new("t.ofd")).unwrap();
-        assert!(boxes.len() >= 6, "应提取到至少 6 个文本框，实际 {}", boxes.len());
         assert!(
-            boxes.iter().any(|b| b.text.contains("26132000001954318426")),
+            boxes.len() >= 6,
+            "应提取到至少 6 个文本框，实际 {}",
+            boxes.len()
+        );
+        assert!(
+            boxes
+                .iter()
+                .any(|b| b.text.contains("26132000001954318426")),
             "应含发票号码，实际: {:?}",
             boxes.iter().map(|b| &b.text).collect::<Vec<_>>()
         );
@@ -298,7 +313,10 @@ mod tests {
     fn zip_without_content_xml_reports_missing_field() {
         let empty = make_ofd_named("Doc_0/Document.xml", "<a/>");
         let err = extract_text_boxes(&empty, Path::new("e.ofd")).unwrap_err();
-        assert!(matches!(err, ParseError::MissingField { .. }), "实际 {err:?}");
+        assert!(
+            matches!(err, ParseError::MissingField { .. }),
+            "实际 {err:?}"
+        );
     }
 
     fn make_ofd_named(name: &str, body: &str) -> Vec<u8> {
@@ -328,10 +346,22 @@ mod tests {
         ];
         for n in names {
             let p = PathBuf::from("../../fixtures/samples").join(n);
-            let Ok(bytes) = std::fs::read(&p) else { continue };
-            let boxes = extract_text_boxes(&bytes, &p)
-                .unwrap_or_else(|e| panic!("{n} 提取失败: {e}"));
+            let Ok(bytes) = std::fs::read(&p) else {
+                continue;
+            };
+            let boxes =
+                extract_text_boxes(&bytes, &p).unwrap_or_else(|e| panic!("{n} 提取失败: {e}"));
             assert!(!boxes.is_empty(), "{n} 应提取到文本框");
         }
+    }
+
+    #[test]
+    fn extracts_values_stored_in_cdata() {
+        let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ofd:Page xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Content><ofd:Layer>
+<ofd:TextObject Boundary="170.5 11.5 27 5"><ofd:TextCode><![CDATA[26312000003409200316]]></ofd:TextCode></ofd:TextObject>
+</ofd:Layer></ofd:Content></ofd:Page>"#;
+        let boxes = extract_text_boxes(&make_ofd(content), Path::new("cdata.ofd")).unwrap();
+        assert!(boxes.iter().any(|item| item.text == "26312000003409200316"));
     }
 }

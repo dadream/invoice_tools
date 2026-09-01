@@ -11,9 +11,7 @@ use serde::Serialize;
 use tauri::State;
 
 use invoice_parse::manifest::TagHints;
-use invoice_parse::model::{
-    ParseError, ParseLevel, ParsedInvoice, TicketType as ParseTicketType,
-};
+use invoice_parse::model::{ParseError, ParseLevel, ParsedInvoice, TicketType as ParseTicketType};
 use invoice_parse::verify::SignatureStatus;
 use invoice_store::models::{BatchStatus, ReportedInvoice, TicketType as StoreTicketType};
 
@@ -34,7 +32,7 @@ pub struct ParsedInvoiceDto {
     pub tax_rate: Option<String>,
     pub buyer_name: Option<String>,
     pub seller_name: Option<String>,
-    /// rail/flight/hotel/city_transport/meal/other
+    /// rail/flight/hotel/city_transport/meal/courier_logistics/other
     pub ticket_type: String,
     /// L0/L1/L2/L4
     pub parse_level: String,
@@ -43,7 +41,7 @@ pub struct ParsedInvoiceDto {
     pub departure_time: Option<String>,
     pub checkin_date: Option<String>,
     pub source_path: String,
-    /// valid/invalid/not_signed/not_applicable
+    /// valid/invalid/unsupported/not_signed/not_applicable
     pub verification_result: String,
 }
 
@@ -61,7 +59,9 @@ impl From<ParsedInvoice> for ParsedInvoiceDto {
             parse_level: parse_level_to_string(p.parse_level).to_string(),
             confidence: p.confidence,
             city: p.city,
-            departure_time: p.departure_time.map(|dt| dt.format(DATETIME_FMT).to_string()),
+            departure_time: p
+                .departure_time
+                .map(|dt| dt.format(DATETIME_FMT).to_string()),
             checkin_date: p.checkin_date.map(|d| d.format(DATE_FMT).to_string()),
             source_path: p.source_path.display().to_string(),
             verification_result: String::new(), // 由调用方单独填充
@@ -86,6 +86,10 @@ pub struct InvoiceDto {
     pub checkin_date: Option<String>,
     pub file_path: String,
     pub created_at: String,
+    pub verification_result: Option<String>,
+    pub is_duplicate: bool,
+    pub duplicate_reason: Option<String>,
+    pub is_excluded: bool,
 }
 
 impl From<ReportedInvoice> for InvoiceDto {
@@ -101,10 +105,16 @@ impl From<ReportedInvoice> for InvoiceDto {
             seller_name: r.seller_name,
             ticket_type: r.ticket_type.to_str().to_string(),
             city: r.city,
-            departure_time: r.departure_time.map(|dt| dt.format(DATETIME_FMT).to_string()),
+            departure_time: r
+                .departure_time
+                .map(|dt| dt.format(DATETIME_FMT).to_string()),
             checkin_date: r.checkin_date.map(|d| d.format(DATE_FMT).to_string()),
             file_path: r.file_path,
             created_at: r.created_at.format(DATETIME_FMT).to_string(),
+            verification_result: r.verification_result,
+            is_duplicate: r.is_duplicate,
+            duplicate_reason: r.duplicate_reason,
+            is_excluded: false,
         }
     }
 }
@@ -113,7 +123,7 @@ impl From<ReportedInvoice> for InvoiceDto {
 #[derive(Debug, Clone, Serialize)]
 pub struct DuplicateCheckDto {
     pub is_duplicate: bool,
-    pub match_type: Option<String>,  // "exact" / "fuzzy" / null
+    pub match_type: Option<String>, // "exact" / "fuzzy" / null
     pub existing_invoices: Vec<InvoiceSummaryDto>,
 }
 
@@ -128,7 +138,7 @@ pub struct InvoiceSummaryDto {
     pub issue_date: String,
 }
 
-fn parse_level_to_string(level: ParseLevel) -> &'static str {
+pub(crate) fn parse_level_to_string(level: ParseLevel) -> &'static str {
     match level {
         ParseLevel::L0 => "L0",
         ParseLevel::L1 => "L1",
@@ -142,6 +152,7 @@ fn signature_status_to_string(status: &SignatureStatus) -> &'static str {
     match status {
         SignatureStatus::Valid => "valid",
         SignatureStatus::Invalid { .. } => "invalid",
+        SignatureStatus::Unsupported { .. } => "unsupported",
         SignatureStatus::NotSigned => "not_signed",
     }
 }
@@ -154,6 +165,7 @@ pub(crate) fn to_store_ticket_type(t: ParseTicketType) -> StoreTicketType {
         ParseTicketType::Hotel => StoreTicketType::Hotel,
         ParseTicketType::CityTransport => StoreTicketType::CityTransport,
         ParseTicketType::Meal => StoreTicketType::Meal,
+        ParseTicketType::CourierLogistics => StoreTicketType::CourierLogistics,
         ParseTicketType::Other => StoreTicketType::Other,
     }
 }
@@ -167,6 +179,7 @@ fn ticket_type_from_str(s: &str) -> ParseTicketType {
         "hotel" => ParseTicketType::Hotel,
         "city_transport" => ParseTicketType::CityTransport,
         "meal" => ParseTicketType::Meal,
+        "courier_logistics" => ParseTicketType::CourierLogistics,
         _ => ParseTicketType::Other,
     }
 }
@@ -181,7 +194,11 @@ fn parse_error_message(err: &ParseError) -> String {
         ParseError::Io { source, .. } => format!("读取文件失败（{}）", source.kind()),
         ParseError::MalformedFormat { format, .. } => format!("文件不是有效的 {} 格式", format),
         ParseError::MissingField { field, .. } => format!("找不到必需字段 {}", field),
-        ParseError::UnparseableValue { field, expected_type, .. } => {
+        ParseError::UnparseableValue {
+            field,
+            expected_type,
+            ..
+        } => {
             format!("字段 {} 的值无法解析为 {}", field, expected_type)
         }
     }
@@ -195,18 +212,87 @@ fn parse_error_message(err: &ParseError) -> String {
 pub(crate) fn builtin_hints() -> TagHints {
     TagHints {
         invoice_number: vec!["InvoiceNumber".into(), "EIid".into()],
-        issue_date: vec!["IssueTime".into(), "RequestTime".into()],
-        total_amount: vec!["TotalTax-includedAmount".into()],
-        tax_amount: vec!["TotalTaxAm".into()],
+        issue_date: vec!["IssueTime".into(), "RequestTime".into(), "IssueDate".into()],
+        total_amount: vec!["TotalTax-includedAmount".into(), "TotalAmount".into()],
+        tax_amount: vec!["TotalTaxAm".into(), "TaxAmount".into()],
         tax_rate: vec!["TaxRate".into()],
         buyer_name: vec!["BuyerName".into()],
         seller_name: vec!["SellerName".into()],
     }
 }
 
+fn run_pdf_parse_attempt<F>(attempt: &'static str, parser: F) -> Option<ParsedInvoice>
+where
+    F: FnOnce() -> Result<ParsedInvoice, ParseError>,
+{
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(parser)) {
+        Ok(Ok(parsed)) => Some(parsed),
+        Ok(Err(_)) => {
+            tracing::debug!(attempt, "PDF 解析路径未命中，继续降级");
+            None
+        }
+        Err(_) => {
+            // 不输出 panic payload；第三方解析库可能把文件内容片段放进 payload。
+            tracing::warn!(attempt, "PDF 解析路径发生 panic，已隔离并继续降级");
+            None
+        }
+    }
+}
+
+pub(crate) fn parse_pdf_with_fallbacks(
+    path: &Path,
+    bytes: &[u8],
+    hints: &TagHints,
+    ticket_type: ParseTicketType,
+) -> AppResult<ParsedInvoice> {
+    if bytes.is_empty() || bytes.len() > invoice_parse::pdf_embedded::MAX_PDF_BYTES {
+        return Err(AppError::validation("PDF 文件为空或超过 25 MiB 大小上限"));
+    }
+    if let Some(parsed) = run_pdf_parse_attempt("embedded_structured_xml", || {
+        invoice_parse::pdf_embedded::parse_embedded_rail_invoice(bytes, path)
+    }) {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = run_pdf_parse_attempt("travel_ticket_text", || {
+        let text = invoice_parse::pdf::extract_text(bytes, path)?;
+        invoice_parse::pdf::parse_detected_travel_invoice_text(&text, path)
+    }) {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = run_pdf_parse_attempt("positioned_text", || {
+        invoice_parse::pdf_text::parse_vat_invoice_from_boxes(bytes, path)
+    }) {
+        return Ok(parsed);
+    }
+    if let Some(parsed) = run_pdf_parse_attempt("flat_text", || {
+        invoice_parse::pdf::parse_invoice_pdf(bytes, path, hints, ticket_type)
+    }) {
+        return Ok(parsed);
+    }
+    let is_ride_hailing_itinerary = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        invoice_parse::pdf::extract_text(bytes, path)
+    }))
+    .ok()
+    .and_then(Result::ok)
+    .is_some_and(|text| invoice_parse::pdf::is_unambiguous_ride_hailing_itinerary(&text));
+    if is_ride_hailing_itinerary {
+        tracing::debug!(
+            category = "ride_hailing_itinerary",
+            "PDF 是报销辅助材料，跳过无收益的 OCR"
+        );
+        return Err(AppError::parse(
+            "检测到网约车行程单辅助材料；请保留供人工核对，不作为发票原件解析",
+        ));
+    }
+    let asset_dir = crate::paths::ocr_assets_dir()
+        .map_err(|_| AppError::parse("离线 OCR 组件路径不可用；请重新解压完整便携包"))?;
+    crate::ocr_worker::parse_with_worker(path, &asset_dir, ticket_type)
+        .map_err(|_| AppError::parse("PDF 文本解析和离线 OCR 均失败，请人工复核原件"))
+}
+
 /// 按扩展名分派解析。`parse_invoice` 与 `add_invoice_to_batch` 共用，
 /// 后者不信任前端回传的字段，一律重新解析。
-fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<ParsedInvoice> {
+pub(crate) fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<ParsedInvoice> {
     let p = Path::new(path);
     if !p.is_file() {
         return Err(AppError::validation("文件不存在或不是普通文件"));
@@ -218,16 +304,45 @@ fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<ParsedInvoice> {
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
 
-    // 只带 io kind，不拼接路径，避免把用户目录结构写进日志
-    let bytes = std::fs::read(p)
-        .map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
-
     let hints = builtin_hints();
-    let tt = ticket_type.map(ticket_type_from_str).unwrap_or(ParseTicketType::Other);
+    let tt = ticket_type
+        .map(ticket_type_from_str)
+        .unwrap_or(ParseTicketType::Other);
 
     // 先确认扩展名受支持，再进入解析（不支持的类型属于 validation，不是 parse 失败）
-    if !matches!(ext.as_str(), "xml" | "ofd" | "pdf") {
+    if !matches!(
+        ext.as_str(),
+        "xml" | "ofd" | "pdf" | "png" | "jpg" | "jpeg" | "webp" | "bmp"
+    ) {
         return Err(AppError::validation(format!("不支持的文件类型: .{}", ext)));
+    }
+
+    if matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "bmp") {
+        let asset_dir = crate::paths::ocr_assets_dir()
+            .map_err(|_| AppError::parse("离线 OCR 组件路径不可用；请重新解压完整便携包"))?;
+        let parsed = crate::ocr_worker::parse_with_worker(p, &asset_dir, tt)?;
+        tracing::info!(
+            ext = %ext,
+            parse_level = parse_level_to_string(parsed.parse_level),
+            confidence = parsed.confidence,
+            "图片发票 OCR 解析成功"
+        );
+        return Ok(parsed);
+    }
+
+    // 只带 io kind，不拼接路径，避免把用户目录结构写进日志
+    let bytes =
+        std::fs::read(p).map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
+
+    if ext == "pdf" {
+        let parsed = parse_pdf_with_fallbacks(p, &bytes, &hints, tt)?;
+        tracing::info!(
+            ext = %ext,
+            parse_level = parse_level_to_string(parsed.parse_level),
+            confidence = parsed.confidence,
+            "PDF 发票解析成功"
+        );
+        return Ok(parsed);
     }
 
     // panic containment：`pdf_text::extract_text_boxes` 自带 catch_unwind，但
@@ -237,9 +352,7 @@ fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<ParsedInvoice> {
     let dispatch = std::panic::AssertUnwindSafe(|| match ext.as_str() {
         "xml" => invoice_parse::xml::parse_invoice_xml(&bytes, p, &hints, tt),
         "ofd" => invoice_parse::ofd::parse_invoice_ofd(&bytes, p, &hints, tt),
-        // PDF 先走 L1 坐标路径，失败再降级 flat-text（与 invoice-parse CLI 的 pdf-vat 分支一致）
-        "pdf" => invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, p)
-            .or_else(|_| invoice_parse::pdf::parse_invoice_pdf(&bytes, p, &hints, tt)),
+        "pdf" => unreachable!("PDF 已在独立逐级隔离路径处理"),
         _ => unreachable!("扩展名已在上面校验"),
     });
 
@@ -277,22 +390,18 @@ pub fn parse_invoice(path: String, ticket_type: Option<String>) -> AppResult<Par
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
 
-    let bytes = std::fs::read(p)
-        .map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
+    let bytes =
+        std::fs::read(p).map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
 
     let verification_result = match ext.as_str() {
-        "xml" => {
-            match invoice_parse::verify::verify_xml_signature(&bytes, p) {
-                Ok(status) => signature_status_to_string(&status).to_string(),
-                Err(_) => "invalid".to_string(),
-            }
-        }
-        "ofd" => {
-            match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
-                Ok(status) => signature_status_to_string(&status).to_string(),
-                Err(_) => "invalid".to_string(),
-            }
-        }
+        "xml" => match invoice_parse::verify::verify_xml_signature(&bytes, p) {
+            Ok(status) => signature_status_to_string(&status).to_string(),
+            Err(_) => "unsupported".to_string(),
+        },
+        "ofd" => match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
+            Ok(status) => signature_status_to_string(&status).to_string(),
+            Err(_) => "unsupported".to_string(),
+        },
         "pdf" => "not_applicable".to_string(),
         _ => "not_applicable".to_string(),
     };
@@ -315,12 +424,14 @@ pub fn check_duplicate(
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
-    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
     // 解析参数
-    let amount_decimal = Decimal::from_str(&amount)
-        .map_err(|_| AppError::validation("金额格式无效"))?;
+    let amount_decimal =
+        Decimal::from_str(&amount).map_err(|_| AppError::validation("金额格式无效"))?;
     let issue_date_parsed = NaiveDate::parse_from_str(&issue_date, DATE_FMT)
         .map_err(|_| AppError::validation("日期格式无效"))?;
 
@@ -344,7 +455,9 @@ pub fn check_duplicate(
     }
 
     // 判断匹配类型：命中发票号 → exact，否则 → fuzzy
-    let has_exact_match = duplicates.iter().any(|inv| inv.invoice_number == invoice_number);
+    let has_exact_match = duplicates
+        .iter()
+        .any(|inv| inv.invoice_number == invoice_number);
     let match_type = if has_exact_match { "exact" } else { "fuzzy" };
 
     // 构造摘要 DTO，查询每个发票的批次名称
@@ -366,11 +479,7 @@ pub fn check_duplicate(
         });
     }
 
-    tracing::info!(
-        match_type = match_type,
-        count = summaries.len(),
-        "查重命中"
-    );
+    tracing::info!(match_type = match_type, count = summaries.len(), "查重命中");
 
     Ok(DuplicateCheckDto {
         is_duplicate: true,
@@ -391,7 +500,9 @@ pub fn add_invoice_to_batch(
 ) -> AppResult<InvoiceDto> {
     use chrono::Utc;
 
-    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
     // 1. 批次必须存在且为 Draft
@@ -413,22 +524,18 @@ pub fn add_invoice_to_batch(
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
 
-    let bytes = std::fs::read(p)
-        .map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
+    let bytes =
+        std::fs::read(p).map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
 
     let verification_result = match ext.as_str() {
-        "xml" => {
-            match invoice_parse::verify::verify_xml_signature(&bytes, p) {
-                Ok(status) => Some(signature_status_to_string(&status).to_string()),
-                Err(_) => Some("invalid".to_string()),
-            }
-        }
-        "ofd" => {
-            match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
-                Ok(status) => Some(signature_status_to_string(&status).to_string()),
-                Err(_) => Some("invalid".to_string()),
-            }
-        }
+        "xml" => match invoice_parse::verify::verify_xml_signature(&bytes, p) {
+            Ok(status) => Some(signature_status_to_string(&status).to_string()),
+            Err(_) => Some("unsupported".to_string()),
+        },
+        "ofd" => match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
+            Ok(status) => Some(signature_status_to_string(&status).to_string()),
+            Err(_) => Some("unsupported".to_string()),
+        },
         "pdf" => Some("not_applicable".to_string()),
         _ => None,
     };
@@ -446,7 +553,9 @@ pub fn add_invoice_to_batch(
         .map_err(|e| AppError::database(format!("查重失败: {}", e)))?;
 
     let (is_duplicate, duplicate_reason) = if !duplicates.is_empty() {
-        let has_exact = duplicates.iter().any(|inv| inv.invoice_number == parsed.invoice_number);
+        let has_exact = duplicates
+            .iter()
+            .any(|inv| inv.invoice_number == parsed.invoice_number);
         let reason = if has_exact {
             format!("发票号一致（已存在 {} 条记录）", duplicates.len())
         } else {
@@ -512,20 +621,35 @@ pub fn list_batch_invoices(
     batch_id: i64,
     state: State<Mutex<AppState>>,
 ) -> AppResult<Vec<InvoiceDto>> {
-    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
     let invoices = db
         .list_invoices_by_batch(batch_id)
         .map_err(|e| AppError::database(format!("查询发票失败: {}", e)))?;
 
-    Ok(invoices.into_iter().map(InvoiceDto::from).collect())
+    let excluded_ids = db
+        .list_excluded_invoice_ids(batch_id)
+        .map_err(|e| AppError::database(format!("查询排除状态失败: {e}")))?;
+
+    Ok(invoices
+        .into_iter()
+        .map(|invoice| {
+            let mut dto = InvoiceDto::from(invoice);
+            dto.is_excluded = excluded_ids.contains(&dto.id);
+            dto
+        })
+        .collect())
 }
 
 /// 从批次中删除发票（仅所属批次为 Draft 时允许）
 #[tauri::command]
 pub fn delete_invoice(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
-    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
     // delete_invoice 本身不校验批次状态，这里先定位所属批次再判状态
@@ -551,13 +675,29 @@ pub fn delete_invoice(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResu
 /// 清除发票的重复标记（用户确认不是重复后调用）
 #[tauri::command]
 pub fn clear_duplicate_flag(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
-    let app_state = state.lock().map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {}", e)))?;
     let db = app_state.ledger_db()?;
 
-    db.clear_duplicate_flag(invoice_id)
-        .map_err(|e| AppError::database(format!("清除重复标记失败: {}", e)))?;
+    db.resolve_duplicate_with_audit(invoice_id)
+        .map_err(|e| AppError::database(format!("确认非重复失败: {}", e)))?;
 
     tracing::info!(invoice_id, "已清除发票重复标记");
+    Ok(())
+}
+
+/// 用户确认候选确实重复；保留原件和重复依据，但明确保持不计入总额。
+#[tauri::command]
+pub fn confirm_duplicate_flag(invoice_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
+    let app_state = state
+        .lock()
+        .map_err(|e| AppError::internal(format!("状态锁错误: {e}")))?;
+    app_state
+        .ledger_db()?
+        .confirm_duplicate_with_audit(invoice_id)
+        .map_err(|e| AppError::database(format!("确认重复失败: {e}")))?;
+    tracing::info!(invoice_id, "用户确认重复，保持不计入总额");
     Ok(())
 }
 
@@ -569,13 +709,41 @@ mod tests {
     #[test]
     fn builtin_hints_covers_all_seven_fields() {
         let h = builtin_hints();
-        assert!(!h.invoice_number.is_empty(), "invoice_number hints 不能为空");
+        assert!(
+            !h.invoice_number.is_empty(),
+            "invoice_number hints 不能为空"
+        );
         assert!(!h.issue_date.is_empty(), "issue_date hints 不能为空");
         assert!(!h.total_amount.is_empty(), "total_amount hints 不能为空");
         assert!(!h.tax_amount.is_empty(), "tax_amount hints 不能为空");
         assert!(!h.tax_rate.is_empty(), "tax_rate hints 不能为空");
         assert!(!h.buyer_name.is_empty(), "buyer_name hints 不能为空");
         assert!(!h.seller_name.is_empty(), "seller_name hints 不能为空");
+    }
+
+    #[test]
+    fn builtin_hints_parse_the_packaged_pipeline_synthetic_xml() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("fixtures")
+            .join("synthetic")
+            .join("vat-invoice.xml");
+        let bytes = std::fs::read(&path).expect("应能读取合成 XML 夹具");
+        let parsed = invoice_parse::xml::parse_invoice_xml(
+            &bytes,
+            &path,
+            &builtin_hints(),
+            ParseTicketType::Other,
+        )
+        .expect("生产内置 hints 应覆盖发布流水线使用的合成 XML");
+
+        assert_eq!(parsed.invoice_number, "26112000000000000001");
+        assert_eq!(parsed.issue_date.format(DATE_FMT).to_string(), "2026-06-18");
+        assert_eq!(parsed.total_amount.to_string(), "1200.00");
+        assert_eq!(
+            parsed.tax_amount.map(|v| v.to_string()).as_deref(),
+            Some("67.92")
+        );
     }
 
     #[test]
@@ -593,8 +761,17 @@ mod tests {
             (ParseTicketType::Rail, StoreTicketType::Rail, "rail"),
             (ParseTicketType::Flight, StoreTicketType::Flight, "flight"),
             (ParseTicketType::Hotel, StoreTicketType::Hotel, "hotel"),
-            (ParseTicketType::CityTransport, StoreTicketType::CityTransport, "city_transport"),
+            (
+                ParseTicketType::CityTransport,
+                StoreTicketType::CityTransport,
+                "city_transport",
+            ),
             (ParseTicketType::Meal, StoreTicketType::Meal, "meal"),
+            (
+                ParseTicketType::CourierLogistics,
+                StoreTicketType::CourierLogistics,
+                "courier_logistics",
+            ),
             (ParseTicketType::Other, StoreTicketType::Other, "other"),
         ];
 
@@ -625,10 +802,21 @@ mod tests {
     fn signature_status_to_string_maps_all_variants() {
         assert_eq!(signature_status_to_string(&SignatureStatus::Valid), "valid");
         assert_eq!(
-            signature_status_to_string(&SignatureStatus::Invalid { reason: "test".into() }),
+            signature_status_to_string(&SignatureStatus::Invalid {
+                reason: "test".into()
+            }),
             "invalid"
         );
-        assert_eq!(signature_status_to_string(&SignatureStatus::NotSigned), "not_signed");
+        assert_eq!(
+            signature_status_to_string(&SignatureStatus::NotSigned),
+            "not_signed"
+        );
+        assert_eq!(
+            signature_status_to_string(&SignatureStatus::Unsupported {
+                reason: "test".into()
+            }),
+            "unsupported"
+        );
     }
 
     #[test]
@@ -654,7 +842,11 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         assert_eq!(err.kind(), ErrorKind::Validation);
-        assert!(err.message().contains(".txt"), "应指出扩展名: {}", err.message());
+        assert!(
+            err.message().contains(".txt"),
+            "应指出扩展名: {}",
+            err.message()
+        );
     }
 
     #[test]
@@ -674,7 +866,8 @@ mod tests {
         // Io/MalformedFormat/MissingField 的 Display 带完整路径，
         // UnparseableValue 的 Display 带原始字段值（可能是发票号或金额）。
         // parse_error_message 必须把两者都剥掉。
-        let secret_path = std::path::PathBuf::from("/home/someone/发票/张三-12345678901234567890.xml");
+        let secret_path =
+            std::path::PathBuf::from("/home/someone/发票/张三-12345678901234567890.xml");
 
         let io = ParseError::Io {
             path: secret_path.clone(),
@@ -711,9 +904,9 @@ mod tests {
         assert!(!msg.contains("someone"), "不得泄露路径: {msg}");
     }
 
-    /// `pdf_extract` 对某些字体编码直接 `assert!(name == "Identity-H")`，
-    /// L1 坐标路径的 catch_unwind 会先接住，但 flat-text 回落路径没有防护，
-    /// panic 会穿透并杀死进程。命令层必须兜住它。
+    /// `pdf_extract` 对某些字体编码直接 `assert!(name == "Identity-H")`。
+    /// 坐标与 flat-text 两条文本路径现在分别隔离 panic，任一路径失败后仍应
+    /// 继续尝试 OCR；命令层的最外层防护还必须保证第三方库不能杀死进程。
     ///
     /// 夹具不随仓库分发（fixtures/samples 在 .gitignore 中），缺失时跳过。
     #[test]
@@ -754,9 +947,11 @@ mod tests {
             buyer_name: None,
             seller_name: None,
             ticket_type: ParseTicketType::Rail,
+            transport_document_kind: Default::default(),
             parse_level: ParseLevel::L0,
             confidence: 1.0,
             city: None,
+            travel_route: None,
             departure_time: None,
             checkin_date: None,
             source_path: std::path::PathBuf::from("/tmp/a.xml"),
@@ -811,5 +1006,9 @@ mod tests {
         assert_eq!(json["ticket_type"], "hotel");
         assert_eq!(json["file_path"], "/tmp/b.ofd");
         assert!(json["amount"].is_string());
+        assert_eq!(json["verification_result"], "valid");
+        assert_eq!(json["is_duplicate"], false);
+        assert_eq!(json["is_excluded"], false);
+        assert!(json["duplicate_reason"].is_null());
     }
 }

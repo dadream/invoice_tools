@@ -1,10 +1,11 @@
+> **历史进度记录，禁止作为当前单一真实来源。** 当前执行清单为 `specs/mvp-release-baseline/tasks.md`；当前候选机器事实为 `artifacts/final-internal-alpha-candidate.validation.json`；发布结论与缺陷为 `docs/release/open-defects.md`；完整 Windows/QQ 验证为 `docs/release/windows-validation-2026-08-19.md`。下文 2026-08-11 的模块表只保留历史。
+
 # 实施进度追踪
 
-> **这是进度的单一真实来源（Single Source of Truth）**
-> 更新规则：每完成一个模块/任务后立即更新
-> 验证方式：`bash scripts/verify-progress.sh`
+> 此文件不再更新，也不再作为发布验收依据。
 
-**最后更新**：2026-08-11（commit pending - S0.6）
+**历史快照日期**：2026-08-11（commit pending - S0.6）
+**当前指针更新**：2026-08-24
 
 ---
 

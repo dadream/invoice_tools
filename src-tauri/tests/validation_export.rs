@@ -4,8 +4,8 @@
 //! 运行：source scripts/tauri-env.sh && cargo test validation_export --release -- --nocapture
 
 use chrono::{NaiveDate, Utc};
-use invoice_store::LedgerDb;
 use invoice_store::models::{ReportedInvoice, TicketType};
+use invoice_store::LedgerDb;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -23,8 +23,6 @@ struct ParsedInvoiceJson {
     buyer_name: Option<String>,
     seller_name: Option<String>,
     ticket_type: String,
-    parse_level: String,
-    confidence: f32,
 }
 
 /// 导出验证结果
@@ -42,12 +40,12 @@ struct ExportValidationResult {
 #[test]
 fn test_excel_export_validation() {
     // 1. 读取解析后的发票数据
-    let json_path = PathBuf::from("/home/holo/work-tools/reports/parsed_invoices.json");
-    let json_content = fs::read_to_string(&json_path)
-        .expect("Failed to read parsed_invoices.json");
+    let json_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parsed_invoices.json");
+    let json_content = fs::read_to_string(&json_path).expect("Failed to read parsed_invoices.json");
 
-    let parsed_invoices: Vec<ParsedInvoiceJson> = serde_json::from_str(&json_content)
-        .expect("Failed to parse JSON");
+    let parsed_invoices: Vec<ParsedInvoiceJson> =
+        serde_json::from_str(&json_content).expect("Failed to parse JSON");
 
     println!("✓ 读取到 {} 条解析后的发票记录", parsed_invoices.len());
 
@@ -59,15 +57,15 @@ fn test_excel_export_validation() {
     let db = LedgerDb::new(&db_path).expect("Failed to create test database");
 
     // 3. 创建批次并插入发票
-    let batch_id = db.create_batch("Excel导出测试批次", "2026-06")
+    let batch_id = db
+        .create_batch("Excel导出测试批次", "2026-06")
         .expect("Failed to create batch");
     println!("✓ 创建批次成功，ID: {}", batch_id);
 
     let mut expected_total = Decimal::from(0);
 
     for parsed in &parsed_invoices {
-        let amount = Decimal::from_str(&parsed.total_amount)
-            .expect("Invalid amount");
+        let amount = Decimal::from_str(&parsed.total_amount).expect("Invalid amount");
         expected_total += amount;
 
         let invoice = ReportedInvoice {
@@ -77,7 +75,9 @@ fn test_excel_export_validation() {
             issue_date: NaiveDate::parse_from_str(&parsed.issue_date, "%Y-%m-%d")
                 .expect("Invalid date format"),
             amount,
-            tax_amount: parsed.tax_amount.as_ref()
+            tax_amount: parsed
+                .tax_amount
+                .as_ref()
                 .and_then(|s| Decimal::from_str(s).ok()),
             buyer_name: parsed.buyer_name.clone(),
             seller_name: parsed.seller_name.clone(),
@@ -108,7 +108,9 @@ fn test_excel_export_validation() {
 
     // 4. 调用导出函数生成 Excel
     let batch = db.get_batch(batch_id).expect("Failed to get batch");
-    let invoices = db.list_invoices_by_batch(batch_id).expect("Failed to list invoices");
+    let invoices = db
+        .list_invoices_by_batch(batch_id)
+        .expect("Failed to list invoices");
 
     // 使用 build_excel_bytes（来自 commands/export.rs）
     let excel_bytes = invoice_assistant::commands::export::build_excel_bytes(&batch, &invoices)
@@ -122,10 +124,10 @@ fn test_excel_export_validation() {
     println!("✓ Excel 文件已写入: {:?}", export_path);
 
     // 6. 使用 calamine 读取并验证
-    use calamine::{Reader, open_workbook, Xlsx};
+    use calamine::{open_workbook, Reader, Xlsx};
 
-    let mut workbook: Xlsx<_> = open_workbook(&export_path)
-        .expect("Failed to open Excel file with calamine");
+    let mut workbook: Xlsx<_> =
+        open_workbook(&export_path).expect("Failed to open Excel file with calamine");
 
     let sheet_names = workbook.sheet_names().to_owned();
     println!("✓ Excel 工作表: {:?}", sheet_names);
@@ -133,7 +135,8 @@ fn test_excel_export_validation() {
     assert!(!sheet_names.is_empty(), "工作表为空");
 
     // 读取第一个工作表
-    let range = workbook.worksheet_range_at(0)
+    let range = workbook
+        .worksheet_range_at(0)
         .expect("No worksheet found")
         .expect("Failed to read worksheet");
 
@@ -145,12 +148,16 @@ fn test_excel_export_validation() {
 
     // 验证行数（表头 + 数据行 + 合计行）
     let expected_rows = 1 + parsed_invoices.len() + 1; // 表头 + 数据 + 合计
-    assert_eq!(rows, expected_rows,
-        "行数不匹配，预期: {}（表头+数据+合计），实际: {}", expected_rows, rows);
+    assert_eq!(
+        rows, expected_rows,
+        "行数不匹配，预期: {}（表头+数据+合计），实际: {}",
+        expected_rows, rows
+    );
 
     // 验证表头
     let header_row = range.rows().next().expect("No header row");
-    let headers: Vec<String> = header_row.iter()
+    let headers: Vec<String> = header_row
+        .iter()
         .take(12)
         .map(|cell| cell.to_string())
         .collect();
@@ -165,7 +172,7 @@ fn test_excel_export_validation() {
 
     // 验证合计行
     let total_row = range.rows().nth(rows - 1).expect("No total row");
-    let total_label = total_row.get(0).map(|c| c.to_string()).unwrap_or_default();
+    let total_label = total_row.first().map(|c| c.to_string()).unwrap_or_default();
     let total_amount_str = total_row.get(2).map(|c| c.to_string()).unwrap_or_default();
 
     println!("✓ 合计行: {} | {}", total_label, total_amount_str);
@@ -173,22 +180,22 @@ fn test_excel_export_validation() {
     assert_eq!(total_label, "合计", "合计行标签不正确");
 
     // 验证总金额
-    let parsed_total = Decimal::from_str(&total_amount_str)
-        .unwrap_or_else(|_| Decimal::from(0));
+    let parsed_total = Decimal::from_str(&total_amount_str).unwrap_or_else(|_| Decimal::from(0));
 
     let total_matches = parsed_total == expected_total;
 
     if total_matches {
         println!("✓ 总金额匹配: {}", parsed_total);
     } else {
-        eprintln!("✗ 总金额不匹配: 预期 {}, 实际 {}", expected_total, parsed_total);
+        eprintln!(
+            "✗ 总金额不匹配: 预期 {}, 实际 {}",
+            expected_total, parsed_total
+        );
     }
 
     // 7. 构建验证结果
-    let validation_passed = cols >= 12
-        && rows == expected_rows
-        && total_matches
-        && total_label == "合计";
+    let validation_passed =
+        cols >= 12 && rows == expected_rows && total_matches && total_label == "合计";
 
     let result = ExportValidationResult {
         export_success: true,
@@ -200,17 +207,15 @@ fn test_excel_export_validation() {
         validation_passed,
     };
 
-    let result_json = serde_json::to_string_pretty(&result)
-        .expect("Failed to serialize result");
+    let result_json = serde_json::to_string_pretty(&result).expect("Failed to serialize result");
 
     println!("\n========== Excel 导出验证结果 ==========");
     println!("{}", result_json);
     println!("========================================\n");
 
     // 8. 写入结果文件
-    let output_path = PathBuf::from("/home/holo/work-tools/reports/export_validation.json");
-    fs::write(&output_path, &result_json)
-        .expect("Failed to write result");
+    let output_path = std::env::temp_dir().join("invoice-assistant-export-validation.json");
+    fs::write(&output_path, &result_json).expect("Failed to write result");
     println!("✓ 结果已写入 {:?}", output_path);
 
     // 9. 清理

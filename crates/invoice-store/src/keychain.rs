@@ -1,27 +1,33 @@
 //! Keychain 密钥派生模块
 //!
-//! 从系统 Keychain 获取或创建 AES-256-GCM 主密钥。
-//! 密钥首次生成后存储在系统 Keychain 中（如果可用），否则回退到加密文件存储。
+//! 旧版凭据兼容模块使用本地稳定密钥文件；仅在密钥文件首次创建时尝试
+//! 从系统 Keychain 迁移已有主密钥。MVP 运行路径不持久化邮箱授权码。
 
+use crate::{StoreError, StoreResult};
 use keyring::Entry;
 use std::fs;
 use std::path::PathBuf;
-use crate::{StoreError, StoreResult};
+use std::sync::{Mutex, OnceLock};
 
 const SERVICE_NAME: &str = "invoice-assistant";
 const ACCOUNT_NAME: &str = "master-key";
 
 /// 获取密钥文件路径（仅在 keyring 不可用时使用）
 fn get_key_file_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home)
-        .join(".invoice-assistant")
-        .join(".master-key")
+    if let Some(root) = std::env::var_os("INVOICE_ASSISTANT_HOME") {
+        return PathBuf::from(root).join("legacy-credential-master-key");
+    }
+    dirs::data_local_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("InvoiceAssistant")
+        .join("Data")
+        .join("legacy-credential-master-key")
 }
 
 /// 从系统 Keychain 获取或创建 AES-256-GCM 主密钥
 ///
-/// 主密钥用于加密邮箱凭证。优先使用系统 Keychain，若不可用则使用文件存储。
+/// 主密钥只用于兼容旧版加密凭据，并始终以本地密钥文件作为稳定来源。
 /// 首次调用时生成 32 字节随机密钥。
 ///
 /// # Returns
@@ -34,21 +40,13 @@ fn get_key_file_path() -> PathBuf {
 /// - `StoreError::Crypto`: 密钥格式无效
 /// - `StoreError::Io`: 文件操作失败
 pub fn get_or_create_master_key() -> StoreResult<[u8; 32]> {
-    // 在 WSL/Linux 环境中，优先使用文件存储（更可靠）
-    // macOS 和 Windows 原生环境可以使用系统 Keychain
-    #[cfg(target_os = "linux")]
-    {
-        try_file_storage()
-    }
+    static KEY_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    let _guard = KEY_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
 
-    #[cfg(not(target_os = "linux"))]
-    {
-        // macOS 或 Windows：尝试 keychain，失败则回退到文件
-        match try_keychain() {
-            Ok(key) => Ok(key),
-            Err(_) => try_file_storage(),
-        }
-    }
+    try_file_storage()
 }
 
 /// 检测 keychain 是否可用且持久化（保留供未来使用）
@@ -78,8 +76,7 @@ fn is_keychain_available() -> bool {
 
 /// 尝试从系统 Keychain 获取或创建密钥
 fn try_keychain() -> StoreResult<[u8; 32]> {
-    let entry = Entry::new(SERVICE_NAME, ACCOUNT_NAME)
-        .map_err(|e| StoreError::Keychain(e))?;
+    let entry = Entry::new(SERVICE_NAME, ACCOUNT_NAME).map_err(StoreError::Keychain)?;
 
     match entry.get_password() {
         Ok(key_b64) => {
@@ -97,8 +94,16 @@ fn try_keychain() -> StoreResult<[u8; 32]> {
         Err(keyring::Error::NoEntry) => {
             let key = generate_random_key();
             let key_b64 = base64_encode(&key);
-            entry.set_password(&key_b64)
-                .map_err(|e| StoreError::Keychain(e))?;
+            entry.set_password(&key_b64).map_err(StoreError::Keychain)?;
+
+            // 某些企业 Windows 环境会报告写入成功但无法立即读回。
+            // 只有通过读回验证才接受 keychain，否则让调用方使用文件后备。
+            let stored = entry.get_password().map_err(StoreError::Keychain)?;
+            if stored != key_b64 {
+                return Err(StoreError::Crypto(
+                    "系统凭据存储未能稳定保存主密钥".to_string(),
+                ));
+            }
             Ok(key)
         }
         Err(e) => Err(StoreError::Keychain(e)),
@@ -123,8 +128,14 @@ fn try_file_storage() -> StoreResult<[u8; 32]> {
         key.copy_from_slice(&key_bytes);
         Ok(key)
     } else {
-        // 生成新密钥并保存
+        // 首次建立稳定文件时，非 Linux 平台尝试迁移旧 Keychain 密钥。
+        // 无旧密钥或系统凭据服务不可靠时生成新密钥。
+        #[cfg(not(target_os = "linux"))]
+        let key = try_keychain().unwrap_or_else(|_| generate_random_key());
+
+        #[cfg(target_os = "linux")]
         let key = generate_random_key();
+
         let key_b64 = base64_encode(&key);
 
         // 创建目录
@@ -157,14 +168,16 @@ fn generate_random_key() -> [u8; 32] {
 
 /// Base64 编码
 fn base64_encode(data: &[u8]) -> String {
-    use base64::{Engine, engine::general_purpose::STANDARD};
+    use base64::{engine::general_purpose::STANDARD, Engine};
     STANDARD.encode(data)
 }
 
 /// Base64 解码
 fn base64_decode(s: &str) -> StoreResult<Vec<u8>> {
-    use base64::{Engine, engine::general_purpose::STANDARD};
-    STANDARD.decode(s).map_err(|e| StoreError::Crypto(format!("Base64 decode failed: {}", e)))
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    STANDARD
+        .decode(s)
+        .map_err(|e| StoreError::Crypto(format!("Base64 decode failed: {}", e)))
 }
 
 #[cfg(test)]

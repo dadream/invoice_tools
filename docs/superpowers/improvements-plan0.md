@@ -73,7 +73,7 @@ After `collect` finishes, write `fixtures/collection-report.txt`:
 发票采集报告
 ============
 采集时间: 2026-08-04 15:30
-邮箱地址: 879455187@qq.com
+邮箱地址: 879***187@qq.com（完整地址仅保存在本机测试配置中）
 日期范围: 2026-06-01 至 2026-06-30
 
 处理结果
@@ -188,7 +188,7 @@ Add to `docs/superpowers/plans/2026-08-03-invoice-email-collector.md`:
 
 **Appendix A: Audit Results (2026-08-04)**
 - Date range tested: 2026-06-01 to 2026-06-30
-- Email account: 879455187@qq.com (QQ Mail)
+- Email account: 879***187@qq.com (QQ Mail; full address kept in local test configuration only)
 - Emails processed: 69
 - Accuracy achieved:
   - Email recall: 100% (43/43 invoice emails with attachments captured)

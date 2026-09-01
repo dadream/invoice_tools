@@ -1,9 +1,12 @@
-pub mod types;
 pub mod ambiguity;
 mod deterministic;
+pub mod types;
 
 use invoice_parse::model::ParsedInvoice;
 use types::*;
+
+/// 持久化在归组结果与输出任务键中的确定性规则版本。
+pub const GROUPING_RULE_VERSION: &str = "deterministic-v2";
 
 /// 主入口：将发票列表归组为行程
 ///

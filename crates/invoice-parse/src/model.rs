@@ -11,6 +11,7 @@ pub enum TicketType {
     Hotel,
     CityTransport,
     Meal,
+    CourierLogistics,
     Other,
 }
 
@@ -27,6 +28,24 @@ pub enum ParseLevel {
     L4,
 }
 
+/// 交通票据的业务性质。铁路电子客票 XBRL 中的 `TypeOfBusiness`
+/// 是判断售票、退票和改签的权威字段；未知值保持兼容并继续作为普通交通票处理。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransportDocumentKind {
+    Sale,
+    Refund,
+    Change,
+    #[default]
+    Unknown,
+}
+
+impl TransportDocumentKind {
+    pub fn is_route_anchor(self) -> bool {
+        matches!(self, Self::Sale | Self::Unknown)
+    }
+}
+
 /// 所有解析器的统一输出。这是本 crate 唯一的输出契约。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedInvoice {
@@ -38,11 +57,19 @@ pub struct ParsedInvoice {
     pub buyer_name: Option<String>,
     pub seller_name: Option<String>,
     pub ticket_type: TicketType,
+    /// 交通票据的业务性质；非交通票固定为 `Unknown`。
+    #[serde(default)]
+    pub transport_document_kind: TransportDocumentKind,
     pub parse_level: ParseLevel,
     /// 0.0–1.0。L0 恒为 1.0，L2 由 OCR 引擎给出。
     pub confidence: f32,
     /// 发票关联城市（交通票为出发城市，酒店为入住城市，其他为消费城市）
     pub city: Option<String>,
+    /// 交通行程路线（如“北京南→上海虹桥”）。独立于承运人/销方名称，供归组使用。
+    ///
+    /// `default` 兼容升级前已经写入的流水线检查点。
+    #[serde(default)]
+    pub travel_route: Option<String>,
     /// 交通票出发时间（用于行程时间轴排序）
     pub departure_time: Option<NaiveDateTime>,
     /// 酒店入住日期（注意：不是 issue_date，酒店常延迟开票）
@@ -90,9 +117,11 @@ mod tests {
             buyer_name: Some("某某公司".to_string()),
             seller_name: Some("中国铁路".to_string()),
             ticket_type: TicketType::Rail,
+            transport_document_kind: TransportDocumentKind::Sale,
             parse_level: ParseLevel::L0,
             confidence: 1.0,
             city: None,
+            travel_route: Some("北京南→上海虹桥".to_string()),
             departure_time: None,
             checkin_date: None,
             source_path: PathBuf::from("fixtures/samples/rail-01.xml"),

@@ -1,0 +1,4 @@
+[target.x86_64-pc-windows-msvc]
+# Resolve every statically imported DLL from System32 only, before Rust `main` runs.
+# Runtime-loaded OCR DLLs use a separately verified AddDllDirectory path.
+rustflags = ["-C", "link-arg=/DEPENDENTLOADFLAG:0x800"]

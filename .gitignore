@@ -10,6 +10,10 @@ fixtures/samples/
 
 # 真实发票数据的验证报告（含公司名/发票号/金额，绝不提交）
 /reports/
+/output/
+/tmp/
+/.tmp/
+**/__pycache__/
 
 # Claude Code 本地状态（worktrees 是整仓副本，数 GB）
 .claude/worktrees/
@@ -27,6 +31,9 @@ ui/node_modules/
 ui/dist/
 ui/.vite/
 
+# 本地构建发布产物
+/artifacts/
+
 # IDE / OS
 .vscode/
 .idea/
@@ -38,3 +45,5 @@ Thumbs.db
 # 日志
 *.log
 .invoice-assistant/
+/.private-fixtures-quarantine/
+!fixtures/synthetic/*.eml

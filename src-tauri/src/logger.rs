@@ -4,16 +4,10 @@ use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-/// 日志根目录：`$INVOICE_ASSISTANT_HOME/logs`，默认 `~/.invoice-assistant/logs`。
+/// 日志根目录：`DataRoot/logs`。日志只落本地文件，绝不上传。
 /// 日志只落本地文件，绝不上传。
 pub fn log_dir() -> anyhow::Result<PathBuf> {
-    if let Some(root) = std::env::var_os("INVOICE_ASSISTANT_HOME") {
-        return Ok(PathBuf::from(root).join("logs"));
-    }
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    Ok(PathBuf::from(home).join(".invoice-assistant").join("logs"))
+    crate::paths::logs_dir()
 }
 
 /// 构造按天滚动的非阻塞 writer。返回的 guard 必须存活到进程结束。
@@ -34,11 +28,17 @@ pub fn init() -> anyhow::Result<WorkerGuard> {
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(fmt::layer().with_writer(writer).with_ansi(false).with_target(false))
+        .with(
+            fmt::layer()
+                .with_writer(writer)
+                .with_ansi(false)
+                .with_target(false),
+        )
         .with(fmt::layer().with_target(false))
         .init();
 
-    tracing::info!(dir = %dir.display(), "日志系统已初始化");
+    // 完整数据目录可能包含 Windows 用户名，不写入常规支持日志。
+    tracing::info!("日志系统已初始化");
     Ok(guard)
 }
 
@@ -48,6 +48,7 @@ mod tests {
 
     #[test]
     fn log_dir_honors_env_override() {
+        let _guard = crate::paths::test_env_lock();
         let tmp = std::env::temp_dir().join("ia-log-test-override");
         // SAFETY: 单线程测试内设置环境变量
         std::env::set_var("INVOICE_ASSISTANT_HOME", &tmp);
@@ -57,13 +58,14 @@ mod tests {
     }
 
     #[test]
-    fn log_dir_defaults_under_home() {
+    fn log_dir_defaults_under_local_app_data() {
+        let _guard = crate::paths::test_env_lock();
         std::env::remove_var("INVOICE_ASSISTANT_HOME");
         let dir = log_dir().unwrap();
         assert!(dir.ends_with("logs"), "应以 logs 结尾: {dir:?}");
         assert!(
-            dir.to_string_lossy().contains(".invoice-assistant"),
-            "应位于 .invoice-assistant 下: {dir:?}"
+            dir.ends_with(PathBuf::from("InvoiceAssistant").join("Data").join("logs")),
+            "应位于本机 InvoiceAssistant/Data 下: {dir:?}"
         );
     }
 
@@ -86,9 +88,11 @@ mod tests {
         let found = std::fs::read_dir(&logs)
             .unwrap()
             .filter_map(|e| e.ok())
-            .any(|e| std::fs::read_to_string(e.path())
-                .map(|s| s.contains("probe-marker"))
-                .unwrap_or(false));
+            .any(|e| {
+                std::fs::read_to_string(e.path())
+                    .map(|s| s.contains("probe-marker"))
+                    .unwrap_or(false)
+            });
         let _ = std::fs::remove_dir_all(&tmp);
         assert!(found, "日志目录中应存在含 probe-marker 的文件");
     }

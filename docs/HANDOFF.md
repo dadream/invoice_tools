@@ -1,3 +1,5 @@
+> **历史交接记录，禁止作为当前执行依据。** 当前任务与验收入口为 `specs/mvp-release-baseline/tasks.md`；当前候选事实见 `artifacts/final-internal-alpha-candidate.validation.json`，发布阻断见 `docs/release/open-defects.md`，Windows/QQ 证据见 `docs/release/windows-validation-2026-08-19.md`。下文“尚未写任何代码”等内容仅保留历史，不代表 2026-08-24 状态。
+
 # 交接说明
 
 上下文即将清空。本文件记录恢复工作所需的全部信息。

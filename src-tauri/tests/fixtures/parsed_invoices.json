@@ -1,0 +1,74 @@
+[
+  {
+    "file": "synthetic-rail-001.pdf",
+    "invoice_number": "11000000000000000001",
+    "issue_date": "2026-06-02",
+    "total_amount": "120.00",
+    "tax_amount": "0.00",
+    "buyer_name": "测试用户",
+    "seller_name": "测试铁路服务商",
+    "ticket_type": "rail",
+    "parse_level": "L0",
+    "confidence": 1.0
+  },
+  {
+    "file": "synthetic-hotel-002.ofd",
+    "invoice_number": "11000000000000000002",
+    "issue_date": "2026-06-02",
+    "total_amount": "560.00",
+    "tax_amount": "31.70",
+    "buyer_name": "测试用户",
+    "seller_name": "测试酒店",
+    "ticket_type": "hotel",
+    "parse_level": "L0",
+    "confidence": 1.0
+  },
+  {
+    "file": "synthetic-taxi-003.xml",
+    "invoice_number": "11000000000000000003",
+    "issue_date": "2026-06-03",
+    "total_amount": "45.50",
+    "tax_amount": "1.33",
+    "buyer_name": "测试用户",
+    "seller_name": "测试出行服务商",
+    "ticket_type": "city_transport",
+    "parse_level": "L0",
+    "confidence": 1.0
+  },
+  {
+    "file": "synthetic-meal-004.pdf",
+    "invoice_number": "11000000000000000004",
+    "issue_date": "2026-06-03",
+    "total_amount": "88.00",
+    "tax_amount": "2.56",
+    "buyer_name": "测试用户",
+    "seller_name": "测试餐饮服务商",
+    "ticket_type": "meal",
+    "parse_level": "L1",
+    "confidence": 0.99
+  },
+  {
+    "file": "synthetic-flight-005.pdf",
+    "invoice_number": "11000000000000000005",
+    "issue_date": "2026-06-10",
+    "total_amount": "820.00",
+    "tax_amount": "0.00",
+    "buyer_name": "测试用户",
+    "seller_name": "测试航空公司",
+    "ticket_type": "flight",
+    "parse_level": "L1",
+    "confidence": 0.99
+  },
+  {
+    "file": "synthetic-hotel-006.ofd",
+    "invoice_number": "11000000000000000006",
+    "issue_date": "2026-06-10",
+    "total_amount": "660.00",
+    "tax_amount": "37.36",
+    "buyer_name": "测试用户",
+    "seller_name": "测试商务酒店",
+    "ticket_type": "hotel",
+    "parse_level": "L0",
+    "confidence": 1.0
+  }
+]

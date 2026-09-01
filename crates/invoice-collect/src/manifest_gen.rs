@@ -34,9 +34,17 @@ pub fn render(entries: &[ManifestEntry]) -> String {
     }
 
     for e in entries {
-        let _ = writeln!(out, "# 原始文件名: {}", sanitize_comment(&e.original_filename));
+        let _ = writeln!(
+            out,
+            "# 原始文件名: {}",
+            sanitize_comment(&e.original_filename)
+        );
         let _ = writeln!(out, "# 邮件主题: {}", sanitize_comment(&e.subject));
-        let _ = writeln!(out, "# 平台: {} · 大小: {} 字节", e.platform, e.saved.byte_len);
+        let _ = writeln!(
+            out,
+            "# 平台: {} · 大小: {} 字节",
+            e.platform, e.saved.byte_len
+        );
         out.push_str("[[sample]]\n");
         let _ = writeln!(out, "path = \"{}\"", e.saved.rel_path);
         let _ = writeln!(out, "format = \"{}\"", e.format);
@@ -93,7 +101,10 @@ mod tests {
     #[test]
     fn includes_path_and_format_filled_in() {
         let out = render(&[entry("01", "pdf-rail", "12306", "x")]);
-        assert!(out.contains(r#"path = "samples/01-12306-abcd1234.pdf""#), "实际:\n{out}");
+        assert!(
+            out.contains(r#"path = "samples/01-12306-abcd1234.pdf""#),
+            "实际:\n{out}"
+        );
         assert!(out.contains(r#"format = "pdf-rail""#), "实际:\n{out}");
     }
 

@@ -62,7 +62,7 @@
 <div class="general-settings">
   <h2>通用设置</h2>
   <p class="description">
-    配置常驻城市，用于归组引擎判断出差行程。
+    配置常驻城市，用于区分本地费用和异地费用。只有铁路、航空或已挂载行程单，才能建立差旅行程。
   </p>
 
   {#if loading}
@@ -107,7 +107,7 @@
       </div>
 
       {#if saveSuccess}
-        <div class="success-message">保存成功</div>
+        <div class="success-message">保存成功。新设置用于后续导入和归组；已审核的批次不会被自动改写。</div>
       {/if}
 
       {#if error}

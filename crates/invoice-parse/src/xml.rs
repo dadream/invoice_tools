@@ -1,3 +1,4 @@
+use crate::expense_classifier;
 use crate::field_extractor;
 use crate::manifest::TagHints;
 use crate::model::{ParseError, ParseLevel, ParsedInvoice, TicketType};
@@ -114,14 +115,20 @@ pub fn parse_invoice_xml(
     })?;
 
     let find = |candidates: &[String]| -> Option<String> {
-        candidates
-            .iter()
-            .find_map(|want| {
-                leaves
-                    .iter()
-                    .find(|leaf| leaf.tag == *want)
-                    .map(|leaf| leaf.text.clone())
-            })
+        candidates.iter().find_map(|want| {
+            leaves
+                .iter()
+                .find(|leaf| leaf.tag == *want)
+                .map(|leaf| leaf.text.clone())
+        })
+    };
+    let find_known = |candidates: &[&str]| -> Option<String> {
+        candidates.iter().find_map(|want| {
+            leaves
+                .iter()
+                .find(|leaf| leaf.tag.eq_ignore_ascii_case(want))
+                .map(|leaf| leaf.text.clone())
+        })
     };
 
     let require = |candidates: &[String], field: &str| -> Result<String, ParseError> {
@@ -133,7 +140,10 @@ pub fn parse_invoice_xml(
 
     let invoice_number = require(&hints.invoice_number, "invoice_number")?;
     let issue_date = parse_date(&require(&hints.issue_date, "issue_date")?)?;
-    let total_amount = parse_amount(&require(&hints.total_amount, "total_amount")?, "total_amount")?;
+    let total_amount = parse_amount(
+        &require(&hints.total_amount, "total_amount")?,
+        "total_amount",
+    )?;
 
     let tax_amount = find(&hints.tax_amount)
         .map(|raw| parse_amount(&raw, "tax_amount"))
@@ -143,6 +153,52 @@ pub fn parse_invoice_xml(
         .transpose()?;
 
     let seller_name = find(&hints.seller_name);
+    let seller_address = find_known(&[
+        "SellerAddress",
+        "SellerAddr",
+        "SellerRegisteredAddress",
+        "SellerRegisterAddress",
+        "SellerAddressPhone",
+        "SalesAddress",
+        "XsfDz",
+        "Xhdz",
+    ]);
+    let transport_text = leaves
+        .iter()
+        .map(|leaf| leaf.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let departure_place = find_known(&[
+        "DepartureStation",
+        "DepartureCity",
+        "OriginCity",
+        "FromCity",
+        "DepartureAirport",
+    ]);
+    let destination_place = find_known(&[
+        "DestinationStation",
+        "DestinationCity",
+        "ArrivalCity",
+        "ToCity",
+        "ArrivalAirport",
+    ]);
+    let ticket_type = if ticket_type == TicketType::Other {
+        expense_classifier::classify_invoice_text(&transport_text).unwrap_or(ticket_type)
+    } else {
+        ticket_type
+    };
+    let travel_route = if matches!(ticket_type, TicketType::Rail | TicketType::Flight) {
+        departure_place
+            .as_ref()
+            .zip(destination_place.as_ref())
+            .map(|(departure, destination)| format!("{departure}→{destination}"))
+            .or_else(|| field_extractor::extract_travel_route(&ticket_type, &transport_text))
+    } else {
+        None
+    };
+    let travel_date = find_known(&["TravelDate", "DepartureDate", "FlightDate"])
+        .and_then(|raw| parse_date(&raw).ok())
+        .unwrap_or(issue_date);
 
     Ok(ParsedInvoice {
         invoice_number,
@@ -153,11 +209,20 @@ pub fn parse_invoice_xml(
         buyer_name: find(&hints.buyer_name),
         seller_name: seller_name.clone(),
         ticket_type,
+        transport_document_kind: field_extractor::extract_transport_document_kind(&transport_text),
         parse_level: ParseLevel::L0,
         confidence: 1.0,
-        city: field_extractor::extract_city(&ticket_type, &seller_name.as_deref().unwrap_or("")),
+        city: travel_route
+            .as_deref()
+            .and_then(|route| field_extractor::extract_city(&ticket_type, route))
+            .or_else(|| {
+                seller_address
+                    .as_deref()
+                    .and_then(field_extractor::extract_address_city)
+            }),
+        travel_route,
         departure_time: if matches!(ticket_type, TicketType::Rail | TicketType::Flight) {
-            field_extractor::extract_departure_time(&seller_name.as_deref().unwrap_or(""), issue_date)
+            field_extractor::extract_departure_time(&transport_text, travel_date)
         } else {
             None
         },
@@ -172,10 +237,7 @@ pub fn parse_invoice_xml(
 
 /// 接受 `2026-07-03`、`2026/07/03`、`20260703`、`2026年07月03日`、`2026-06-08 13:18:44`
 pub(crate) fn parse_date(raw: &str) -> Result<NaiveDate, ParseError> {
-    let cleaned: String = raw
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect();
+    let cleaned: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
 
     if cleaned.len() >= 8 {
         let date_part = &cleaned[..8];
@@ -243,7 +305,8 @@ mod tests {
         <Head><Fphm>24312000000012345678</Fphm><Kprq>2026-07-03</Kprq></Head>
         <Sum><Jshj>553.00</Jshj><Se>50.73</Se><Sl>0.09</Sl></Sum>
         <Party><Gfmc>某某公司</Gfmc><Xfmc>中国铁路</Xfmc></Party>
-    </Invoice>"#.as_bytes();
+    </Invoice>"#
+        .as_bytes();
 
     #[test]
     fn parses_all_fields_from_hinted_tags() {
@@ -258,15 +321,57 @@ mod tests {
         assert_eq!(invoice.invoice_number, "24312000000012345678");
         assert_eq!(invoice.issue_date.to_string(), "2026-07-03");
         assert_eq!(invoice.total_amount, Decimal::from_str("553.00").unwrap());
-        assert_eq!(invoice.tax_amount, Some(Decimal::from_str("50.73").unwrap()));
+        assert_eq!(
+            invoice.tax_amount,
+            Some(Decimal::from_str("50.73").unwrap())
+        );
         assert_eq!(invoice.buyer_name.as_deref(), Some("某某公司"));
         assert_eq!(invoice.parse_level, ParseLevel::L0);
         assert_eq!(invoice.confidence, 1.0);
     }
 
     #[test]
+    fn reads_structured_transport_route_without_overwriting_carrier_name() {
+        let xml = r#"<Invoice>
+            <Fphm>24312000000012345679</Fphm><Kprq>2026-07-10</Kprq><Jshj>553.00</Jshj>
+            <Xfmc>中国铁路</Xfmc>
+            <DepartureStation>北京南</DepartureStation>
+            <DestinationStation>上海虹桥</DestinationStation>
+            <TravelDate>2026-07-12</TravelDate><DepartureTime>09:15</DepartureTime>
+        </Invoice>"#
+            .as_bytes();
+
+        let invoice =
+            parse_invoice_xml(xml, Path::new("rail.xml"), &hints(), TicketType::Rail).unwrap();
+
+        assert_eq!(invoice.seller_name.as_deref(), Some("中国铁路"));
+        assert_eq!(invoice.travel_route.as_deref(), Some("北京南→上海虹桥"));
+        assert_eq!(invoice.city.as_deref(), Some("北京"));
+        assert_eq!(
+            invoice.departure_time.unwrap().to_string(),
+            "2026-07-12 09:15:00"
+        );
+    }
+
+    #[test]
+    fn reads_expense_city_from_structured_seller_address() {
+        let xml = r#"<Invoice>
+            <Fphm>26312000003400000001</Fphm><Kprq>2026-06-01</Kprq><Jshj>646.70</Jshj>
+            <Xfmc>示例餐饮有限公司</Xfmc>
+            <SellerAddressPhone>上海市浦东新区世纪大道 1 号 021-12345678</SellerAddressPhone>
+        </Invoice>"#
+            .as_bytes();
+
+        let invoice =
+            parse_invoice_xml(xml, Path::new("meal.xml"), &hints(), TicketType::Meal).unwrap();
+
+        assert_eq!(invoice.city.as_deref(), Some("上海"));
+    }
+
+    #[test]
     fn falls_back_to_second_candidate_tag() {
-        let xml = br#"<I><InvoiceNumber>888</InvoiceNumber><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
+        let xml =
+            br#"<I><InvoiceNumber>888</InvoiceNumber><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
         let invoice =
             parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
         assert_eq!(invoice.invoice_number, "888");
@@ -275,10 +380,13 @@ mod tests {
     #[test]
     fn missing_required_field_errors_with_field_name() {
         let xml = br#"<I><Kprq>2026-07-03</Kprq><Jshj>1.00</Jshj></I>"#;
-        let err = parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other)
-            .unwrap_err();
+        let err =
+            parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("invoice_number"), "错误信息应指出缺失字段: {msg}");
+        assert!(
+            msg.contains("invoice_number"),
+            "错误信息应指出缺失字段: {msg}"
+        );
     }
 
     #[test]
@@ -308,7 +416,8 @@ mod tests {
 
     #[test]
     fn amount_with_currency_symbol_is_cleaned() {
-        let xml = r#"<I><Fphm>1</Fphm><Kprq>2026-07-03</Kprq><Jshj>￥1,553.00</Jshj></I>"#.as_bytes();
+        let xml =
+            r#"<I><Fphm>1</Fphm><Kprq>2026-07-03</Kprq><Jshj>￥1,553.00</Jshj></I>"#.as_bytes();
         let invoice =
             parse_invoice_xml(xml, Path::new("x.xml"), &hints(), TicketType::Other).unwrap();
         assert_eq!(invoice.total_amount, Decimal::from_str("1553.00").unwrap());
@@ -332,9 +441,30 @@ mod tests {
         let leaves = collect_leaf_elements(xml).unwrap();
 
         assert_eq!(leaves.len(), 3);
-        assert_eq!(leaves[0], LeafElement { tag: "Number".into(), text: "12345".into(), depth: 2 });
-        assert_eq!(leaves[1], LeafElement { tag: "Amount".into(), text: "553.00".into(), depth: 2 });
-        assert_eq!(leaves[2], LeafElement { tag: "Tax".into(), text: "50.73".into(), depth: 2 });
+        assert_eq!(
+            leaves[0],
+            LeafElement {
+                tag: "Number".into(),
+                text: "12345".into(),
+                depth: 2
+            }
+        );
+        assert_eq!(
+            leaves[1],
+            LeafElement {
+                tag: "Amount".into(),
+                text: "553.00".into(),
+                depth: 2
+            }
+        );
+        assert_eq!(
+            leaves[2],
+            LeafElement {
+                tag: "Tax".into(),
+                text: "50.73".into(),
+                depth: 2
+            }
+        );
     }
 
     #[test]
@@ -355,7 +485,8 @@ mod tests {
     #[test]
     fn trims_surrounding_whitespace_in_text() {
         let xml = "<Root><Name>  某某公司
-  </Name></Root>".as_bytes();
+  </Name></Root>"
+            .as_bytes();
         let leaves = collect_leaf_elements(xml).unwrap();
         assert_eq!(leaves[0].text, "某某公司");
     }

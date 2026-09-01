@@ -36,14 +36,23 @@ pub struct Trip {
 pub struct GroupingConfig {
     /// 常驻城市列表（支持多个，如 ["北京", "上海"]）
     pub home_cities: Vec<String>,
+    /// 用户维护的常驻城市车站别名。`None` 使用随程序发布的默认库；`Some` 表示用户库为准。
+    pub home_station_aliases: Option<Vec<StationCityAlias>>,
     /// 歧义解决器（可 mock，生产环境用 LLM）
     pub ambiguity_handler: Box<dyn AmbiguityResolver>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StationCityAlias {
+    pub station_name: String,
+    pub city_name: String,
 }
 
 impl std::fmt::Debug for GroupingConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupingConfig")
             .field("home_cities", &self.home_cities)
+            .field("home_station_aliases", &self.home_station_aliases)
             .field("ambiguity_handler", &"<resolver>")
             .finish()
     }
@@ -51,7 +60,8 @@ impl std::fmt::Debug for GroupingConfig {
 
 /// 歧义解决器 trait（便于测试 mock）
 pub trait AmbiguityResolver: Send + Sync {
-    fn resolve(&self, ambiguities: &[Ambiguity]) -> Result<Vec<AmbiguityResolution>, anyhow::Error>;
+    fn resolve(&self, ambiguities: &[Ambiguity])
+        -> Result<Vec<AmbiguityResolution>, anyhow::Error>;
 }
 
 /// 歧义类型
@@ -67,6 +77,12 @@ pub enum AmbiguityKind {
     MultipleVisitsSameCity,
     /// 时间重叠（两张票显示同时在两个城市）
     TimeOverlap,
+    /// 同一笔非交通费用同时满足多个行程的日期/地点条件
+    MultipleTripMatch,
+    /// 异地住宿形成了出差候选，但员工没有个人交通票据。
+    MissingTransportEvidence,
+    /// 退票/改签费用无法唯一匹配到所属出差。
+    TransportAdjustmentMatch,
 }
 
 /// 歧义实例
@@ -88,7 +104,7 @@ pub struct AmbiguityResolution {
 }
 
 /// 归组结果
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupingResult {
     pub trips: Vec<Trip>,
     pub ambiguities: Vec<Ambiguity>,

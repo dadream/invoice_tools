@@ -1,6 +1,6 @@
+use chrono::{NaiveDate, Utc};
 use invoice_store::ledger_db::LedgerDb;
 use invoice_store::models::{BatchStatus, ReportedInvoice, TicketType};
-use chrono::{Utc, NaiveDate};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 use tempfile::TempDir;
@@ -47,7 +47,8 @@ fn full_batch_lifecycle() {
     assert_eq!(batch.total_amount, Decimal::from_str("258.50").unwrap());
 
     // 更新批次状态
-    db.update_batch_status(batch_id, BatchStatus::Submitted).unwrap();
+    db.transition_batch_status(batch_id, BatchStatus::Submitted)
+        .unwrap();
     let batch = db.get_batch(batch_id).unwrap();
     assert_eq!(batch.status, BatchStatus::Submitted);
     assert!(batch.submitted_at.is_some());

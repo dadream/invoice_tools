@@ -5,8 +5,10 @@
 //! 输出：通过 StructuredOutput 返回归组统计
 
 use chrono::NaiveDate;
-use invoice_grouping::types::{AmbiguityResolver, Ambiguity, AmbiguityResolution, GroupingConfig, TripKind};
 use invoice_grouping::group_invoices;
+use invoice_grouping::types::{
+    Ambiguity, AmbiguityResolution, AmbiguityResolver, GroupingConfig, TripKind,
+};
 use invoice_parse::model::{ParseLevel, ParsedInvoice, TicketType};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -18,7 +20,10 @@ use std::str::FromStr;
 struct DummyResolver;
 
 impl AmbiguityResolver for DummyResolver {
-    fn resolve(&self, _ambiguities: &[Ambiguity]) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
+    fn resolve(
+        &self,
+        _ambiguities: &[Ambiguity],
+    ) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
         Ok(vec![])
     }
 }
@@ -51,33 +56,33 @@ struct GroupStats {
 #[test]
 fn test_grouping_validation() {
     // 1. 读取解析结果
-    let json_path = "/home/holo/work-tools/reports/parsed_invoices.json";
-    let json_content = fs::read_to_string(json_path)
-        .expect("Failed to read parsed_invoices.json");
+    let json_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parsed_invoices.json");
+    let json_content = fs::read_to_string(&json_path).expect("Failed to read parsed_invoices.json");
 
-    let records: Vec<ParsedInvoiceRecord> = serde_json::from_str(&json_content)
-        .expect("Failed to parse JSON");
+    let records: Vec<ParsedInvoiceRecord> =
+        serde_json::from_str(&json_content).expect("Failed to parse JSON");
 
     println!("✓ 已加载 {} 张发票记录", records.len());
 
     // 2. 转换为 ParsedInvoice 结构
-    let invoices: Vec<ParsedInvoice> = records
-        .iter()
-        .map(|r| convert_record_to_invoice(r))
-        .collect();
+    let invoices: Vec<ParsedInvoice> = records.iter().map(convert_record_to_invoice).collect();
 
     // 3. 配置归组参数（使用常驻城市 "北京"）
     let config = GroupingConfig {
         home_cities: vec!["北京".to_string()],
+        home_station_aliases: None,
         ambiguity_handler: Box::new(DummyResolver),
     };
 
     // 4. 执行归组
-    let result = group_invoices(&invoices, &config)
-        .expect("Grouping failed");
+    let result = group_invoices(&invoices, &config).expect("Grouping failed");
 
-    println!("✓ 归组完成：{} 个行程，{} 个歧义",
-        result.trips.len(), result.ambiguities.len());
+    println!(
+        "✓ 归组完成：{} 个行程，{} 个歧义",
+        result.trips.len(),
+        result.ambiguities.len()
+    );
 
     // 5. 统计归组质量指标
     let mut group_stats_list = Vec::new();
@@ -196,20 +201,22 @@ fn convert_record_to_invoice(record: &ParsedInvoiceRecord) -> ParsedInvoice {
 
     ParsedInvoice {
         invoice_number: record.invoice_number.clone(),
-        issue_date: NaiveDate::from_str(&record.issue_date)
-            .expect("Invalid issue_date format"),
-        total_amount: Decimal::from_str(&record.total_amount)
-            .expect("Invalid total_amount"),
-        tax_amount: record.tax_amount.as_ref()
+        issue_date: NaiveDate::from_str(&record.issue_date).expect("Invalid issue_date format"),
+        total_amount: Decimal::from_str(&record.total_amount).expect("Invalid total_amount"),
+        tax_amount: record
+            .tax_amount
+            .as_ref()
             .and_then(|s| Decimal::from_str(s).ok()),
         tax_rate: None,
         buyer_name: record.buyer_name.clone(),
         seller_name: record.seller_name.clone(),
         ticket_type,
+        transport_document_kind: Default::default(),
         parse_level,
         confidence: record.confidence,
         source_path: PathBuf::from(&record.file),
         city: None,
+        travel_route: record.seller_name.clone(),
         departure_time: None,
         checkin_date: None,
     }

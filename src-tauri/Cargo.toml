@@ -1,9 +1,9 @@
 [package]
 name = "invoice-assistant"
 version = "0.1.0"
-description = "发票报销 AI 助手"
+description = "本地优先的发票收集、审核与报销整理工具"
 authors = ["Invoice Assistant Team"]
-license = "MIT"
+publish = false
 edition.workspace = true
 rust-version.workspace = true
 
@@ -11,7 +11,7 @@ rust-version.workspace = true
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.5", features = ["devtools"] }
+tauri = { version = "2.11.5", features = [] }
 tauri-plugin-shell = "2.3.5"
 # 文件选择对话框：webview 的 File 对象拿不到文件系统路径，必须走此插件
 tauri-plugin-dialog = "2.7.2"
@@ -25,6 +25,23 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2.5"
 uuid = { version = "1.11", features = ["v4", "serde"] }
+dirs = { workspace = true }
+zeroize = { workspace = true }
+sha2 = { workspace = true }
+zip = { workspace = true }
+reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "native-tls", "system-proxy"] }
+semver = "1.0"
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "native-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # 现有 workspace crates（S0.2 只做接线，命令实现在后续任务）
 invoice-parse = { path = "../crates/invoice-parse" }
@@ -39,6 +56,7 @@ printpdf = "0.7"
 
 [dev-dependencies]
 calamine = "0.26"
+tempfile = "3"
 # 仅测试用：构造 ParsedInvoice / ReportedInvoice 夹具校验 DTO 序列化
 
 [features]

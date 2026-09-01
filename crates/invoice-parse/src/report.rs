@@ -10,11 +10,17 @@ pub struct SampleOutcome {
 #[derive(Debug, Clone)]
 pub enum OutcomeKind {
     FullMatch,
-    PartialMatch { failures: Vec<FieldComparison> },
-    ParseFailed { error: String },
+    PartialMatch {
+        failures: Vec<FieldComparison>,
+    },
+    ParseFailed {
+        error: String,
+    },
     /// 样本经人工确认不是发票（邮件横幅、下载按钮、广告图等），
     /// 不计入通过率的分子和分母。
-    Skipped { reason: String },
+    Skipped {
+        reason: String,
+    },
 }
 
 impl SampleOutcome {

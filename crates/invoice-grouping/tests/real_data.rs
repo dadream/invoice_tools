@@ -14,8 +14,23 @@
 
 #[cfg(test)]
 mod tests {
-    use invoice_grouping::{group_invoices, types::GroupingConfig};
+    use invoice_grouping::group_invoices;
+    use invoice_grouping::types::{
+        Ambiguity, AmbiguityResolution, AmbiguityResolver, GroupingConfig, TripKind,
+    };
     use invoice_parse::model::ParsedInvoice;
+    use std::path::Path;
+
+    struct NoopResolver;
+
+    impl AmbiguityResolver for NoopResolver {
+        fn resolve(
+            &self,
+            _ambiguities: &[Ambiguity],
+        ) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
+            Ok(Vec::new())
+        }
+    }
 
     /// 占位测试：用户1，2026年7月批次
     ///
@@ -60,6 +75,63 @@ mod tests {
     #[ignore]
     fn test_batch_user3_202607() {
         unimplemented!("等待 α 用户数据")
+    }
+
+    /// 私有真实原件只通过显式环境变量启用；仅输出聚合数量，不输出文件名、
+    /// 票号、乘车人、站点或日期。
+    #[test]
+    #[ignore = "requires an explicitly authorized private PDF sample directory"]
+    fn private_rail_invoices_create_business_trip_groups() {
+        let root = std::env::var_os("INVOICE_REAL_GROUPING_PDF_ROOT")
+            .expect("INVOICE_REAL_GROUPING_PDF_ROOT is required");
+        let expected: usize = std::env::var("INVOICE_REAL_GROUPING_RAIL_EXPECTED")
+            .expect("INVOICE_REAL_GROUPING_RAIL_EXPECTED is required")
+            .parse()
+            .expect("INVOICE_REAL_GROUPING_RAIL_EXPECTED must be an integer");
+        let mut invoices = Vec::new();
+        for entry in std::fs::read_dir(root).expect("private PDF directory must be readable") {
+            let path = entry
+                .expect("private directory entry must be readable")
+                .path();
+            if !path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+            {
+                continue;
+            }
+            let bytes = std::fs::read(&path).expect("private PDF must be readable");
+            if let Ok(invoice) = invoice_parse::pdf_embedded::parse_embedded_rail_invoice(
+                &bytes,
+                Path::new("private-sample.pdf"),
+            ) {
+                invoices.push(invoice);
+            }
+        }
+
+        let result = group_invoices(
+            &invoices,
+            &GroupingConfig {
+                home_cities: vec!["北京".to_string()],
+                home_station_aliases: None,
+                ambiguity_handler: Box::new(NoopResolver),
+            },
+        )
+        .expect("private rail grouping must complete");
+        let business_trips = result
+            .trips
+            .iter()
+            .filter(|trip| matches!(trip.kind, TripKind::BusinessTrip { .. }))
+            .count();
+
+        println!("rail_invoices={}", invoices.len());
+        println!("business_trip_groups={business_trips}");
+        println!("private_values_logged=false");
+        assert_eq!(invoices.len(), expected);
+        assert!(
+            business_trips > 0,
+            "rail invoices must not all fall into local-month groups"
+        );
     }
 
     /// 辅助函数示例：从 JSON 文件加载解析结果

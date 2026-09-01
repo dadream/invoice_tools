@@ -2,15 +2,11 @@
 //!
 //! 管理邮箱账号和加密凭证
 
+use chrono::{NaiveDateTime, Utc};
 use rusqlite::{params, Connection, Row};
-use chrono::{Utc, NaiveDateTime};
 use std::path::Path;
 
-use crate::{
-    crypto, keychain,
-    models::{Account, Credential},
-    StoreError, StoreResult,
-};
+use crate::{crypto, keychain, models::Account, StoreError, StoreResult};
 
 /// accounts.db 管理器
 pub struct AccountsDb {
@@ -72,7 +68,10 @@ impl AccountsDb {
         imap_server: &str,
         imap_port: u16,
     ) -> StoreResult<i64> {
-        let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Utc::now()
+            .naive_utc()
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
 
         self.conn.execute(
             "INSERT INTO accounts (email, imap_server, imap_port, enabled, created_at, updated_at)
@@ -111,7 +110,7 @@ impl AccountsDb {
     pub fn list_accounts(&self) -> StoreResult<Vec<Account>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, email, imap_server, imap_port, enabled, created_at, updated_at
-             FROM accounts ORDER BY id"
+             FROM accounts ORDER BY id",
         )?;
 
         let accounts = stmt
@@ -123,7 +122,10 @@ impl AccountsDb {
 
     /// 更新账号
     pub fn update_account(&self, account: &Account) -> StoreResult<()> {
-        let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Utc::now()
+            .naive_utc()
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
 
         let rows = self.conn.execute(
             "UPDATE accounts SET email = ?1, imap_server = ?2, imap_port = ?3,
@@ -147,7 +149,9 @@ impl AccountsDb {
 
     /// 删除账号（级联删除凭证）
     pub fn delete_account(&self, id: i64) -> StoreResult<()> {
-        let rows = self.conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
 
         if rows == 0 {
             return Err(StoreError::NotFound(format!("Account {}", id)));
@@ -166,7 +170,10 @@ impl AccountsDb {
         // 加密密码
         let encrypted_password = crypto::encrypt(password, &master_key)?;
 
-        let now = Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string();
+        let now = Utc::now()
+            .naive_utc()
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
 
         // 尝试更新现有凭证
         let rows = self.conn.execute(
@@ -213,10 +220,19 @@ impl AccountsDb {
         )?;
 
         if rows == 0 {
-            return Err(StoreError::NotFound(format!("Credential for account {}", account_id)));
+            return Err(StoreError::NotFound(format!(
+                "Credential for account {}",
+                account_id
+            )));
         }
 
         Ok(())
+    }
+
+    /// 删除所有旧版持久化授权码。MVP 只允许授权码存在于当前进程内存。
+    pub fn purge_all_credentials(&self) -> StoreResult<usize> {
+        let deleted = self.conn.execute("DELETE FROM credentials", [])?;
+        Ok(deleted)
     }
 
     /// 解析账号行
@@ -227,10 +243,28 @@ impl AccountsDb {
             imap_server: row.get(2)?,
             imap_port: row.get(3)?,
             enabled: row.get::<_, i32>(4)? != 0,
-            created_at: NaiveDateTime::parse_from_str(&row.get::<_, String>(5)?, "%Y-%m-%d %H:%M:%S")
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e)))?,
-            updated_at: NaiveDateTime::parse_from_str(&row.get::<_, String>(6)?, "%Y-%m-%d %H:%M:%S")
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e)))?,
+            created_at: NaiveDateTime::parse_from_str(
+                &row.get::<_, String>(5)?,
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    5,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?,
+            updated_at: NaiveDateTime::parse_from_str(
+                &row.get::<_, String>(6)?,
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?,
         })
     }
 }
@@ -243,7 +277,9 @@ mod tests {
     fn create_and_get_account() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        let id = db.create_account("test@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("test@example.com", "imap.example.com", 993)
+            .unwrap();
         let account = db.get_account(id).unwrap();
 
         assert_eq!(account.email, "test@example.com");
@@ -256,8 +292,10 @@ mod tests {
     fn list_accounts() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        db.create_account("user1@example.com", "imap.example.com", 993).unwrap();
-        db.create_account("user2@example.com", "imap.example.com", 993).unwrap();
+        db.create_account("user1@example.com", "imap.example.com", 993)
+            .unwrap();
+        db.create_account("user2@example.com", "imap.example.com", 993)
+            .unwrap();
 
         let accounts = db.list_accounts().unwrap();
         assert_eq!(accounts.len(), 2);
@@ -267,7 +305,9 @@ mod tests {
     fn update_account() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        let id = db.create_account("test@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("test@example.com", "imap.example.com", 993)
+            .unwrap();
         let mut account = db.get_account(id).unwrap();
 
         account.imap_port = 143;
@@ -284,7 +324,9 @@ mod tests {
     fn delete_account() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        let id = db.create_account("test@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("test@example.com", "imap.example.com", 993)
+            .unwrap();
         db.delete_account(id).unwrap();
 
         let result = db.get_account(id);
@@ -295,7 +337,9 @@ mod tests {
     fn set_and_get_credential() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        let id = db.create_account("test@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("test@example.com", "imap.example.com", 993)
+            .unwrap();
         db.set_credential(id, "my-secret-password").unwrap();
 
         let password = db.get_credential(id).unwrap();
@@ -306,7 +350,9 @@ mod tests {
     fn credential_cascade_delete() {
         let db = AccountsDb::new(":memory:").unwrap();
 
-        let id = db.create_account("test@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("test@example.com", "imap.example.com", 993)
+            .unwrap();
         db.set_credential(id, "password").unwrap();
 
         // 删除账号应该级联删除凭证
@@ -314,5 +360,23 @@ mod tests {
 
         let result = db.get_credential(id);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn purge_all_credentials_keeps_email_profiles() {
+        let db = AccountsDb::new(":memory:").unwrap();
+        let first = db
+            .create_account("first@example.com", "imap.example.com", 993)
+            .unwrap();
+        let second = db
+            .create_account("second@example.com", "imap.example.com", 993)
+            .unwrap();
+        db.set_credential(first, "first-secret").unwrap();
+        db.set_credential(second, "second-secret").unwrap();
+
+        assert_eq!(db.purge_all_credentials().unwrap(), 2);
+        assert_eq!(db.list_accounts().unwrap().len(), 2);
+        assert!(db.get_credential(first).is_err());
+        assert!(db.get_credential(second).is_err());
     }
 }

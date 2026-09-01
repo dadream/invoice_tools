@@ -12,7 +12,7 @@
     step: 1,
     email: '',
     password: '',
-    homeCity: '',
+    homeCity: '北京',
   })
 
   let loading = $state(false)
@@ -39,6 +39,13 @@
     }
   }
 
+  function skipEmailForNow() {
+    wizardState.email = ''
+    wizardState.password = ''
+    testResult = null
+    nextStep()
+  }
+
   async function testConnection() {
     if (!wizardState.email || !wizardState.password) return
 
@@ -63,19 +70,21 @@
     loading = true
     error = null
 
-    // 1. 添加邮箱账号
-    const accountResult = await invokeSafe<number>('add_account', {
-      email: wizardState.email,
-      password: wizardState.password,
-    })
+    // 邮箱地址可以保存；授权码只保存在当前应用进程内存。
+    if (wizardState.email && wizardState.password) {
+      const accountResult = await invokeSafe<number>('add_account', {
+        email: wizardState.email,
+        password: wizardState.password,
+      })
 
-    if (!accountResult.ok) {
-      error = accountResult.error.message
-      loading = false
-      return
+      if (!accountResult.ok) {
+        error = accountResult.error.message
+        loading = false
+        return
+      }
     }
 
-    // 2. 保存常驻城市
+    // 保存常驻城市
     if (wizardState.homeCity.trim()) {
       const cityResult = await invokeSafe<void>('set_setting', {
         key: 'home_city',
@@ -89,7 +98,17 @@
       }
     }
 
-    // 3. 完成，跳转到主界面
+    const completedResult = await invokeSafe<void>('set_setting', {
+      key: 'onboarding_completed',
+      value: 'true',
+    })
+    if (!completedResult.ok) {
+      error = completedResult.error.message
+      loading = false
+      return
+    }
+
+    // 完成，跳转到主界面
     loading = false
     // 触发 App.svelte 重新检查 first-run 状态
     window.location.reload()
@@ -121,30 +140,30 @@
     <!-- 步骤 1: 欢迎 -->
     {#if wizardState.step === 1}
       <div class="step-content">
-        <div class="welcome-icon">📬</div>
+        <div class="welcome-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7.5h18v11H3zM3 8l9 6 9-6M7 7.5V5h10v2.5" /></svg></div>
         <h1>欢迎使用发票助手</h1>
-        <p class="subtitle">让报销变得更简单</p>
+        <p class="subtitle">本地整理发票，审核后再交付</p>
 
         <div class="feature-list">
           <div class="feature-item">
-            <span class="feature-icon">📧</span>
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 7l9 7 9-7" /></svg></span>
             <div>
               <h3>自动采集</h3>
               <p>从邮箱中自动提取发票附件</p>
             </div>
           </div>
           <div class="feature-item">
-            <span class="feature-icon">🔍</span>
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 5 5" /></svg></span>
             <div>
               <h3>智能解析</h3>
               <p>支持 XML、OFD、PDF 多种格式</p>
             </div>
           </div>
           <div class="feature-item">
-            <span class="feature-icon">📊</span>
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7M2 20h20" /></svg></span>
             <div>
-              <h3>批量导出</h3>
-              <p>生成报销台账和明细表</p>
+              <h3>审核后交付</h3>
+              <p>导出 Excel，或按企业映射准备 Concur 草稿</p>
             </div>
           </div>
         </div>
@@ -160,7 +179,8 @@
       <div class="step-content">
         <h2>配置邮箱账号</h2>
         <p class="step-description">
-          发票助手将从邮箱中采集发票附件。密码加密存储，仅用于 IMAP 连接。
+          邮箱地址会保存在本机；授权码只保留在本次应用会话的内存中，退出后自动失效。
+          也可以暂不连接邮箱，先使用本地文件。
         </p>
 
         <div class="form-group">
@@ -172,7 +192,7 @@
             placeholder="example@qq.com"
             class="input"
           />
-          <span class="hint">目前支持 QQ 邮箱、网易邮箱等主流服务商</span>
+          <span class="hint">当前正式验证 QQ 邮箱只读 IMAP；其他服务商需先测试连接</span>
         </div>
 
         <div class="form-group">
@@ -215,6 +235,9 @@
           >
             下一步
           </button>
+          <button class="btn-secondary" type="button" onclick={skipEmailForNow}>
+            暂不配置邮箱
+          </button>
         </div>
       </div>
     {/if}
@@ -224,7 +247,7 @@
       <div class="step-content">
         <h2>设置常驻城市</h2>
         <p class="step-description">
-          用于归组引擎判断出差行程。在常驻城市的消费将标记为"本地"，其他城市标记为"出差"。
+          用于识别“从常驻地出发”的城际行程。异地商户或城市本身不会自动构成差旅，仍需铁路、航空或行程单锚点。
         </p>
 
         <div class="form-group">
@@ -267,7 +290,7 @@
     <!-- 步骤 4: 完成 -->
     {#if wizardState.step === 4}
       <div class="step-content">
-        <div class="complete-icon">✅</div>
+        <div class="complete-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16.5 8" /></svg></div>
         <h2>准备就绪</h2>
         <p class="step-description">
           所有配置已完成，点击下方按钮开始使用发票助手。
@@ -276,7 +299,7 @@
         <div class="summary-card">
           <div class="summary-item">
             <span class="summary-label">邮箱账号：</span>
-            <span class="summary-value">{wizardState.email}</span>
+            <span class="summary-value">{wizardState.email || '暂不配置，使用本地文件'}</span>
           </div>
           <div class="summary-item">
             <span class="summary-label">常驻城市：</span>
@@ -308,7 +331,7 @@
 <style>
   .wizard-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #17211c;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -316,9 +339,10 @@
   }
 
   .wizard-card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    background: #fbfaf6;
+    border: 1px solid #739687;
+    border-radius: 4px;
+    box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.22);
     max-width: 600px;
     width: 100%;
     padding: 2.5rem;
@@ -345,13 +369,13 @@
   }
 
   .progress-dot.active {
-    background: #667eea;
+    background: #136b52;
     color: white;
   }
 
   .progress-dot.current {
     transform: scale(1.2);
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 0 0 4px rgba(19, 107, 82, 0.18);
   }
 
   .progress-line {
@@ -362,7 +386,7 @@
   }
 
   .progress-line.active {
-    background: #667eea;
+    background: #136b52;
   }
 
   .step-content {
@@ -370,25 +394,38 @@
   }
 
   .welcome-icon {
-    font-size: 5rem;
+    display: grid;
+    width: 72px;
+    height: 72px;
+    margin-inline: auto;
     margin-bottom: 1rem;
+    place-items: center;
+    border: 1px solid #9ab8aa;
+    background: #edf6f1;
+    color: #136b52;
   }
 
   .complete-icon {
-    font-size: 5rem;
+    display: grid;
+    width: 72px;
+    height: 72px;
+    margin-inline: auto;
     margin-bottom: 1rem;
+    place-items: center;
+    color: #136b52;
   }
+  .welcome-icon svg, .complete-icon svg { width: 42px; height: 42px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   h1 {
     margin: 0 0 0.5rem 0;
     font-size: 2rem;
-    color: #213547;
+    color: #17211c;
   }
 
   h2 {
     margin: 0 0 1rem 0;
     font-size: 1.5rem;
-    color: #213547;
+    color: #17211c;
   }
 
   .subtitle {
@@ -419,14 +456,20 @@
   }
 
   .feature-icon {
-    font-size: 2rem;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid #b9c7c0;
+    color: #136b52;
     flex-shrink: 0;
   }
+  .feature-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
   .feature-item h3 {
     margin: 0 0 0.25rem 0;
     font-size: 1.1rem;
-    color: #213547;
+    color: #17211c;
   }
 
   .feature-item p {
@@ -444,7 +487,7 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: #213547;
+    color: #17211c;
     font-size: 0.95rem;
   }
 
@@ -474,8 +517,8 @@
 
   .input:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #136b52;
+    box-shadow: 0 0 0 3px rgba(19, 107, 82, 0.12);
   }
 
   .city-selection {
@@ -499,7 +542,7 @@
     padding: 0.6rem 0.75rem;
     border: 1px solid #e0e0e0;
     background: white;
-    color: #213547;
+    color: #17211c;
     border-radius: 6px;
     font-size: 0.9rem;
     cursor: pointer;
@@ -508,13 +551,13 @@
 
   .city-btn:hover {
     background: #f5f5f5;
-    border-color: #667eea;
+    border-color: #136b52;
   }
 
   .city-btn.active {
-    background: #667eea;
+    background: #136b52;
     color: white;
-    border-color: #667eea;
+    border-color: #136b52;
   }
 
   .summary-card {
@@ -541,7 +584,7 @@
   }
 
   .summary-value {
-    color: #213547;
+    color: #17211c;
   }
 
   .button-group {
@@ -568,14 +611,14 @@
   }
 
   .btn-primary {
-    background: #667eea;
+    background: #136b52;
     color: white;
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: #5568d3;
+    background: #0f5844;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px rgba(19, 107, 82, 0.28);
   }
 
   .btn-primary:disabled {
@@ -585,7 +628,7 @@
 
   .btn-secondary {
     background: white;
-    color: #213547;
+    color: #17211c;
     border: 1px solid #e0e0e0;
   }
 
@@ -600,9 +643,9 @@
 
   .success-message {
     padding: 0.75rem;
-    background: #efe;
-    color: #2a2;
-    border: 1px solid #cfc;
+    background: #e7f1eb;
+    color: #24533f;
+    border: 1px solid #9dbbad;
     border-radius: 6px;
     margin-bottom: 1rem;
     text-align: left;
@@ -610,11 +653,19 @@
 
   .error-message {
     padding: 0.75rem;
-    background: #fee;
-    color: #c33;
-    border: 1px solid #fcc;
+    background: #f8e9e7;
+    color: #862f2a;
+    border: 1px solid #d7a09b;
     border-radius: 6px;
     margin-bottom: 1rem;
     text-align: left;
+  }
+  @media (max-width: 680px) {
+    .wizard-container { align-items: stretch; padding: 0; background: #fbfaf6; }
+    .wizard-card { box-sizing: border-box; max-width: none; min-height: 100vh; padding: 1.25rem; border: 0; box-shadow: none; }
+    .progress-bar { margin-bottom: 2rem; }
+    .progress-line { width: clamp(24px, 10vw, 60px); }
+    .button-group { align-items: stretch; flex-direction: column; }
+    .city-grid { grid-template-columns: repeat(3, 1fr); }
   }
 </style>

@@ -90,7 +90,7 @@
 <div class="grouping-settings">
   <h2>归组规则</h2>
   <p class="description">
-    配置行程归组引擎的规则，用于自动识别出差、住宿和交通。
+    配置材料识别和费用关联规则。异地消费本身不会创建差旅行程；行程必须由铁路、航空或行程单锚定。
   </p>
 
   {#if loading}
@@ -99,10 +99,10 @@
     <div class="rules-form">
       <!-- 休息日定义 -->
       <div class="form-section">
-        <label class="section-label">
+        <div class="section-label">
           休息日定义
           <span class="hint">（勾选的日期视为休息日）</span>
-        </label>
+        </div>
         <div class="weekday-buttons">
           {#each weekDays as day}
             <button

@@ -8,11 +8,13 @@ pub fn list_entries(ofd_bytes: &[u8]) -> Result<Vec<String>, ParseError> {
     let mut archive = open_zip(ofd_bytes, Path::new(""))?;
     let mut names = Vec::with_capacity(archive.len());
     for i in 0..archive.len() {
-        let entry = archive.by_index(i).map_err(|e| ParseError::MalformedFormat {
-            path: PathBuf::new(),
-            format: "OFD",
-            detail: format!("读取第 {i} 个条目失败: {e}"),
-        })?;
+        let entry = archive
+            .by_index(i)
+            .map_err(|e| ParseError::MalformedFormat {
+                path: PathBuf::new(),
+                format: "OFD",
+                detail: format!("读取第 {i} 个条目失败: {e}"),
+            })?;
         names.push(entry.name().to_string());
     }
     Ok(names)
@@ -28,11 +30,13 @@ pub fn extract_invoice_xml(ofd_bytes: &[u8], path: &Path) -> Result<Vec<u8>, Par
     // 收集所有非版式的 .xml 条目：(索引, 名称, 体积)
     let mut candidates: Vec<(usize, String, u64)> = Vec::new();
     for i in 0..archive.len() {
-        let entry = archive.by_index(i).map_err(|e| ParseError::MalformedFormat {
-            path: path.to_path_buf(),
-            format: "OFD",
-            detail: format!("读取第 {i} 个条目失败: {e}"),
-        })?;
+        let entry = archive
+            .by_index(i)
+            .map_err(|e| ParseError::MalformedFormat {
+                path: path.to_path_buf(),
+                format: "OFD",
+                detail: format!("读取第 {i} 个条目失败: {e}"),
+            })?;
         let name = entry.name().to_string();
         if name.to_lowercase().ends_with(".xml") && !is_layout_file(&name) {
             candidates.push((i, name, entry.size()));
@@ -59,11 +63,13 @@ pub fn extract_invoice_xml(ofd_bytes: &[u8], path: &Path) -> Result<Vec<u8>, Par
         .map(|(i, _, _)| *i)
         .expect("candidates 非空");
 
-    let mut entry = archive.by_index(chosen).map_err(|e| ParseError::MalformedFormat {
-        path: path.to_path_buf(),
-        format: "OFD",
-        detail: format!("打开内嵌 XML 失败: {e}"),
-    })?;
+    let mut entry = archive
+        .by_index(chosen)
+        .map_err(|e| ParseError::MalformedFormat {
+            path: path.to_path_buf(),
+            format: "OFD",
+            detail: format!("打开内嵌 XML 失败: {e}"),
+        })?;
 
     let mut buf = Vec::with_capacity(entry.size() as usize);
     entry.read_to_end(&mut buf).map_err(|e| ParseError::Io {
@@ -81,9 +87,7 @@ pub fn parse_invoice_ofd(
 ) -> Result<ParsedInvoice, ParseError> {
     // 优先走结构化 XML（L0）——有语义标签，最可靠
     if let Ok(xml_bytes) = extract_invoice_xml(ofd_bytes, path) {
-        if let Ok(invoice) =
-            crate::xml::parse_invoice_xml(&xml_bytes, path, hints, ticket_type)
-        {
+        if let Ok(invoice) = crate::xml::parse_invoice_xml(&xml_bytes, path, hints, ticket_type) {
             return Ok(invoice);
         }
     }
@@ -91,10 +95,7 @@ pub fn parse_invoice_ofd(
     crate::ofd_text::parse_invoice_ofd_text(ofd_bytes, path)
 }
 
-fn open_zip(
-    bytes: &[u8],
-    path: &Path,
-) -> Result<zip::ZipArchive<Cursor<Vec<u8>>>, ParseError> {
+fn open_zip(bytes: &[u8], path: &Path) -> Result<zip::ZipArchive<Cursor<Vec<u8>>>, ParseError> {
     zip::ZipArchive::new(Cursor::new(bytes.to_vec())).map_err(|e| ParseError::MalformedFormat {
         path: path.to_path_buf(),
         format: "OFD",
@@ -116,7 +117,9 @@ const LAYOUT_FILES: &[&str] = &[
 
 fn is_layout_file(entry_name: &str) -> bool {
     let file_name = entry_name.rsplit('/').next().unwrap_or(entry_name);
-    LAYOUT_FILES.iter().any(|f| f.eq_ignore_ascii_case(file_name))
+    LAYOUT_FILES
+        .iter()
+        .any(|f| f.eq_ignore_ascii_case(file_name))
 }
 
 #[cfg(test)]
@@ -176,9 +179,15 @@ mod tests {
 
     #[test]
     fn layout_only_ofd_errors_clearly() {
-        let ofd = build_ofd(&[("OFD.xml", b"<OFD/>"), ("Doc_0/Document.xml", b"<Document/>")]);
+        let ofd = build_ofd(&[
+            ("OFD.xml", b"<OFD/>"),
+            ("Doc_0/Document.xml", b"<Document/>"),
+        ]);
         let err = extract_invoice_xml(&ofd, Path::new("x.ofd")).unwrap_err();
-        assert!(err.to_string().contains("找不到"), "错误应说明未找到内嵌 XML");
+        assert!(
+            err.to_string().contains("找不到"),
+            "错误应说明未找到内嵌 XML"
+        );
     }
 
     #[test]
@@ -189,7 +198,10 @@ mod tests {
 
     #[test]
     fn end_to_end_ofd_parse_yields_fields() {
-        let ofd = build_ofd(&[("OFD.xml", b"<OFD/>"), ("Doc_0/Attachs/invoice.xml", INVOICE_XML)]);
+        let ofd = build_ofd(&[
+            ("OFD.xml", b"<OFD/>"),
+            ("Doc_0/Attachs/invoice.xml", INVOICE_XML),
+        ]);
         let hints = TagHints {
             invoice_number: vec!["Fphm".into()],
             issue_date: vec!["Kprq".into()],

@@ -100,20 +100,34 @@ impl Manifest {
 impl Sample {
     /// 清单里是否已有可比对的期望值（三个必填字段任一已填）。
     pub fn has_ground_truth(&self) -> bool {
-        self.invoice_number.is_some()
-            || self.issue_date.is_some()
-            || self.total_amount.is_some()
+        self.invoice_number.is_some() || self.issue_date.is_some() || self.total_amount.is_some()
     }
 
     pub fn compare(&self, actual: &ParsedInvoice) -> Vec<FieldComparison> {
         vec![
-            cmp_str("invoice_number", self.invoice_number.as_deref(), Some(actual.invoice_number.as_str())),
+            cmp_str(
+                "invoice_number",
+                self.invoice_number.as_deref(),
+                Some(actual.invoice_number.as_str()),
+            ),
             cmp_date("issue_date", self.issue_date.as_deref(), actual.issue_date),
-            cmp_decimal("total_amount", self.total_amount.as_deref(), Some(actual.total_amount)),
+            cmp_decimal(
+                "total_amount",
+                self.total_amount.as_deref(),
+                Some(actual.total_amount),
+            ),
             cmp_decimal("tax_amount", self.tax_amount.as_deref(), actual.tax_amount),
             cmp_decimal("tax_rate", self.tax_rate.as_deref(), actual.tax_rate),
-            cmp_str("buyer_name", self.buyer_name.as_deref(), actual.buyer_name.as_deref()),
-            cmp_str("seller_name", self.seller_name.as_deref(), actual.seller_name.as_deref()),
+            cmp_str(
+                "buyer_name",
+                self.buyer_name.as_deref(),
+                actual.buyer_name.as_deref(),
+            ),
+            cmp_str(
+                "seller_name",
+                self.seller_name.as_deref(),
+                actual.seller_name.as_deref(),
+            ),
             cmp_ticket_type("ticket_type", self.ticket_type, actual.ticket_type),
         ]
     }
@@ -122,11 +136,7 @@ impl Sample {
 const MISSING: &str = "<缺失>";
 
 /// 没填期望值 → Unverified。填了但实际缺失 → Mismatch。
-fn cmp_str(
-    field: &'static str,
-    expected: Option<&str>,
-    actual: Option<&str>,
-) -> FieldComparison {
+fn cmp_str(field: &'static str, expected: Option<&str>, actual: Option<&str>) -> FieldComparison {
     let actual_s = actual.unwrap_or(MISSING).to_string();
     match expected {
         None => FieldComparison {
@@ -156,7 +166,9 @@ fn cmp_decimal(
     actual: Option<Decimal>,
 ) -> FieldComparison {
     use rust_decimal::prelude::FromStr;
-    let actual_s = actual.map(|d| d.to_string()).unwrap_or_else(|| MISSING.into());
+    let actual_s = actual
+        .map(|d| d.to_string())
+        .unwrap_or_else(|| MISSING.into());
     match expected {
         None => FieldComparison {
             field,
@@ -173,7 +185,11 @@ fn cmp_decimal(
                 field,
                 expected: raw.to_string(),
                 actual: actual_s,
-                status: if matched { FieldStatus::Match } else { FieldStatus::Mismatch },
+                status: if matched {
+                    FieldStatus::Match
+                } else {
+                    FieldStatus::Mismatch
+                },
             }
         }
     }
@@ -198,7 +214,11 @@ fn cmp_date(
                 field,
                 expected: raw.to_string(),
                 actual: actual_s,
-                status: if matched { FieldStatus::Match } else { FieldStatus::Mismatch },
+                status: if matched {
+                    FieldStatus::Match
+                } else {
+                    FieldStatus::Mismatch
+                },
             }
         }
     }
@@ -221,7 +241,11 @@ fn cmp_ticket_type(
             field,
             expected: format!("{e:?}"),
             actual: actual_s,
-            status: if e == actual { FieldStatus::Match } else { FieldStatus::Mismatch },
+            status: if e == actual {
+                FieldStatus::Match
+            } else {
+                FieldStatus::Mismatch
+            },
         },
     }
 }
@@ -242,9 +266,11 @@ mod tests {
             buyer_name: Some("某某公司".to_string()),
             seller_name: None,
             ticket_type: TicketType::Rail,
+            transport_document_kind: Default::default(),
             parse_level: crate::model::ParseLevel::L0,
             confidence: 1.0,
             city: None,
+            travel_route: None,
             departure_time: None,
             checkin_date: None,
             source_path: PathBuf::from("samples/rail-01.xml"),
@@ -304,7 +330,12 @@ mod tests {
         s.total_amount = Some("553.00".to_string());
         s.ticket_type = Some(TicketType::Rail);
         let cs = s.compare(&parsed());
-        for f in ["invoice_number", "issue_date", "total_amount", "ticket_type"] {
+        for f in [
+            "invoice_number",
+            "issue_date",
+            "total_amount",
+            "ticket_type",
+        ] {
             let c = cs.iter().find(|c| c.field == f).expect(f);
             assert_eq!(c.status, FieldStatus::Match, "{f} 应匹配: {c:?}");
         }

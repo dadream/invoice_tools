@@ -12,15 +12,16 @@
 
 use thiserror::Error;
 
-pub mod keychain;
-pub mod crypto;
-pub mod models;
 pub mod accounts_db;
+mod concur_send;
+pub mod crypto;
+pub mod keychain;
 pub mod ledger_db;
+pub mod models;
 
 // Re-export commonly used types
-pub use ledger_db::LedgerDb;
 pub use accounts_db::AccountsDb;
+pub use ledger_db::{LedgerDb, LEDGER_SCHEMA_VERSION};
 
 /// Result type alias for store operations
 pub type StoreResult<T> = Result<T, StoreError>;
@@ -50,10 +51,7 @@ pub enum StoreError {
 
     /// Invalid state transition
     #[error("Invalid state transition from {from} to {to}")]
-    InvalidStateTransition {
-        from: String,
-        to: String,
-    },
+    InvalidStateTransition { from: String, to: String },
 
     /// I/O operation failed
     #[error("I/O error: {0}")]
@@ -80,7 +78,7 @@ mod tests {
     #[test]
     fn store_result_can_be_used() {
         let success: StoreResult<i32> = Ok(42);
-        assert_eq!(success.unwrap(), 42);
+        assert!(matches!(success, Ok(42)));
 
         let failure: StoreResult<i32> = Err(StoreError::Internal("test".to_string()));
         assert!(failure.is_err());

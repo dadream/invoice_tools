@@ -3,10 +3,8 @@
 //! 运行：cargo test validation_parse --release -- --nocapture
 //! 输出：reports/parse_report.json
 
-use chrono::NaiveDate;
 use invoice_parse::manifest::TagHints;
-use invoice_parse::model::{ParseLevel, ParsedInvoice, TicketType};
-use rust_decimal::Decimal;
+use invoice_parse::model::{ParsedInvoice, TicketType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -67,9 +65,9 @@ struct ParseReport {
 fn builtin_hints() -> TagHints {
     TagHints {
         invoice_number: vec!["InvoiceNumber".into(), "EIid".into()],
-        issue_date: vec!["IssueTime".into(), "RequestTime".into()],
-        total_amount: vec!["TotalTax-includedAmount".into()],
-        tax_amount: vec!["TotalTaxAm".into()],
+        issue_date: vec!["IssueTime".into(), "RequestTime".into(), "IssueDate".into()],
+        total_amount: vec!["TotalTax-includedAmount".into(), "TotalAmount".into()],
+        tax_amount: vec!["TotalTaxAm".into(), "TaxAmount".into()],
         tax_rate: vec!["TaxRate".into()],
         buyer_name: vec!["BuyerName".into()],
         seller_name: vec!["SellerName".into()],
@@ -84,8 +82,7 @@ fn parse_file(path: &Path) -> Result<ParsedInvoice, String> {
         .map(|e| e.to_ascii_lowercase())
         .ok_or("无扩展名")?;
 
-    let bytes = fs::read(path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let bytes = fs::read(path).map_err(|e| format!("读取文件失败: {}", e))?;
 
     let hints = builtin_hints();
     let ticket_type = TicketType::Other;
@@ -96,8 +93,9 @@ fn parse_file(path: &Path) -> Result<ParsedInvoice, String> {
         "ofd" => invoice_parse::ofd::parse_invoice_ofd(&bytes, path, &hints, ticket_type),
         "pdf" => {
             // 先尝试 L1 坐标路径，失败再降级 flat-text
-            invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, path)
-                .or_else(|_| invoice_parse::pdf::parse_invoice_pdf(&bytes, path, &hints, ticket_type))
+            invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, path).or_else(|_| {
+                invoice_parse::pdf::parse_invoice_pdf(&bytes, path, &hints, ticket_type)
+            })
         }
         _ => Err(invoice_parse::model::ParseError::MalformedFormat {
             path: path.to_path_buf(),
@@ -128,9 +126,9 @@ fn to_record(invoice: &ParsedInvoice, file: &str) -> ParsedInvoiceRecord {
 }
 
 #[test]
+#[ignore = "需要本机未入库的真实发票样本；发布验证时使用 --ignored 显式执行"]
 fn validation_parse() {
-    let samples_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../fixtures/samples");
+    let samples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/samples");
 
     if !samples_dir.exists() {
         eprintln!("样本目录不存在: {:?}", samples_dir);
@@ -179,7 +177,10 @@ fn validation_parse() {
 
         match parse_file(path) {
             Ok(invoice) => {
-                println!("✓ {} (conf: {:.2})", format!("{:?}", invoice.parse_level), invoice.confidence);
+                println!(
+                    "✓ {:?} (conf: {:.2})",
+                    invoice.parse_level, invoice.confidence
+                );
 
                 success_count += 1;
                 entry.1 += 1;
@@ -189,7 +190,9 @@ fn validation_parse() {
                 *parse_level_counts.entry(level_str).or_insert(0) += 1;
 
                 // 统计字段提取
-                *field_counts.entry("invoice_number".to_string()).or_insert(0) += 1;
+                *field_counts
+                    .entry("invoice_number".to_string())
+                    .or_insert(0) += 1;
                 *field_counts.entry("issue_date".to_string()).or_insert(0) += 1;
                 *field_counts.entry("total_amount".to_string()).or_insert(0) += 1;
 
@@ -235,7 +238,14 @@ fn validation_parse() {
 
     // 生成字段统计
     let mut field_extraction = HashMap::new();
-    for field in ["invoice_number", "issue_date", "total_amount", "tax_amount", "buyer_name", "seller_name"] {
+    for field in [
+        "invoice_number",
+        "issue_date",
+        "total_amount",
+        "tax_amount",
+        "buyer_name",
+        "seller_name",
+    ] {
         let extracted = field_counts.get(field).copied().unwrap_or(0);
         field_extraction.insert(
             field.to_string(),
@@ -257,10 +267,14 @@ fn validation_parse() {
     };
 
     // 保存解析成功的发票数据
-    let invoices_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../reports/parsed_invoices.json");
-    fs::write(&invoices_path, serde_json::to_string_pretty(&parsed_invoices).unwrap())
-        .expect("无法写入 parsed_invoices.json");
+    let reports_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../reports");
+    fs::create_dir_all(&reports_dir).expect("无法创建 reports 目录");
+    let invoices_path = reports_dir.join("parsed_invoices.json");
+    fs::write(
+        &invoices_path,
+        serde_json::to_string_pretty(&parsed_invoices).unwrap(),
+    )
+    .expect("无法写入 parsed_invoices.json");
 
     let report = ParseReport {
         total_files,
@@ -274,15 +288,18 @@ fn validation_parse() {
     };
 
     // 保存报告
-    let report_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../reports/parse_report.json");
+    let report_path = reports_dir.join("parse_report.json");
     fs::write(&report_path, serde_json::to_string_pretty(&report).unwrap())
         .expect("无法写入 parse_report.json");
 
     println!("\n==================== 解析验证报告 ====================");
     println!("总文件数: {}", total_files);
     println!("解析成功: {} ({:.1}%)", success_count, success_rate * 100.0);
-    println!("解析失败: {} ({:.1}%)", total_files - success_count, (1.0 - success_rate) * 100.0);
+    println!(
+        "解析失败: {} ({:.1}%)",
+        total_files - success_count,
+        (1.0 - success_rate) * 100.0
+    );
     println!("\n按格式统计:");
     for (format, stats) in report.by_format.iter() {
         println!(

@@ -1,3 +1,6 @@
+> **历史参考，不作为当前范围依据。** 当前任务计划见 `specs/mvp-release-baseline/tasks.md` 1.0。
+> 本文的阶段、路径、安全和完成度描述可能已过期。
+
 # 发票报销 AI 助手 - 开发计划
 
 > **依据**：`invoice-reimbursement-product-spec.md`（产品方案）、`invoice-reimbursement-pricing.md`（计费方案）

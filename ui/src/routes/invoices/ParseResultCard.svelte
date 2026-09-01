@@ -226,6 +226,7 @@
   .verify { padding: 0.15rem 0.45rem; border-radius: 4px; color: #fff; font-size: 0.8rem; font-weight: 500; }
   .verify-green { background: #0a7; }
   .verify-red { background: #c33; }
+  .verify-amber { background: #9a6700; }
   .verify-gray { background: #999; color: #fff; }
 
   .level-hint { margin: 0.4rem 0 1rem; font-size: 0.8rem; }

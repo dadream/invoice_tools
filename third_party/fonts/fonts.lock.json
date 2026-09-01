@@ -1,0 +1,34 @@
+{
+  "formatVersion": 1,
+  "fonts": [
+    {
+      "family": "Source Han Sans CN",
+      "version": "2.005R",
+      "license": "OFL-1.1",
+      "repository": "https://github.com/adobe-fonts/source-han-sans",
+      "commit": "a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2",
+      "licenseFile": "third_party/fonts/source-han-sans/LICENSE.txt",
+      "licenseSha256": "FCAC737E761EC63DBFBDCE11030A1780161920D80315EDBA9C8BEFF1C2BAC5A2",
+      "licenseOutput": "FONT-LICENSE-SOURCE-HAN-SANS.txt",
+      "files": [
+        { "path": "ui/src/assets/fonts/SourceHanSansCN-VF.ttf.woff2", "sha256": "F971E3BFF46F76B49E1D5510556C2297C618EC4B491A295A4E741CDD38257799" },
+        { "path": "src-tauri/assets/fonts/SourceHanSansCN-VF.ttf", "sha256": "25A01E41B5CC99893EB35A6CD2CC7611841DC19EB03CBAF7F0C1DE8210F2BA0B" }
+      ]
+    },
+    {
+      "family": "IBM Plex Sans and Mono",
+      "version": "repository snapshot",
+      "license": "OFL-1.1",
+      "repository": "https://github.com/IBM/plex",
+      "commit": "bf260093582f04622aacc1e9f9ca604d7ccd0c42",
+      "licenseFile": "third_party/fonts/ibm-plex/LICENSE.txt",
+      "licenseSha256": "7E6B2818EDBD8F6A01AE80641CC8F16A51080D08FB4E532BE3A0B6F74ADB07DA",
+      "licenseOutput": "FONT-LICENSE-IBM-PLEX.txt",
+      "files": [
+        { "path": "ui/src/assets/fonts/IBMPlexSans-Regular.woff2", "sha256": "BA711A3085FF9F27440B6B9C4550CFC47C97BF36591D5DA958B975BB3ADD8C1A" },
+        { "path": "ui/src/assets/fonts/IBMPlexSans-SemiBold.woff2", "sha256": "F78048030EAB62E860EFA39A0DF79E2E5581BF122EB95B9BC42C0B8A4988D205" },
+        { "path": "ui/src/assets/fonts/IBMPlexMono-Regular.woff2", "sha256": "BA204497F16B6D334CEE9D1E963A831B73E3A56E1D6300A8489D18DF7214B350" }
+      ]
+    }
+  ]
+}

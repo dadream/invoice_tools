@@ -1,15 +1,20 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import AboutSettings from './AboutSettings.svelte'
   import AccountsSettings from './AccountsSettings.svelte'
+  import DataSettings from './DataSettings.svelte'
   import GeneralSettings from './GeneralSettings.svelte'
   import GroupingSettings from './GroupingSettings.svelte'
+  import StationSettings from './StationSettings.svelte'
 
-  let activeTab = $state<'accounts' | 'general' | 'grouping'>('accounts')
+  let activeTab = $state<'accounts' | 'general' | 'stations' | 'grouping' | 'data' | 'about'>('accounts')
 
   const tabs = [
-    { id: 'accounts' as const, label: '邮箱账号', icon: '📧' },
-    { id: 'general' as const, label: '通用设置', icon: '⚙️' },
-    { id: 'grouping' as const, label: '归组规则', icon: '📋' },
+    { id: 'accounts' as const, label: '邮箱账号', icon: '01' },
+    { id: 'general' as const, label: '通用设置', icon: '02' },
+    { id: 'stations' as const, label: '常驻车站', icon: '03' },
+    { id: 'grouping' as const, label: '归组规则', icon: '04' },
+    { id: 'data' as const, label: '数据与备份', icon: '05' },
+    { id: 'about' as const, label: '版本与支持', icon: '06' },
   ]
 </script>
 
@@ -39,8 +44,14 @@
         <AccountsSettings />
       {:else if activeTab === 'general'}
         <GeneralSettings />
+      {:else if activeTab === 'stations'}
+        <StationSettings />
       {:else if activeTab === 'grouping'}
         <GroupingSettings />
+      {:else if activeTab === 'data'}
+        <DataSettings />
+      {:else if activeTab === 'about'}
+        <AboutSettings />
       {/if}
     </main>
   </div>
@@ -48,7 +59,7 @@
 
 <style>
   .settings-page {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     background: var(--bg-primary);
@@ -67,13 +78,14 @@
   }
 
   .settings-layout {
-    display: flex;
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
     flex: 1;
-    overflow: hidden;
+    align-items: start;
   }
 
   .tabs-nav {
-    width: 200px;
+    min-height: 100%;
     border-right: 1px solid var(--border-color);
     padding: 1rem 0;
     display: flex;
@@ -108,12 +120,57 @@
   }
 
   .tab-icon {
-    font-size: 1.25rem;
+    width: 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
   }
 
   .content-area {
-    flex: 1;
-    overflow-y: auto;
+    min-width: 0;
     padding: 2rem;
+  }
+
+  @media (max-width: 760px) {
+    .settings-page {
+      min-height: auto;
+    }
+
+    .page-header {
+      padding: 1.1rem 1rem;
+    }
+
+    .settings-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tabs-nav {
+      min-height: auto;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(132px, 1fr);
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border-color);
+      padding: 0;
+    }
+
+    .tab-button {
+      justify-content: center;
+      padding: 0.75rem 0.85rem;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+
+    .tab-button.active {
+      border-left: 0;
+      border-bottom-color: var(--accent-primary);
+    }
+
+    .tab-icon {
+      width: auto;
+    }
+
+    .content-area {
+      padding: 1.25rem 1rem 2rem;
+    }
   }
 </style>

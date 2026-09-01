@@ -25,16 +25,18 @@ fn main() -> Result<()> {
 
     // Get username from command line or use a default
     let args: Vec<String> = env::args().collect();
-    let username = args.get(1)
+    let username = args
+        .get(1)
         .cloned()
         .or_else(|| env::var("INVOICE_EMAIL_ADDRESS").ok())
         .context("Usage: investigate_emails <email_address>")?;
 
-    // June 2026 range
-    let range = DateRange::parse("2026-06-01", "2026-07-01")?;
     let cfg = ImapConfig::from_env(&username)?;
 
-    println!("Connecting to {}:{} as {}", cfg.host, cfg.port, cfg.username);
+    println!(
+        "Connecting to {}:{} as {}",
+        cfg.host, cfg.port, cfg.username
+    );
     let mut session = Session::connect(&cfg)?;
 
     // Select INBOX first
@@ -83,7 +85,10 @@ fn main() -> Result<()> {
                                 _ => {
                                     // Try using zip crate or just report manual inspection needed
                                     println!("\n  ZIP saved but zipinfo not available.");
-                                    println!("  Manual inspection: Use `unzip -l {}` or `7z l {}`", zip_path, zip_path);
+                                    println!(
+                                        "  Manual inspection: Use `unzip -l {}` or `7z l {}`",
+                                        zip_path, zip_path
+                                    );
                                 }
                             }
                         }

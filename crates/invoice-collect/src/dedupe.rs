@@ -4,7 +4,11 @@ use std::collections::HashSet;
 pub fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// 双键去重器：Message-ID 去重整封邮件，文件 SHA256 去重同一份附件。

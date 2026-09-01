@@ -3,14 +3,14 @@
 //! 用于加密邮箱凭证，采用 AES-256-GCM 认证加密。
 //! 密文格式: [12-byte nonce][ciphertext][16-byte tag]
 
+use crate::{StoreError, StoreResult};
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use crate::{StoreError, StoreResult};
 
 const NONCE_SIZE: usize = 12; // GCM 标准 nonce 大小
-const TAG_SIZE: usize = 16;   // GCM 标准 tag 大小
+const TAG_SIZE: usize = 16; // GCM 标准 tag 大小
 
 /// 加密明文字符串
 ///

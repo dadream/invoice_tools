@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-22",
+  "policy": "synthetic-only",
+  "fixtures": [
+    {
+      "path": "fixtures/manifest.toml",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 1532,
+      "sha256": "C364C9D8E8F06282434A514EC72FCD84D8774835E8A81B025A2B142E2F0B9F7E",
+      "source": "hand-authored synthetic manifest",
+      "purpose": "Parser golden expectations and provenance declaration"
+    },
+    {
+      "path": "fixtures/synthetic/vat-invoice.xml",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 393,
+      "sha256": "4E57E2FC108332FECD5893EB26149138289E6FF41049186F28A57C83C6892208",
+      "source": "hand-authored synthetic XML",
+      "purpose": "Structured invoice parser golden"
+    },
+    {
+      "path": "fixtures/synthetic/vat-invoice.eml",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 1156,
+      "sha256": "36832722FA74E48B8309AB6D1E9988191BF1B318D9AE690359B232A926268BFA",
+      "source": "hand-authored synthetic MIME message using example.invalid",
+      "purpose": "Local EML attachment collection golden"
+    },
+    {
+      "path": "fixtures/synthetic/ocr-vat-invoice.png",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 103516,
+      "sha256": "5B2EC1342D43E51068025208B7EB0245D0DE1190447B506BAD2AF4929DBA7F3F",
+      "source": "generated synthetic invoice artwork",
+      "purpose": "Offline image OCR golden"
+    },
+    {
+      "path": "fixtures/synthetic/ocr-vat-invoice-scanned.pdf",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 152752,
+      "sha256": "4E9455E29F7FE7AEA73A300C5F7B63F53B363616F9679B007D61F7656C89C5F5",
+      "source": "generated single-page scan-style PDF from synthetic artwork",
+      "purpose": "Windows.Data.Pdf plus offline OCR golden"
+    },
+    {
+      "path": "fixtures/synthetic/vat-invoice-text.pdf",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 25160,
+      "sha256": "BF6FD4634FA7DB72F71B51188B15D4F69C2B214CA3110D93CFE4A9703E5234E9",
+      "source": "deterministically generated with ReportLab and the bundled Source Han Sans font",
+      "purpose": "Text-layer PDF parser and field-position golden"
+    },
+    {
+      "path": "fixtures/synthetic/vat-invoice.ofd",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 600,
+      "sha256": "F5CE474A4AFDB8D47A9F8B7E0F2CC70E82AD4CBB35FEE7E7CB093D80F9162E3C",
+      "source": "deterministically generated minimal OFD ZIP with embedded synthetic invoice XML",
+      "purpose": "Structured OFD parser L0 golden"
+    },
+    {
+      "path": "fixtures/synthetic/malformed.pdf",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 90,
+      "sha256": "7FFD31477C6250E7B020B89A7D93910E72929BFB26EF399F2687AA4BF357E02E",
+      "source": "deterministically generated deliberately truncated PDF bytes",
+      "purpose": "Malformed PDF typed-error and no-panic regression"
+    },
+    {
+      "path": "fixtures/synthetic/malformed.ofd",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 52,
+      "sha256": "8DB98AD1528C0F222F02143626A6A2E4A15834DA68EE6F8AE545436240F9CE35",
+      "source": "deterministically generated deliberately invalid OFD/ZIP bytes",
+      "purpose": "Malformed OFD typed-error and no-panic regression"
+    },
+    {
+      "path": "fixtures/synthetic/duplicate-a.xml",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 435,
+      "sha256": "E86A15CB37F284685FA57992F11FEA374DD14D461EB3A8E8A8E832CD42EC8579",
+      "source": "deterministically generated synthetic XML duplicate pair A",
+      "purpose": "Cross-message content deduplication golden"
+    },
+    {
+      "path": "fixtures/synthetic/duplicate-b.xml",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 435,
+      "sha256": "E86A15CB37F284685FA57992F11FEA374DD14D461EB3A8E8A8E832CD42EC8579",
+      "source": "deterministically generated synthetic XML duplicate pair B",
+      "purpose": "Cross-message content deduplication golden"
+    },
+    {
+      "path": "fixtures/synthetic/expanded-over-limit.zip",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 26726,
+      "sha256": "824636AF5FD6027D192A0F3C1EA50F45CF09557D56AF39249DDF1C293EDA9B59",
+      "source": "deterministically generated ZIP containing a 26 MiB synthetic entry",
+      "purpose": "Expanded-entry resource limit regression"
+    },
+    {
+      "path": "fixtures/synthetic/expected-errors.json",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 582,
+      "sha256": "326A9F04A9A4DFE63D1BFBF8B7D4F0E75F4254CD18D3DEB67C810C1EC9836BD3",
+      "source": "deterministically generated synthetic negative-case expectations",
+      "purpose": "Machine-readable malformed, limit and duplicate expectations"
+    },
+    {
+      "path": "src-tauri/tests/fixtures/parsed_invoices.json",
+      "classification": "synthetic",
+      "containsPrivateData": false,
+      "bytes": 2006,
+      "sha256": "59B24EEBF8193E3F8C7DD7742FA963272C1D4D5D388F2AAD83DE2DDD874D83A4",
+      "source": "hand-authored synthetic parsed invoice DTOs with explicit test markers",
+      "purpose": "Store, dedupe, grouping and export integration tests"
+    }
+  ]
+}

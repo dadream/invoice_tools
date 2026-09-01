@@ -4,8 +4,8 @@
 //! 运行：source scripts/tauri-env.sh && cargo test validation_store --release -- --nocapture
 
 use chrono::{NaiveDate, Utc};
-use invoice_store::LedgerDb;
 use invoice_store::models::{BatchStatus, ReportedInvoice, TicketType};
+use invoice_store::LedgerDb;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -24,8 +24,6 @@ struct ParsedInvoiceJson {
     buyer_name: Option<String>,
     seller_name: Option<String>,
     ticket_type: String,
-    parse_level: String,
-    confidence: f32,
 }
 
 /// 验证结果
@@ -42,12 +40,12 @@ struct ValidationResult {
 #[test]
 fn test_database_validation() {
     // 1. 读取解析后的发票数据
-    let json_path = PathBuf::from("/home/holo/work-tools/reports/parsed_invoices.json");
-    let json_content = fs::read_to_string(&json_path)
-        .expect("Failed to read parsed_invoices.json");
+    let json_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parsed_invoices.json");
+    let json_content = fs::read_to_string(&json_path).expect("Failed to read parsed_invoices.json");
 
-    let parsed_invoices: Vec<ParsedInvoiceJson> = serde_json::from_str(&json_content)
-        .expect("Failed to parse JSON");
+    let parsed_invoices: Vec<ParsedInvoiceJson> =
+        serde_json::from_str(&json_content).expect("Failed to parse JSON");
 
     println!("✓ 读取到 {} 条解析后的发票记录", parsed_invoices.len());
 
@@ -59,7 +57,8 @@ fn test_database_validation() {
     let db = LedgerDb::new(&db_path).expect("Failed to create test database");
 
     // 3. 测试批次创建 (Draft 状态)
-    let batch_id = db.create_batch("验证测试批次", "2026-06")
+    let batch_id = db
+        .create_batch("验证测试批次", "2026-06")
         .expect("Failed to create batch");
     println!("✓ 创建批次成功，ID: {}", batch_id);
 
@@ -83,9 +82,10 @@ fn test_database_validation() {
             invoice_number: parsed.invoice_number.clone(),
             issue_date: NaiveDate::parse_from_str(&parsed.issue_date, "%Y-%m-%d")
                 .expect("Invalid date format"),
-            amount: Decimal::from_str(&parsed.total_amount)
-                .expect("Invalid amount"),
-            tax_amount: parsed.tax_amount.as_ref()
+            amount: Decimal::from_str(&parsed.total_amount).expect("Invalid amount"),
+            tax_amount: parsed
+                .tax_amount
+                .as_ref()
                 .and_then(|s| Decimal::from_str(s).ok()),
             buyer_name: parsed.buyer_name.clone(),
             seller_name: parsed.seller_name.clone(),
@@ -113,20 +113,30 @@ fn test_database_validation() {
     }
 
     let insert_duration = insert_start.elapsed();
-    println!("✓ 批量插入 {} 条发票，耗时 {} ms",
-        inserted_count, insert_duration.as_millis());
+    println!(
+        "✓ 批量插入 {} 条发票，耗时 {} ms",
+        inserted_count,
+        insert_duration.as_millis()
+    );
 
     // 5. 测试发票查询
     let query_start = Instant::now();
-    let invoices = db.list_invoices_by_batch(batch_id)
+    let invoices = db
+        .list_invoices_by_batch(batch_id)
         .expect("Failed to query invoices");
     let query_duration = query_start.elapsed();
 
-    println!("✓ 查询批次发票，返回 {} 条记录，耗时 {} ms",
-        invoices.len(), query_duration.as_millis());
+    println!(
+        "✓ 查询批次发票，返回 {} 条记录，耗时 {} ms",
+        invoices.len(),
+        query_duration.as_millis()
+    );
 
-    assert_eq!(invoices.len(), parsed_invoices.len(),
-        "查询到的发票数量与插入数量不符");
+    assert_eq!(
+        invoices.len(),
+        parsed_invoices.len(),
+        "查询到的发票数量与插入数量不符"
+    );
 
     // 验证数据一致性
     let first_invoice = &invoices[0];
@@ -193,7 +203,7 @@ fn test_database_validation() {
 
     // 7. 测试批次列表查询
     let batches = db.list_batches().expect("Failed to list batches");
-    assert!(batches.len() >= 1);
+    assert!(!batches.is_empty());
     println!("✓ 批次列表查询成功，共 {} 个批次", batches.len());
 
     // 8. 输出结果
@@ -206,8 +216,7 @@ fn test_database_validation() {
         query_duration_ms: query_duration.as_millis(),
     };
 
-    let result_json = serde_json::to_string_pretty(&result)
-        .expect("Failed to serialize result");
+    let result_json = serde_json::to_string_pretty(&result).expect("Failed to serialize result");
 
     println!("\n========== 验证结果 ==========");
     println!("{}", result_json);
@@ -223,16 +232,21 @@ fn test_database_validation() {
     println!("✓ 清理临时数据库文件");
 
     // 将结果写入文件（供后续阶段使用）
-    let output_path = PathBuf::from("/home/holo/work-tools/reports/store_validation.json");
-    fs::write(&output_path, result_json)
-        .expect("Failed to write result");
+    let output_path = std::env::temp_dir().join("invoice-assistant-store-validation.json");
+    fs::write(&output_path, result_json).expect("Failed to write result");
     println!("✓ 结果已写入 {:?}", output_path);
 
     // 断言所有检查通过
     assert!(result.batch_crud_success, "批次 CRUD 操作失败");
-    assert_eq!(result.invoice_insert_count, parsed_invoices.len(),
-        "发票插入数量不匹配");
-    assert_eq!(result.invoice_query_count, parsed_invoices.len(),
-        "发票查询数量不匹配");
+    assert_eq!(
+        result.invoice_insert_count,
+        parsed_invoices.len(),
+        "发票插入数量不匹配"
+    );
+    assert_eq!(
+        result.invoice_query_count,
+        parsed_invoices.len(),
+        "发票查询数量不匹配"
+    );
     assert!(result.all_transitions_valid, "状态转换验证失败");
 }

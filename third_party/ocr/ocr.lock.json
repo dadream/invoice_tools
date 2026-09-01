@@ -1,0 +1,73 @@
+{
+  "formatVersion": 1,
+  "runtime": {
+    "name": "Microsoft ONNX Runtime Windows x64 CPU",
+    "version": "1.22.0",
+    "license": "MIT",
+    "packageUrl": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-win-x64-1.22.0.zip",
+    "packageBytes": 72368545,
+    "packageSha256": "174C616EFC0271194488642A72F1A514E01487DA4DFE84C49296D66E40EBE0DA",
+    "files": [
+      {
+        "path": "src-tauri/assets/ocr/onnxruntime.dll",
+        "bytes": 12418080,
+        "sha256": "579B636403983254346A5C1D80BD28F1519CD1E284CD204F8D4FF41F8D711559"
+      },
+      {
+        "path": "src-tauri/assets/ocr/onnxruntime_providers_shared.dll",
+        "bytes": 22064,
+        "sha256": "BA00EA1EF846C9B909C7854BC56C51051A20F9773B3E1153DDA118D4B85D0B93"
+      }
+    ]
+  },
+  "models": {
+    "name": "RapidOCR PP-OCRv5 mobile ONNX models",
+    "version": "v3.9.2",
+    "license": "Apache-2.0",
+    "modelConfigUrl": "https://github.com/RapidAI/RapidOCR/blob/main/python/rapidocr/default_models.yaml",
+    "sourceBaseUrl": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx",
+    "files": [
+      {
+        "path": "src-tauri/assets/ocr/models/ch_PP-OCRv5_det_mobile.onnx",
+        "sourceUrl": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv5/det/ch_PP-OCRv5_det_mobile.onnx",
+        "bytes": 4819576,
+        "sha256": "4D97C44A20D30A81AAD087D6A396B08F786C4635742AFC391F6621F5C6AE78AE"
+      },
+      {
+        "path": "src-tauri/assets/ocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+        "sourceUrl": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+        "bytes": 585532,
+        "sha256": "E47ACEDF663230F8863FF1AB0E64DD2D82B838FCEB5957146DAB185A89D6215C"
+      },
+      {
+        "path": "src-tauri/assets/ocr/models/ch_PP-OCRv5_rec_mobile.onnx",
+        "sourceUrl": "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_mobile.onnx",
+        "bytes": 16631306,
+        "sha256": "5825FC7EBF84AE7A412BE049820B4D86D77620F204A041697B0494669B1742C5"
+      }
+    ]
+  },
+  "licenses": [
+    {
+      "component": "Microsoft ONNX Runtime 1.22.0",
+      "license": "MIT",
+      "path": "third_party/ocr/onnxruntime/LICENSE.txt",
+      "licenseOutput": "LICENSES/OCR/ONNXRuntime-LICENSE.txt",
+      "sha256": "2F07C72751AED99790B8A4869CF2311DF85A860B22DED05FA22803587A48922C"
+    },
+    {
+      "component": "Microsoft ONNX Runtime 1.22.0 third-party notices",
+      "license": "NOTICE",
+      "path": "third_party/ocr/onnxruntime/ThirdPartyNotices.txt",
+      "licenseOutput": "LICENSES/OCR/ONNXRuntime-ThirdPartyNotices.txt",
+      "sha256": "E9E90971A8E75A9A8AC0C6412E29C1202D079998389915AA485F46C816C3B4CC"
+    },
+    {
+      "component": "RapidOCR v3.9.2 model distribution",
+      "license": "Apache-2.0",
+      "path": "third_party/ocr/rapidocr/LICENSE.txt",
+      "licenseOutput": "LICENSES/OCR/RapidOCR-LICENSE.txt",
+      "sha256": "3E0AF25FDD06AA9586AE97ADB00EA927EBE5A3805AC77D2D3A81CE5F55693333"
+    }
+  ]
+}

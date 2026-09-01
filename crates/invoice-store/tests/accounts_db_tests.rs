@@ -8,7 +8,9 @@ fn full_account_lifecycle() {
     let db = AccountsDb::new(&db_path).unwrap();
 
     // 创建账号
-    let id = db.create_account("user@example.com", "imap.gmail.com", 993).unwrap();
+    let id = db
+        .create_account("user@example.com", "imap.gmail.com", 993)
+        .unwrap();
     assert!(id > 0);
 
     // 获取账号
@@ -35,8 +37,12 @@ fn multiple_accounts_with_credentials() {
     let db = AccountsDb::new(&db_path).unwrap();
 
     // 创建多个账号
-    let id1 = db.create_account("user1@example.com", "imap.example.com", 993).unwrap();
-    let id2 = db.create_account("user2@example.com", "imap.example.com", 993).unwrap();
+    let id1 = db
+        .create_account("user1@example.com", "imap.example.com", 993)
+        .unwrap();
+    let id2 = db
+        .create_account("user2@example.com", "imap.example.com", 993)
+        .unwrap();
 
     // 设置不同的凭证
     db.set_credential(id1, "password1").unwrap();
@@ -58,7 +64,9 @@ fn database_persistence() {
 
     let id = {
         let db = AccountsDb::new(&db_path).unwrap();
-        let id = db.create_account("persistent@example.com", "imap.example.com", 993).unwrap();
+        let id = db
+            .create_account("persistent@example.com", "imap.example.com", 993)
+            .unwrap();
         db.set_credential(id, "persistent-password").unwrap();
         id
     };

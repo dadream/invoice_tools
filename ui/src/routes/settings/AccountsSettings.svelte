@@ -1,13 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { invokeSafe } from '../../lib/ipc'
+  import ConfirmDialog from '../../lib/ConfirmDialog.svelte'
 
   interface AccountInfo {
     id: number
     email: string
   }
 
+  interface SessionCredentialStatus {
+    configured: boolean
+    email?: string
+  }
+
   let accounts = $state<AccountInfo[]>([])
+  let sessionStatus = $state<SessionCredentialStatus>({ configured: false })
   let loading = $state(true)
   let error = $state<string | null>(null)
 
@@ -18,17 +25,29 @@
   let addLoading = $state(false)
   let addError = $state<string | null>(null)
   let testResult = $state<string | null>(null)
+  let deleteCandidate = $state<AccountInfo | null>(null)
 
   async function loadAccounts() {
     loading = true
     error = null
-    const result = await invokeSafe<AccountInfo[]>('list_accounts', {})
-    if (result.ok) {
-      accounts = result.data
+    const accountsResult = await invokeSafe<AccountInfo[]>('list_accounts', {})
+    const statusResult = await invokeSafe<SessionCredentialStatus>('get_session_credential_status', {})
+    if (!accountsResult.ok) {
+      error = accountsResult.error.message
+    } else if (!statusResult.ok) {
+      error = statusResult.error.message
     } else {
-      error = result.error.message
+      accounts = accountsResult.data
+      sessionStatus = statusResult.data
     }
     loading = false
+  }
+
+  function useSavedAddress(email: string) {
+    newEmail = email
+    newPassword = ''
+    showAddForm = true
+    testResult = null
   }
 
   async function testConnection() {
@@ -59,9 +78,8 @@
     })
 
     if (result.ok) {
-      newEmail = ''
       newPassword = ''
-      testResult = null
+      testResult = '本次会话已配置；应用退出后授权码自动失效。'
       showAddForm = false
       await loadAccounts()
     } else {
@@ -71,14 +89,28 @@
   }
 
   async function deleteAccount(id: number) {
-    if (!confirm('确定删除此账号？')) return
-
+    deleteCandidate = null
     const result = await invokeSafe<void>('delete_account', { id })
     if (result.ok) {
       await loadAccounts()
     } else {
       error = result.error.message
     }
+  }
+
+  async function clearSession() {
+    const result = await invokeSafe<void>('clear_session_credential', {})
+    if (result.ok) {
+      newPassword = ''
+      testResult = null
+      await loadAccounts()
+    } else {
+      error = result.error.message
+    }
+  }
+
+  function executeDeleteAccount() {
+    if (deleteCandidate) void deleteAccount(deleteCandidate.id)
   }
 
   onMount(() => {
@@ -89,8 +121,18 @@
 <div class="accounts-settings">
   <h2>邮箱账号</h2>
   <p class="description">
-    管理用于采集发票的邮箱账号。密码将加密存储，主密钥保存在系统 Keychain。
+    邮箱地址保存在本机；授权码只存在于当前应用会话内存，不写入数据库，退出后需重新输入。
   </p>
+
+  <div class:session-active={sessionStatus.configured} class="session-status">
+    <strong>{sessionStatus.configured ? '本次邮箱会话可用' : '本次邮箱会话未配置'}</strong>
+    {#if sessionStatus.configured}
+      <span>{sessionStatus.email}</span>
+      <button class="btn-secondary" onclick={clearSession}>清除本次授权码</button>
+    {:else}
+      <span>本地文件功能不受影响；使用邮箱前请输入授权码。</span>
+    {/if}
+  </div>
 
   {#if loading}
     <div class="loading">加载中...</div>
@@ -100,21 +142,24 @@
     <div class="accounts-list">
       {#if accounts.length === 0}
         <div class="empty-state">
-          <p>暂无邮箱账号</p>
+          <p>暂无保存的邮箱地址</p>
           <button class="btn-primary" onclick={() => showAddForm = true}>
-            添加第一个账号
+            输入邮箱和本次授权码
           </button>
         </div>
       {:else}
         {#each accounts as account (account.id)}
           <div class="account-card">
             <div class="account-info">
-              <span class="account-icon">📧</span>
+              <span class="account-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18v12H3zM3 7l9 7 9-7" /></svg></span>
               <span class="account-email">{account.email}</span>
             </div>
+            <button class="btn-secondary" onclick={() => useSavedAddress(account.email)}>
+              本次使用
+            </button>
             <button
               class="btn-delete"
-              onclick={() => deleteAccount(account.id)}
+              onclick={() => (deleteCandidate = account)}
               title="删除"
             >
               ✕
@@ -124,7 +169,7 @@
 
         {#if !showAddForm}
           <button class="btn-add" onclick={() => showAddForm = true}>
-            + 添加账号
+            + 输入新的邮箱会话
           </button>
         {/if}
       {/if}
@@ -133,7 +178,7 @@
 
   {#if showAddForm}
     <div class="add-form">
-      <h3>添加邮箱账号</h3>
+      <h3>配置本次邮箱会话</h3>
 
       <div class="form-group">
         <label for="email">邮箱地址</label>
@@ -181,7 +226,7 @@
           onclick={addAccount}
           disabled={addLoading || !newEmail || !newPassword}
         >
-          {addLoading ? '保存中...' : '保存'}
+          {addLoading ? '配置中...' : '用于本次会话'}
         </button>
         <button
           class="btn-secondary"
@@ -200,6 +245,10 @@
   {/if}
 </div>
 
+{#if deleteCandidate}
+  <ConfirmDialog title="删除邮箱地址配置" message={`将删除 ${deleteCandidate.email} 的本机地址记录，并清除当前会话中的邮箱授权码。历史发票和批次数据不会删除。`} confirmLabel="确认删除" tone="danger" onConfirm={executeDeleteAccount} onCancel={() => (deleteCandidate = null)} />
+{/if}
+
 <style>
   .accounts-settings h2 {
     margin: 0 0 0.5rem 0;
@@ -212,6 +261,26 @@
     margin: 0 0 1.5rem 0;
     color: var(--text-secondary);
     font-size: 0.9rem;
+  }
+
+  .session-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  .session-status.session-active {
+    border-color: var(--accent-primary);
+  }
+
+  .session-status .btn-secondary {
+    margin-left: auto;
   }
 
   .loading,
@@ -274,8 +343,14 @@
   }
 
   .account-icon {
-    font-size: 1.5rem;
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid var(--border-color);
+    color: var(--accent-primary);
   }
+  .account-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
   .account-email {
     font-weight: 500;

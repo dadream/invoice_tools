@@ -1,0 +1,31 @@
+From: Synthetic Sender <sender@example.invalid>
+To: Synthetic User <user@example.invalid>
+Date: Thu, 18 Jun 2026 10:00:00 +0800
+Message-ID: <synthetic-invoice-20260618@example.invalid>
+Subject: Synthetic invoice fixture - no private data
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="invoice-assistant-synthetic-boundary"
+
+--invoice-assistant-synthetic-boundary
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This message is generated test data. It contains no real user or company information.
+
+--invoice-assistant-synthetic-boundary
+Content-Type: application/xml; name="vat-invoice.xml"
+Content-Disposition: attachment; filename="vat-invoice.xml"
+Content-Transfer-Encoding: 8bit
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice fixture="synthetic" privacy="none">
+  <InvoiceNumber>26112000000000000001</InvoiceNumber>
+  <IssueDate>2026-06-18</IssueDate>
+  <TotalAmount>1200.00</TotalAmount>
+  <TaxAmount>67.92</TaxAmount>
+  <TaxRate>0.06</TaxRate>
+  <BuyerName>北京示例科技有限公司</BuyerName>
+  <SellerName>上海演示商贸有限公司</SellerName>
+</Invoice>
+
+--invoice-assistant-synthetic-boundary--

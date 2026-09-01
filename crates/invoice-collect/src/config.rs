@@ -1,5 +1,6 @@
 use anyhow::{bail, Context};
 use chrono::NaiveDate;
+use zeroize::Zeroize;
 
 /// IMAP 连接参数。password 只从环境变量读入，不做任何持久化。
 #[derive(Clone)]
@@ -30,16 +31,22 @@ impl ImapConfig {
         let password = std::env::var(ENV_PASSWORD).with_context(|| {
             format!("环境变量 {ENV_PASSWORD} 未设置。QQ 邮箱需填 16 位授权码，不是登录密码")
         })?;
+        Self::from_credentials(username, password)
+    }
 
+    /// 使用调用方提供的会话授权码构造配置，不读取或写入进程环境变量。
+    /// 调用方必须保证授权码只存在于当前应用会话。
+    pub fn from_credentials(username: &str, password: impl Into<String>) -> anyhow::Result<Self> {
+        let password = password.into();
         if password.trim().is_empty() {
-            bail!("{ENV_PASSWORD} 为空");
+            bail!("邮箱授权码不能为空");
         }
 
         let domain = username
             .rsplit('@')
             .next()
             .filter(|d| *d != username)
-            .with_context(|| format!("{username} 不是合法邮箱地址"))?;
+            .context("邮箱地址格式不正确")?;
 
         let host = match domain.to_lowercase().as_str() {
             "qq.com" | "vip.qq.com" | "foxmail.com" => "imap.qq.com",
@@ -74,6 +81,12 @@ impl ImapConfig {
                 p.len()
             ))
         }
+    }
+}
+
+impl Drop for ImapConfig {
+    fn drop(&mut self) {
+        self.password.zeroize();
     }
 }
 
@@ -180,7 +193,10 @@ mod tests {
     #[test]
     fn june_2026_range_renders_imap_search() {
         let range = DateRange::parse("2026-06-01", "2026-07-01").unwrap();
-        assert_eq!(range.to_imap_search(), "SINCE 01-Jun-2026 BEFORE 01-Jul-2026");
+        assert_eq!(
+            range.to_imap_search(),
+            "SINCE 01-Jun-2026 BEFORE 01-Jul-2026"
+        );
     }
 
     #[test]
@@ -195,5 +211,14 @@ mod tests {
         std::env::set_var(ENV_PASSWORD, "x");
         let err = ImapConfig::from_env("someone@example.org").unwrap_err();
         assert!(err.to_string().contains("暂不支持"), "实际: {err}");
+    }
+
+    #[test]
+    fn direct_session_credentials_do_not_require_environment_state() {
+        let _guard = env_guard();
+        std::env::remove_var(ENV_PASSWORD);
+        let cfg = ImapConfig::from_credentials(FAKE_QQ_USER, FAKE_AUTH_CODE).unwrap();
+        assert_eq!(cfg.host, "imap.qq.com");
+        assert_eq!(cfg.password, FAKE_AUTH_CODE);
     }
 }

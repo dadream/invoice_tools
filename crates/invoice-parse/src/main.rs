@@ -1,5 +1,9 @@
 use anyhow::{bail, Context};
-use invoice_parse::{manifest::{Manifest, TagHints}, model::TicketType, pdf, xml};
+use invoice_parse::{
+    manifest::{Manifest, TagHints},
+    model::TicketType,
+    pdf, xml,
+};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -8,31 +12,46 @@ fn main() -> anyhow::Result<()> {
 
     match args.get(1).map(String::as_str) {
         Some("dump-tags") => {
-            let path = args.get(2).context("用法: invoice-parse dump-tags <file.xml>")?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse dump-tags <file.xml>")?;
             dump_tags(PathBuf::from(path))
         }
         Some("parse-one") => {
-            let path = args.get(2).context("用法: invoice-parse parse-one <file.xml>")?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse parse-one <file.xml>")?;
             parse_one(PathBuf::from(path))
         }
         Some("dump-ofd") => {
-            let path = args.get(2).context("用法: invoice-parse dump-ofd <file.ofd>")?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse dump-ofd <file.ofd>")?;
             dump_ofd(PathBuf::from(path))
         }
         Some("dump-pdf") => {
-            let path = args.get(2).context("用法: invoice-parse dump-pdf <file.pdf>")?;
-            let bytes = std::fs::read(&path)?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse dump-pdf <file.pdf>")?;
+            let bytes = std::fs::read(path)?;
             println!("有文本层: {}", invoice_parse::pdf::has_text_layer(&bytes));
             println!("--- 文本层内容 ---");
-            println!("{}", invoice_parse::pdf::extract_text(&bytes, Path::new(path))?);
+            println!(
+                "{}",
+                invoice_parse::pdf::extract_text(&bytes, Path::new(path))?
+            );
             Ok(())
         }
         Some("dump-pdf-boxes") => {
-            let path = args.get(2).context("用法: invoice-parse dump-pdf-boxes <file.pdf>")?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse dump-pdf-boxes <file.pdf>")?;
             dump_pdf_boxes(PathBuf::from(path))
         }
         Some("verify") => {
-            let path = args.get(2).context("用法: invoice-parse verify <file.ofd|file.xml>")?;
+            let path = args
+                .get(2)
+                .context("用法: invoice-parse verify <file.ofd|file.xml>")?;
             let bytes = std::fs::read(path)?;
             let path_obj = Path::new(path);
 
@@ -91,7 +110,8 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
     let manifest = Manifest::load(PathBuf::from("fixtures/manifest.toml").as_path())?;
 
     // Find the sample entry for this path
-    let file_name = path.file_name()
+    let file_name = path
+        .file_name()
         .and_then(|n| n.to_str())
         .context("无效的文件名")?;
 
@@ -106,9 +126,16 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
     // Determine format and parse accordingly
     let invoice = match sample.format.as_str() {
         "xml-rail" | "xml-flight" | "xml-vat" => {
-            let hints = sample.xml_tag_hints.as_ref()
+            let hints = sample
+                .xml_tag_hints
+                .as_ref()
                 .context("该样本没有配置 xml_tag_hints")?;
-            xml::parse_invoice_xml(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
+            xml::parse_invoice_xml(
+                &bytes,
+                &path,
+                hints,
+                sample.ticket_type.unwrap_or(TicketType::Other),
+            )?
         }
         "ofd" => {
             let empty_hints = TagHints {
@@ -121,7 +148,12 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
                 seller_name: vec![],
             };
             let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
-            invoice_parse::ofd::parse_invoice_ofd(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
+            invoice_parse::ofd::parse_invoice_ofd(
+                &bytes,
+                &path,
+                hints,
+                sample.ticket_type.unwrap_or(TicketType::Other),
+            )?
         }
         "pdf-rail" | "pdf-flight" => {
             // For PDFs, create empty hints since PDF parsing doesn't use XML tag hints
@@ -135,17 +167,21 @@ fn parse_one(path: PathBuf) -> anyhow::Result<()> {
                 seller_name: vec![],
             };
             let hints = sample.xml_tag_hints.as_ref().unwrap_or(&empty_hints);
-            pdf::parse_invoice_pdf(&bytes, &path, hints, sample.ticket_type.unwrap_or(TicketType::Other))?
+            pdf::parse_invoice_pdf(
+                &bytes,
+                &path,
+                hints,
+                sample.ticket_type.unwrap_or(TicketType::Other),
+            )?
         }
         "pdf-vat" => {
             // L1 坐标路径优先（支持表格版式字段提取），失败降级 flat-text
-            invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, &path)
-                .or_else(|_| {
-                    let text = invoice_parse::pdf::extract_text(&bytes, &path)
-                        .map_err(|e| anyhow::anyhow!("PDF 文本提取失败: {}", e))?;
-                    invoice_parse::pdf::parse_vat_invoice_text(&text, &path)
-                        .map_err(anyhow::Error::from)
-                })?
+            invoice_parse::pdf_text::parse_vat_invoice_from_boxes(&bytes, &path).or_else(|_| {
+                let text = invoice_parse::pdf::extract_text(&bytes, &path)
+                    .map_err(|e| anyhow::anyhow!("PDF 文本提取失败: {}", e))?;
+                invoice_parse::pdf::parse_vat_invoice_text(&text, &path)
+                    .map_err(anyhow::Error::from)
+            })?
         }
         other => anyhow::bail!("不支持的格式: {}", other),
     };
@@ -369,7 +405,9 @@ fn verify_all() -> anyhow::Result<()> {
                         .map_err(Into::into)
                     }),
                 "pdf-rail" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_rail_itinerary),
-                "pdf-flight" => parse_pdf_with(&full_path, invoice_parse::pdf::parse_flight_itinerary),
+                "pdf-flight" => {
+                    parse_pdf_with(&full_path, invoice_parse::pdf::parse_flight_itinerary)
+                }
                 "pdf-vat" => {
                     // L1 坐标路径优先，失败降级 flat-text
                     let bytes = std::fs::read(&full_path).map_err(anyhow::Error::from)?;
@@ -384,8 +422,7 @@ fn verify_all() -> anyhow::Result<()> {
                 }
                 "image" => {
                     // L2 OCR via Python sidecar
-                    let boxes = invoice_parse::ocr::recognize_via_sidecar(&full_path)
-                        .map_err(anyhow::Error::from)?;
+                    let boxes = invoice_parse::ocr::recognize_via_sidecar(&full_path)?;
                     invoice_parse::ocr::locate_vat_fields(
                         &boxes,
                         &full_path,
@@ -442,7 +479,11 @@ fn verify_all() -> anyhow::Result<()> {
 
 fn parse_pdf_with(
     path: &Path,
-    parser: fn(&str, &Path) -> Result<invoice_parse::model::ParsedInvoice, invoice_parse::model::ParseError>,
+    parser: fn(
+        &str,
+        &Path,
+    )
+        -> Result<invoice_parse::model::ParsedInvoice, invoice_parse::model::ParseError>,
 ) -> anyhow::Result<invoice_parse::model::ParsedInvoice> {
     let bytes = std::fs::read(path)?;
     let text = match invoice_parse::pdf::extract_text(&bytes, path) {

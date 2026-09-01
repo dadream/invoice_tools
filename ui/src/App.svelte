@@ -2,14 +2,14 @@
   import { onMount } from 'svelte'
   import { invokeSafe } from './lib/ipc'
   import BatchList from './routes/batches/BatchList.svelte'
-  import PipelineRunner from './routes/pipeline/PipelineRunner.svelte'
+  import EmailCollectionWorkbench from './routes/collections/EmailCollectionWorkbench.svelte'
   import SettingsPage from './routes/settings/+page.svelte'
   import WelcomeWizard from './routes/welcome/+page.svelte'
 
-  let currentRoute = $state<'batches' | 'pipeline' | 'settings' | 'welcome'>('batches')
+  let currentRoute = $state<'collections' | 'batches' | 'settings' | 'welcome'>('collections')
   let checkingFirstRun = $state(true)
 
-  function navigateTo(route: 'batches' | 'pipeline' | 'settings') {
+  function navigateTo(route: 'collections' | 'batches' | 'settings') {
     currentRoute = route;
   }
 
@@ -33,107 +33,159 @@
 {:else if currentRoute === 'welcome'}
   <WelcomeWizard />
 {:else}
-  <nav class="navbar">
-    <div class="nav-container">
-      <h1 class="nav-title">发票助手</h1>
-      <div class="nav-links">
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">票</span>
+        <div>
+          <strong>发票报销助手</strong>
+          <span>本地工作台</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
         <button
           class="nav-link"
-          class:active={currentRoute === 'batches'}
-          onclick={() => navigateTo('batches')}
+          class:active={currentRoute === 'collections'}
+          aria-current={currentRoute === 'collections' ? 'page' : undefined}
+          onclick={() => navigateTo('collections')}
         >
-          批次管理
+          <span>01</span>
+          <strong>邮件收集</strong>
         </button>
         <button
           class="nav-link"
-          class:active={currentRoute === 'pipeline'}
-          onclick={() => navigateTo('pipeline')}
+          class:active={currentRoute === 'batches'}
+          aria-current={currentRoute === 'batches' ? 'page' : undefined}
+          onclick={() => navigateTo('batches')}
         >
-          流水线
+          <span>02</span>
+          <strong>报销批次</strong>
         </button>
         <button
           class="nav-link"
           class:active={currentRoute === 'settings'}
+          aria-current={currentRoute === 'settings' ? 'page' : undefined}
           onclick={() => navigateTo('settings')}
         >
-          ⚙️ 设置
+          <span>03</span>
+          <strong>设置与数据</strong>
         </button>
-      </div>
-    </div>
-  </nav>
+      </nav>
 
-  <main class="container">
-    {#if currentRoute === 'batches'}
-      <BatchList />
-    {:else if currentRoute === 'pipeline'}
-      <PipelineRunner />
-    {:else if currentRoute === 'settings'}
-      <SettingsPage />
-    {/if}
-  </main>
+      <footer>
+        <strong>免安装 · 本地处理</strong>
+        <span>授权码仅在当前会话使用</span>
+      </footer>
+    </aside>
+
+    <main class="workspace-root">
+      {#if currentRoute === 'collections'}
+        <EmailCollectionWorkbench />
+      {:else if currentRoute === 'batches'}
+        <BatchList />
+      {:else if currentRoute === 'settings'}
+        <SettingsPage />
+      {/if}
+    </main>
+  </div>
 {/if}
 
 <style>
-  .navbar {
-    background: white;
-    border-bottom: 1px solid #e0e0e0;
-    padding: 1rem 0;
-    margin-bottom: 2rem;
+  .app-shell {
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    min-height: 100vh;
+    background: var(--paper, #f3f0e8);
   }
-
-  .nav-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 2rem;
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 120;
     display: flex;
-    justify-content: space-between;
+    height: 100vh;
+    flex-direction: column;
+    border-right: 1px solid #30473c;
+    background: #17211c;
+    color: #f3f0e8;
+  }
+  .brand {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 0.65rem;
     align-items: center;
+    min-height: 82px;
+    padding: 0 1rem;
+    border-bottom: 1px solid #35443c;
   }
-
-  .nav-title {
-    font-size: 1.5rem;
-    margin: 0;
+  .brand-mark {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid #739687;
+    color: #dfece5;
+    font-family: var(--font-mono, 'IBM Plex Mono', Consolas, monospace);
   }
-
-  .nav-links {
-    display: flex;
-    gap: 1rem;
-  }
-
+  .brand div { display: grid; gap: 0.12rem; }
+  .brand strong { font-size: 0.9rem; }
+  .brand div span { color: #9eada5; font-size: 0.67rem; letter-spacing: 0.08em; }
+  .nav-links { display: grid; gap: 0.25rem; padding: 1rem 0.7rem; }
   .nav-link {
-    background: none;
-    border: none;
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.2s;
-  }
-
-  .nav-link:hover {
-    background: #f0f0f0;
-  }
-
-  .nav-link.active {
-    background: #007bff;
-    color: white;
-  }
-
-  .container {
-    min-height: 100vh;
-    background: #f5f5f5;
-  }
-
-  .loading-screen {
-    min-height: 100vh;
-    display: flex;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.4rem;
     align-items: center;
-    justify-content: center;
-    background: #f5f5f5;
+    width: 100%;
+    padding: 0.7rem 0.6rem;
+    border: 0;
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: #bdc9c2;
+    text-align: left;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
   }
-
-  .loading-spinner {
-    font-size: 1.2rem;
-    color: #666;
+  .nav-link > span {
+    color: #7f9188;
+    font-family: var(--font-mono, 'IBM Plex Mono', Consolas, monospace);
+    font-size: 0.68rem;
+  }
+  .nav-link strong { font-size: 0.82rem; font-weight: 600; }
+  .nav-link:hover { background: #223129; color: #fff; }
+  .nav-link.active {
+    border-left-color: #70b89c;
+    background: #253a31;
+    color: #fff;
+  }
+  .nav-link.active > span { color: #9ad2bc; }
+  .sidebar footer {
+    display: grid;
+    gap: 0.2rem;
+    margin-top: auto;
+    padding: 1rem;
+    border-top: 1px solid #35443c;
+  }
+  .sidebar footer strong { color: #cbd8d1; font-size: 0.7rem; }
+  .sidebar footer span { color: #87988f; font-size: 0.62rem; }
+  .workspace-root { min-width: 0; min-height: 100vh; background: var(--paper, #f3f0e8); }
+  .loading-screen {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    background: var(--paper, #f3f0e8);
+  }
+  .loading-spinner { color: #536159; font-size: 0.9rem; }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-link { transition: none; }
+  }
+  @media (max-width: 820px) {
+    .app-shell { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: sticky; height: auto; }
+    .brand { min-height: 58px; }
+    .nav-links { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: .45rem .7rem; }
+    .nav-link { border-left: 0; border-bottom: 3px solid transparent; }
+    .nav-link.active { border-bottom-color: #70b89c; }
+    .sidebar footer { display: none; }
   }
 </style>

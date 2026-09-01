@@ -4,7 +4,7 @@
 //! 运行测试时使用：cargo test --test pipeline_integration -- --ignored
 
 use chrono::NaiveDate;
-use invoice_store::{LedgerDb, models::BatchStatus};
+use invoice_store::{models::BatchStatus, LedgerDb};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -18,7 +18,8 @@ fn test_batch_creation_flow() {
     let db = create_test_db();
 
     // 创建批次
-    let batch_id = db.create_batch("测试流水线批次", "2026-08")
+    let batch_id = db
+        .create_batch("测试流水线批次", "2026-08")
         .expect("创建批次失败");
 
     // 验证批次存在
@@ -135,10 +136,9 @@ fn test_full_pipeline_with_real_email() {
     // - INVOICE_IMAP_PASSWORD
     // - TEST_EMAIL (测试邮箱地址)
 
-    let email = std::env::var("TEST_EMAIL")
-        .expect("需要设置 TEST_EMAIL 环境变量");
-    let password = std::env::var("INVOICE_IMAP_PASSWORD")
-        .expect("需要设置 INVOICE_IMAP_PASSWORD 环境变量");
+    let email = std::env::var("TEST_EMAIL").expect("需要设置 TEST_EMAIL 环境变量");
+    let password =
+        std::env::var("INVOICE_IMAP_PASSWORD").expect("需要设置 INVOICE_IMAP_PASSWORD 环境变量");
 
     // TODO: 完整的端到端流水线测试
     // 1. 连接 IMAP
@@ -155,11 +155,11 @@ fn test_full_pipeline_with_real_email() {
 
 #[test]
 fn test_grouping_integration() {
-    use invoice_parse::model::{ParsedInvoice, ParseLevel, TicketType};
+    use invoice_grouping::group_invoices;
     use invoice_grouping::types::{
         Ambiguity, AmbiguityResolution, AmbiguityResolver, GroupingConfig,
     };
-    use invoice_grouping::group_invoices;
+    use invoice_parse::model::{ParseLevel, ParsedInvoice, TicketType};
 
     /// 测试用的空解决器：不处理任何歧义
     struct NoOpResolver;
@@ -172,7 +172,6 @@ fn test_grouping_integration() {
         }
     }
 
-
     // 创建测试发票
     let invoices = vec![
         ParsedInvoice {
@@ -184,9 +183,11 @@ fn test_grouping_integration() {
             buyer_name: None,
             seller_name: Some("中国铁路".to_string()),
             ticket_type: TicketType::Rail,
+            transport_document_kind: Default::default(),
             parse_level: ParseLevel::L0,
             confidence: 1.0,
             city: Some("北京".to_string()),
+            travel_route: Some("北京南→上海虹桥".to_string()),
             departure_time: Some(
                 NaiveDate::from_ymd_opt(2026, 8, 1)
                     .unwrap()
@@ -205,9 +206,11 @@ fn test_grouping_integration() {
             buyer_name: None,
             seller_name: Some("如家酒店".to_string()),
             ticket_type: TicketType::Hotel,
+            transport_document_kind: Default::default(),
             parse_level: ParseLevel::L0,
             confidence: 1.0,
             city: Some("上海".to_string()),
+            travel_route: None,
             departure_time: None,
             checkin_date: Some(NaiveDate::from_ymd_opt(2026, 8, 3).unwrap()),
             source_path: "/tmp/test2.xml".into(),
@@ -217,11 +220,11 @@ fn test_grouping_integration() {
     // 归组
     let config = GroupingConfig {
         home_cities: vec!["北京".to_string()],
+        home_station_aliases: None,
         ambiguity_handler: Box::new(NoOpResolver),
     };
 
-    let result = group_invoices(&invoices, &config)
-        .expect("归组失败");
+    let result = group_invoices(&invoices, &config).expect("归组失败");
 
     // 验证归组结果
     assert!(!result.trips.is_empty(), "应该产生至少一个行程");

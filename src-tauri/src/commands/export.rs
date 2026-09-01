@@ -1,16 +1,21 @@
 //! 导出命令模块：批次导出为 Excel 明细表和 PDF 台账。
 
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use invoice_store::models::BatchStatus;
 use printpdf::*;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::{Color, Format, FormatBorder, Workbook};
+use serde::Serialize;
 use tauri::State;
+use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 use crate::AppState;
-
-/// 导出批次为 Excel 明细表。
 
 /// 导出批次为 Excel 明细表。
 ///
@@ -38,21 +43,368 @@ use crate::AppState;
 /// - 金额列设为文本格式 (`@`)，避免科学计数法
 /// - 底部合计行显示"合计"和总金额
 #[tauri::command]
-pub fn export_batch_excel(
-    state: State<Mutex<AppState>>,
-    batch_id: i64,
-) -> AppResult<Vec<u8>> {
+pub fn export_batch_excel(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
     let app_state = state.lock().unwrap();
     let db = app_state.ledger_db()?;
 
     let batch = db
         .get_batch(batch_id)
         .map_err(|e| AppError::database(format!("获取批次失败: {}", e)))?;
-    let invoices = db
-        .list_invoices_by_batch(batch_id)
-        .map_err(|e| AppError::database(format!("获取发票列表失败: {}", e)))?;
+    let (_, expenses) = db
+        .get_active_snapshot_expenses(batch_id)
+        .map_err(|e| AppError::validation(format!("请先完成审核并生成有效版本：{e}")))?;
+    let (_, invoices) = db
+        .get_active_snapshot_invoices(batch_id)
+        .map_err(|e| AppError::validation(format!("请先完成审核并生成有效版本：{e}")))?;
+    let task = db
+        .start_delivery_task(batch_id, "excel")
+        .map_err(|e| AppError::database(format!("创建 Excel 交付任务失败: {e}")))?;
 
-    build_excel_bytes(&batch, &invoices)
+    match build_expense_excel_bytes(&batch, &expenses, &invoices) {
+        Ok(bytes) => {
+            db.finish_delivery_task(task.id, None, None)
+                .map_err(|e| AppError::database(format!("记录 Excel 交付结果失败: {e}")))?;
+            Ok(bytes)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let _ = db.finish_delivery_task(task.id, None, Some(&message));
+            Err(error)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExcelExportResult {
+    pub path: String,
+    pub bytes: u64,
+}
+
+/// 将冻结审核版本写入用户明确选择的 `.xlsx` 路径。
+///
+/// 先在同目录写入临时文件并同步，再替换目标文件，避免生成成功提示对应半个文件。
+#[tauri::command]
+pub fn export_batch_excel_to_path(
+    state: State<Mutex<AppState>>,
+    batch_id: i64,
+    destination_path: String,
+) -> AppResult<ExcelExportResult> {
+    let destination = validate_excel_destination(&destination_path)?;
+    let app_state = state
+        .lock()
+        .map_err(|_| AppError::internal("应用状态锁不可用"))?;
+    let db = app_state.ledger_db()?;
+    let batch = db
+        .get_batch(batch_id)
+        .map_err(|error| AppError::database(format!("获取批次失败: {error}")))?;
+    let (_, expenses) = db
+        .get_active_snapshot_expenses(batch_id)
+        .map_err(|error| AppError::validation(format!("请先完成审核并生成有效版本：{error}")))?;
+    let (_, invoices) = db
+        .get_active_snapshot_invoices(batch_id)
+        .map_err(|error| AppError::validation(format!("请先完成审核并生成有效版本：{error}")))?;
+    let task = db
+        .start_delivery_task(batch_id, "excel")
+        .map_err(|error| AppError::database(format!("创建 Excel 交付任务失败: {error}")))?;
+
+    let result = build_expense_excel_bytes(&batch, &expenses, &invoices)
+        .and_then(|bytes| write_excel_atomically(&destination, &bytes).map(|()| bytes.len()));
+    match result {
+        Ok(bytes) => {
+            let output_path = destination.to_string_lossy().into_owned();
+            db.finish_delivery_task(task.id, Some(&output_path), None)
+                .map_err(|error| AppError::database(format!("记录 Excel 交付结果失败: {error}")))?;
+            Ok(ExcelExportResult {
+                path: output_path,
+                bytes: u64::try_from(bytes)
+                    .map_err(|_| AppError::internal("Excel 文件大小超出支持范围"))?,
+            })
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let _ = db.finish_delivery_task(task.id, None, Some(&message));
+            Err(error)
+        }
+    }
+}
+
+fn validate_excel_destination(raw: &str) -> AppResult<PathBuf> {
+    let path = PathBuf::from(raw.trim());
+    if !path.is_absolute()
+        || !path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value.eq_ignore_ascii_case("xlsx"))
+    {
+        return Err(AppError::validation("请选择绝对路径并使用 .xlsx 扩展名"));
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| AppError::validation("Excel 保存目录无效"))?;
+    let parent_metadata = fs::symlink_metadata(parent)
+        .map_err(|error| AppError::io(format!("读取 Excel 保存目录失败（{}）", error.kind())))?;
+    if !parent_metadata.is_dir() || parent_metadata.file_type().is_symlink() {
+        return Err(AppError::validation("Excel 保存目录必须是本地普通文件夹"));
+    }
+    if path.exists() {
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| AppError::io(format!("读取目标 Excel 失败（{}）", error.kind())))?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err(AppError::validation("目标 Excel 必须是普通文件"));
+        }
+    }
+    Ok(path)
+}
+
+fn write_excel_atomically(destination: &Path, bytes: &[u8]) -> AppResult<()> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| AppError::validation("Excel 保存目录无效"))?;
+    let file_name = destination
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| AppError::validation("Excel 文件名无效"))?;
+    let nonce = Uuid::new_v4();
+    let staged = parent.join(format!(".{file_name}.{nonce}.tmp"));
+    let backup = parent.join(format!(".{file_name}.{nonce}.bak"));
+    let write_result = (|| -> AppResult<()> {
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&staged)
+            .map_err(|error| {
+                AppError::io(format!("创建 Excel 临时文件失败（{}）", error.kind()))
+            })?;
+        file.write_all(bytes)
+            .map_err(|error| AppError::io(format!("写入 Excel 失败（{}）", error.kind())))?;
+        file.sync_all()
+            .map_err(|error| AppError::io(format!("同步 Excel 失败（{}）", error.kind())))?;
+        drop(file);
+
+        if destination.exists() {
+            fs::rename(destination, &backup).map_err(|error| {
+                AppError::io(format!("准备替换旧 Excel 失败（{}）", error.kind()))
+            })?;
+        }
+        if let Err(error) = fs::rename(&staged, destination) {
+            if backup.exists() {
+                let _ = fs::rename(&backup, destination);
+            }
+            return Err(AppError::io(format!("保存 Excel 失败（{}）", error.kind())));
+        }
+        if backup.exists() {
+            fs::remove_file(&backup)
+                .map_err(|error| AppError::io(format!("清理旧 Excel 失败（{}）", error.kind())))?;
+        }
+        Ok(())
+    })();
+    if staged.exists() {
+        let _ = fs::remove_file(&staged);
+    }
+    write_result
+}
+
+/// 按冻结的稳定 `ExpenseItem` 输出 Excel；Concur 映射与目标字段不会进入该文件。
+pub fn build_expense_excel_bytes(
+    batch: &invoice_store::models::Batch,
+    expenses: &[invoice_store::models::ExpenseItem],
+    invoices: &[invoice_store::models::ReportedInvoice],
+) -> AppResult<Vec<u8>> {
+    let mut workbook = Workbook::new();
+    let header = Format::new()
+        .set_bold()
+        .set_background_color(Color::RGB(0xD9E7DF))
+        .set_border(FormatBorder::Thin);
+    let cell = Format::new().set_border(FormatBorder::Thin);
+    let amount = Format::new()
+        .set_border(FormatBorder::Thin)
+        .set_num_format("@");
+    let invoices_by_id = invoices
+        .iter()
+        .map(|invoice| (invoice.id, invoice))
+        .collect::<HashMap<_, _>>();
+
+    {
+        let worksheet = workbook.add_worksheet();
+        worksheet
+            .set_name("费用清单")
+            .map_err(|e| AppError::internal(format!("设置工作表名称失败: {e}")))?;
+        let headers = [
+            "费用ID",
+            "发票号码",
+            "开票日期",
+            "费用分类",
+            "实际发生日期",
+            "日期已确认",
+            "费用说明",
+            "交易对方",
+            "城市",
+            "省份",
+            "付款方式",
+            "实际金额",
+            "币种",
+            "票面税额",
+            "票面税率",
+            "行程组ID",
+            "材料数",
+        ];
+        for (column, value) in headers.iter().enumerate() {
+            worksheet
+                .write_with_format(0, column as u16, *value, &header)
+                .map_err(|e| AppError::internal(format!("写入费用表头失败: {e}")))?;
+        }
+        worksheet
+            .set_freeze_panes(1, 0)
+            .map_err(|e| AppError::internal(format!("冻结窗格失败: {e}")))?;
+        for (index, expense) in expenses.iter().enumerate() {
+            let row = (index + 1) as u32;
+            let invoice = invoices_by_id.get(&expense.primary_invoice_id).copied();
+            let tax_amount = expense
+                .tax_details
+                .iter()
+                .fold(Decimal::ZERO, |sum, tax| sum + tax.amount);
+            let tax_rates = expense
+                .tax_details
+                .iter()
+                .filter_map(|tax| tax.rate.map(|rate| rate.normalize().to_string()))
+                .collect::<Vec<_>>()
+                .join(" / ");
+            let values = [
+                expense.id.to_string(),
+                safe_spreadsheet_text(
+                    invoice
+                        .map(|value| value.invoice_number.as_str())
+                        .unwrap_or(""),
+                ),
+                invoice
+                    .map(|value| value.issue_date.format("%Y-%m-%d").to_string())
+                    .unwrap_or_default(),
+                expense.category_code.clone(),
+                expense.transaction_date.format("%Y-%m-%d").to_string(),
+                if expense.transaction_date_confirmed {
+                    "是"
+                } else {
+                    "否"
+                }
+                .to_string(),
+                safe_spreadsheet_text(&expense.description),
+                safe_spreadsheet_text(&expense.counterparty_name),
+                safe_spreadsheet_text(expense.location.city_name.as_deref().unwrap_or("")),
+                safe_spreadsheet_text(expense.location.province_name.as_deref().unwrap_or("")),
+                expense.payment_method.clone(),
+                expense.gross_amount.to_string(),
+                expense.currency_code.clone(),
+                tax_amount.to_string(),
+                tax_rates,
+                expense
+                    .trip_group_id
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                expense.documents.len().to_string(),
+            ];
+            for (column, value) in values.iter().enumerate() {
+                let format = if matches!(column, 11 | 13) {
+                    &amount
+                } else {
+                    &cell
+                };
+                worksheet
+                    .write_with_format(row, column as u16, value, format)
+                    .map_err(|e| AppError::internal(format!("写入费用数据失败: {e}")))?;
+            }
+        }
+        let total_row = (expenses.len() + 1) as u32;
+        let total = expenses
+            .iter()
+            .fold(Decimal::ZERO, |sum, expense| sum + expense.gross_amount);
+        worksheet
+            .write_with_format(total_row, 0, "合计", &header)
+            .map_err(|e| AppError::internal(format!("写入费用合计失败: {e}")))?;
+        worksheet
+            .write_with_format(total_row, 11, total.to_string(), &amount)
+            .map_err(|e| AppError::internal(format!("写入费用合计失败: {e}")))?;
+        for (column, width) in [
+            (0, 10.0),
+            (1, 24.0),
+            (2, 14.0),
+            (3, 16.0),
+            (4, 14.0),
+            (5, 12.0),
+            (6, 30.0),
+            (7, 28.0),
+            (8, 14.0),
+            (9, 14.0),
+            (10, 16.0),
+            (11, 14.0),
+            (12, 9.0),
+            (13, 12.0),
+            (14, 14.0),
+            (15, 12.0),
+            (16, 10.0),
+        ] {
+            worksheet
+                .set_column_width(column, width)
+                .map_err(|e| AppError::internal(format!("设置费用列宽失败: {e}")))?;
+        }
+    }
+
+    {
+        let worksheet = workbook.add_worksheet();
+        worksheet
+            .set_name("材料清单")
+            .map_err(|e| AppError::internal(format!("设置材料工作表失败: {e}")))?;
+        for (column, value) in ["费用ID", "发票号码", "材料角色", "文件名", "SHA-256"]
+            .iter()
+            .enumerate()
+        {
+            worksheet
+                .write_with_format(0, column as u16, *value, &header)
+                .map_err(|e| AppError::internal(format!("写入材料表头失败: {e}")))?;
+        }
+        let mut row = 1u32;
+        for expense in expenses {
+            let invoice_number = invoices_by_id
+                .get(&expense.primary_invoice_id)
+                .map(|invoice| safe_spreadsheet_text(&invoice.invoice_number))
+                .unwrap_or_default();
+            for document in &expense.documents {
+                for (column, value) in [
+                    expense.id.to_string(),
+                    invoice_number.clone(),
+                    document.role.clone(),
+                    safe_spreadsheet_text(&document.original_name),
+                    document.sha256.clone().unwrap_or_default(),
+                ]
+                .iter()
+                .enumerate()
+                {
+                    worksheet
+                        .write_with_format(row, column as u16, value, &cell)
+                        .map_err(|e| AppError::internal(format!("写入材料数据失败: {e}")))?;
+                }
+                row += 1;
+            }
+        }
+        worksheet
+            .set_freeze_panes(1, 0)
+            .map_err(|e| AppError::internal(format!("冻结材料窗格失败: {e}")))?;
+        for (column, width) in [(0, 10.0), (1, 24.0), (2, 16.0), (3, 32.0), (4, 66.0)] {
+            worksheet
+                .set_column_width(column, width)
+                .map_err(|e| AppError::internal(format!("设置材料列宽失败: {e}")))?;
+        }
+    }
+
+    let bytes = workbook
+        .save_to_buffer()
+        .map_err(|e| AppError::internal(format!("Excel 生成失败: {e}")))?;
+    tracing::info!(
+        batch_id = batch.id,
+        expense_count = expenses.len(),
+        size_bytes = bytes.len(),
+        "导出稳定费用项 Excel 成功"
+    );
+    Ok(bytes)
 }
 
 /// 生成批次 Excel 字节流（与 [`export_batch_excel`] 共用的核心逻辑）。
@@ -235,6 +587,104 @@ pub fn build_excel_bytes(
     Ok(buf)
 }
 
+/// 导出审核后的 UTF-8 CSV。返回值带 BOM，便于 Windows Excel 直接识别中文。
+#[tauri::command]
+pub fn export_batch_csv(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
+    let app_state = state.lock().unwrap();
+    let db = app_state.ledger_db()?;
+    let batch = db
+        .get_batch(batch_id)
+        .map_err(|e| AppError::database(format!("获取批次失败: {e}")))?;
+    let (_, invoices) = db
+        .get_active_snapshot_invoices(batch_id)
+        .map_err(|e| AppError::validation(format!("请先完成审核并生成有效版本：{e}")))?;
+    Ok(build_csv_bytes(&batch, &invoices))
+}
+
+pub fn build_csv_bytes(
+    batch: &invoice_store::models::Batch,
+    invoices: &[invoice_store::models::ReportedInvoice],
+) -> Vec<u8> {
+    let mut output = String::new();
+    push_csv_row(
+        &mut output,
+        &[
+            "发票号码",
+            "开票日期",
+            "金额",
+            "税额",
+            "购方名称",
+            "销方名称",
+            "票种",
+            "城市",
+            "出发时间",
+            "入住日期",
+            "签章状态",
+            "重复标记",
+        ]
+        .map(str::to_string),
+    );
+    for invoice in invoices {
+        push_csv_row(
+            &mut output,
+            &[
+                invoice.invoice_number.clone(),
+                invoice.issue_date.format("%Y-%m-%d").to_string(),
+                invoice.amount.to_string(),
+                invoice
+                    .tax_amount
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_default(),
+                safe_spreadsheet_text(invoice.buyer_name.as_deref().unwrap_or("")),
+                safe_spreadsheet_text(invoice.seller_name.as_deref().unwrap_or("")),
+                invoice.ticket_type.to_str().to_string(),
+                safe_spreadsheet_text(invoice.city.as_deref().unwrap_or("")),
+                invoice
+                    .departure_time
+                    .map(|value| value.format("%Y-%m-%d %H:%M").to_string())
+                    .unwrap_or_default(),
+                invoice
+                    .checkin_date
+                    .map(|value| value.format("%Y-%m-%d").to_string())
+                    .unwrap_or_default(),
+                invoice.verification_result.clone().unwrap_or_default(),
+                if invoice.is_duplicate { "是" } else { "" }.to_string(),
+            ],
+        );
+    }
+
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(output.as_bytes());
+    tracing::info!(
+        batch_id = batch.id,
+        invoice_count = invoices.len(),
+        size_bytes = bytes.len(),
+        "导出批次 CSV 成功"
+    );
+    bytes
+}
+
+fn safe_spreadsheet_text(value: &str) -> String {
+    if value.trim_start().starts_with(['=', '+', '-', '@']) {
+        format!("'{value}")
+    } else {
+        value.to_string()
+    }
+}
+
+fn push_csv_row(output: &mut String, fields: &[String]) {
+    for (index, field) in fields.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('"');
+        output.push_str(&field.replace('"', "\"\""));
+        output.push('"');
+    }
+    output.push_str("\r\n");
+}
+
 /// 导出批次为 PDF 台账。
 ///
 /// 返回 PDF 文件的字节流，前端用 Blob 触发下载。
@@ -253,20 +703,24 @@ pub fn build_excel_bytes(
 /// 中文字段（批次名、销方名）会显示为空白或乱码。
 /// 如需中文支持，需下载并内嵌 Noto Sans SC 字体（约 2-8 MB）。
 #[tauri::command]
-pub fn export_batch_pdf(
-    state: State<Mutex<AppState>>,
-    batch_id: i64,
-) -> AppResult<Vec<u8>> {
+pub fn export_batch_pdf(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
     let app_state = state.lock().unwrap();
     let db = app_state.ledger_db()?;
 
     let batch = db
         .get_batch(batch_id)
         .map_err(|e| AppError::database(format!("获取批次失败: {}", e)))?;
-    let invoices = db
-        .list_invoices_by_batch(batch_id)
-        .map_err(|e| AppError::database(format!("获取发票列表失败: {}", e)))?;
+    let (_, invoices) = db
+        .get_active_snapshot_invoices(batch_id)
+        .map_err(|e| AppError::validation(format!("请先完成审核并生成有效版本：{e}")))?;
 
+    build_pdf_bytes(&batch, &invoices)
+}
+
+pub fn build_pdf_bytes(
+    batch: &invoice_store::models::Batch,
+    invoices: &[invoice_store::models::ReportedInvoice],
+) -> AppResult<Vec<u8>> {
     // 创建文档并添加首页 (A4: 210mm x 297mm)
     let (doc, page1, layer1) = PdfDocument::new("Invoice Ledger", Mm(210.0), Mm(297.0), "Layer 1");
     let font = doc
@@ -303,18 +757,12 @@ pub fn export_batch_pdf(
 
     y -= 8.0;
 
-    // 表格数据
-    let mut page_index = page1;
-    let mut layer_index = layer1;
-
     for inv in invoices.iter() {
         if y < 30.0 {
             // 接近底部，新建页面
             let (new_page, new_layer) = doc.add_page(Mm(210.0), Mm(297.0), "Layer 1");
-            page_index = new_page;
-            layer_index = new_layer;
-            current_page = doc.get_page(page_index);
-            current_layer = current_page.get_layer(layer_index);
+            current_page = doc.get_page(new_page);
+            current_layer = current_page.get_layer(new_layer);
             y = 270.0;
         }
 
@@ -344,7 +792,7 @@ pub fn export_batch_pdf(
         .map_err(|e| AppError::internal(format!("PDF 生成失败: {:?}", e)))?;
 
     tracing::info!(
-        batch_id,
+        batch_id = batch.id,
         batch_name = %batch.name,
         invoice_count = invoices.len(),
         size_bytes = buf.len(),
@@ -359,6 +807,19 @@ fn sanitize_ascii(s: &str) -> String {
     s.chars()
         .filter(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
         .collect()
+}
+
+pub(crate) fn ensure_batch_exportable(status: &BatchStatus) -> AppResult<()> {
+    if matches!(
+        status,
+        BatchStatus::Submitted | BatchStatus::Approved | BatchStatus::Completed
+    ) {
+        Ok(())
+    } else {
+        Err(AppError::validation(
+            "批次尚未完成审核；请先解决阻断项并提交审核结果",
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -381,7 +842,7 @@ mod tests {
             .get_batch(batch_id)
             .map_err(|e| AppError::database(format!("获取批次失败: {}", e)))?;
         let invoices = db
-            .list_invoices_by_batch(batch_id)
+            .list_reimbursable_invoices_by_batch(batch_id)
             .map_err(|e| AppError::database(format!("获取发票列表失败: {}", e)))?;
 
         let mut workbook = Workbook::new();
@@ -546,7 +1007,9 @@ mod tests {
         let db = create_test_db();
 
         // 创建批次
-        let batch_id = db.create_batch("测试批次", "2026-08").expect("创建批次失败");
+        let batch_id = db
+            .create_batch("测试批次", "2026-08")
+            .expect("创建批次失败");
 
         // 添加两张发票
         let invoice1 = invoice_store::models::ReportedInvoice {
@@ -611,9 +1074,15 @@ mod tests {
         // 断言：前 4 字节是 ZIP 魔数（xlsx 本质是 ZIP）
         assert_eq!(&bytes[0..4], b"PK\x03\x04", "文件头不是 ZIP 魔数");
 
-        // 手动验证：写到临时文件检查内容
-        std::fs::write("/tmp/test_export.xlsx", &bytes).expect("写入临时文件失败");
-        println!("✓ 测试文件已写入 /tmp/test_export.xlsx，可手动用 LibreOffice 打开检查");
+        // Windows 标准用户不能假设盘符根目录存在可写的 /tmp。
+        // 写入唯一临时目录并逐字节回读，既覆盖实际落盘又不留下测试文件。
+        let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
+        let export_path = temp_dir.path().join("test_export.xlsx");
+        std::fs::write(&export_path, &bytes).expect("写入临时文件失败");
+        assert_eq!(
+            std::fs::read(&export_path).expect("回读临时文件失败"),
+            bytes
+        );
     }
 
     #[test]
@@ -641,16 +1110,36 @@ mod tests {
         assert!(err.message().contains("获取批次失败"));
     }
 
+    #[test]
+    fn atomic_excel_write_replaces_existing_file_and_cleans_staging_files() {
+        let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
+        let destination = temp_dir.path().join("审核结果.xlsx");
+        std::fs::write(&destination, b"old workbook").expect("写入旧文件失败");
+
+        write_excel_atomically(&destination, b"new workbook").expect("原子替换失败");
+
+        assert_eq!(
+            std::fs::read(&destination).expect("读取新文件失败"),
+            b"new workbook"
+        );
+        let remaining = std::fs::read_dir(temp_dir.path())
+            .expect("读取临时目录失败")
+            .map(|entry| entry.expect("读取目录项失败").file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(remaining, vec![destination.file_name().unwrap()]);
+    }
+
     /// 测试 PDF 导出核心逻辑（不通过 Tauri 命令）
     fn export_batch_pdf_internal(db: &LedgerDb, batch_id: i64) -> AppResult<Vec<u8>> {
         let batch = db
             .get_batch(batch_id)
             .map_err(|e| AppError::database(format!("获取批次失败: {}", e)))?;
         let invoices = db
-            .list_invoices_by_batch(batch_id)
+            .list_reimbursable_invoices_by_batch(batch_id)
             .map_err(|e| AppError::database(format!("获取发票列表失败: {}", e)))?;
 
-        let (doc, page1, layer1) = PdfDocument::new("Invoice Ledger", Mm(210.0), Mm(297.0), "Layer 1");
+        let (doc, page1, layer1) =
+            PdfDocument::new("Invoice Ledger", Mm(210.0), Mm(297.0), "Layer 1");
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
             .map_err(|e| AppError::internal(format!("字体加载失败: {:?}", e)))?;
@@ -682,16 +1171,11 @@ mod tests {
 
         y -= 8.0;
 
-        let mut page_index = page1;
-        let mut layer_index = layer1;
-
         for inv in invoices.iter() {
             if y < 30.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(210.0), Mm(297.0), "Layer 1");
-                page_index = new_page;
-                layer_index = new_layer;
-                current_page = doc.get_page(page_index);
-                current_layer = current_page.get_layer(layer_index);
+                current_page = doc.get_page(new_page);
+                current_layer = current_page.get_layer(new_layer);
                 y = 270.0;
             }
 
@@ -726,7 +1210,9 @@ mod tests {
     fn exports_pdf_with_invoice_data() {
         let db = create_test_db();
 
-        let batch_id = db.create_batch("Test Batch 2026-08", "2026-08").expect("创建批次失败");
+        let batch_id = db
+            .create_batch("Test Batch 2026-08", "2026-08")
+            .expect("创建批次失败");
 
         let invoice1 = invoice_store::models::ReportedInvoice {
             id: 0,
@@ -789,15 +1275,23 @@ mod tests {
         // 断言：前 4 字节是 PDF 魔数
         assert_eq!(&bytes[0..4], b"%PDF", "文件头不是 PDF 魔数");
 
-        // 手动验证：写到临时文件检查内容
-        std::fs::write("/tmp/test_export.pdf", &bytes).expect("写入临时文件失败");
-        println!("✓ 测试文件已写入 /tmp/test_export.pdf，可手动用 PDF 阅读器打开检查");
+        // Windows 标准用户不能假设盘符根目录存在可写的 /tmp。
+        // 写入唯一临时目录并逐字节回读，既覆盖实际落盘又不留下测试文件。
+        let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
+        let export_path = temp_dir.path().join("test_export.pdf");
+        std::fs::write(&export_path, &bytes).expect("写入临时文件失败");
+        assert_eq!(
+            std::fs::read(&export_path).expect("回读临时文件失败"),
+            bytes
+        );
     }
 
     #[test]
     fn exports_pdf_for_empty_batch() {
         let db = create_test_db();
-        let batch_id = db.create_batch("Empty Batch", "2026-09").expect("创建批次失败");
+        let batch_id = db
+            .create_batch("Empty Batch", "2026-09")
+            .expect("创建批次失败");
 
         let result = export_batch_pdf_internal(&db, batch_id);
         assert!(result.is_ok(), "导出空批次 PDF 失败: {:?}", result.err());
@@ -817,5 +1311,51 @@ mod tests {
         let err = result.err().unwrap();
         assert_eq!(err.kind(), crate::error::ErrorKind::Database);
         assert!(err.message().contains("获取批次失败"));
+    }
+
+    #[test]
+    fn csv_is_utf8_bom_escaped_and_formula_safe() {
+        let db = create_test_db();
+        let batch_id = db.create_batch("CSV 测试", "2026-08").unwrap();
+        db.add_invoice(&invoice_store::models::ReportedInvoice {
+            id: 0,
+            batch_id,
+            invoice_number: "12345678901234567890".to_string(),
+            issue_date: NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+            amount: Decimal::from_str("100.50").unwrap(),
+            tax_amount: Some(Decimal::from_str("9.05").unwrap()),
+            buyer_name: Some("测试公司".to_string()),
+            seller_name: Some("=HYPERLINK(\"https://example.invalid\",\"x,y\")".to_string()),
+            ticket_type: TicketType::Rail,
+            city: Some("北京".to_string()),
+            departure_time: None,
+            checkin_date: None,
+            file_path: "C:/test/invoice.xml".to_string(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+            verification_result: Some("valid".to_string()),
+            is_duplicate: false,
+            duplicate_reason: None,
+        })
+        .unwrap();
+
+        let batch = db.get_batch(batch_id).unwrap();
+        let invoices = db.list_reimbursable_invoices_by_batch(batch_id).unwrap();
+        let bytes = build_csv_bytes(&batch, &invoices);
+        assert_eq!(&bytes[..3], &[0xEF, 0xBB, 0xBF]);
+        let text = std::str::from_utf8(&bytes[3..]).unwrap();
+        assert!(text.starts_with("\"发票号码\",\"开票日期\""));
+        assert!(text.contains("\"测试公司\""));
+        assert!(text.contains("\"'=HYPERLINK(\"\"https://example.invalid\"\",\"\"x,y\"\")\""));
+        assert!(!text.contains("\"=HYPERLINK"));
+        assert!(text.ends_with("\r\n"));
+    }
+    #[test]
+    fn export_gate_rejects_unreviewed_or_rejected_batches() {
+        assert!(ensure_batch_exportable(&BatchStatus::Draft).is_err());
+        assert!(ensure_batch_exportable(&BatchStatus::Rejected).is_err());
+        assert!(ensure_batch_exportable(&BatchStatus::Submitted).is_ok());
+        assert!(ensure_batch_exportable(&BatchStatus::Approved).is_ok());
+        assert!(ensure_batch_exportable(&BatchStatus::Completed).is_ok());
     }
 }

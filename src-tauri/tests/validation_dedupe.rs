@@ -5,10 +5,11 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::Deserialize;
+use std::path::Path;
 use std::str::FromStr;
 
-use invoice_store::{LedgerDb, StoreResult};
 use invoice_store::models::{ReportedInvoice, TicketType};
+use invoice_store::{LedgerDb, StoreResult};
 
 /// 解析结果 JSON 的条目结构
 #[derive(Debug, Deserialize)]
@@ -25,16 +26,15 @@ struct ParsedInvoiceEntry {
 
 /// 加载解析结果 JSON
 fn load_parsed_invoices() -> Vec<ParsedInvoiceEntry> {
-    let json_path = "/home/holo/work-tools/reports/parsed_invoices.json";
-    let content = std::fs::read_to_string(json_path)
-        .expect("无法读取 parsed_invoices.json");
+    let json_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parsed_invoices.json");
+    let content = std::fs::read_to_string(&json_path).expect("无法读取 parsed_invoices.json");
     serde_json::from_str(&content).expect("无法解析 JSON")
 }
 
 /// 将 JSON 条目转换为 ReportedInvoice（用于入库）
 fn to_reported_invoice(entry: &ParsedInvoiceEntry, batch_id: i64) -> StoreResult<ReportedInvoice> {
-    let ticket_type = TicketType::from_str(&entry.ticket_type)
-        .unwrap_or(TicketType::Other);
+    let ticket_type = TicketType::from_db_str(&entry.ticket_type).unwrap_or(TicketType::Other);
 
     let issue_date = NaiveDate::parse_from_str(&entry.issue_date, "%Y-%m-%d")
         .map_err(|e| invoice_store::StoreError::Internal(format!("日期解析失败: {}", e)))?;
@@ -42,7 +42,9 @@ fn to_reported_invoice(entry: &ParsedInvoiceEntry, batch_id: i64) -> StoreResult
     let amount = Decimal::from_str(&entry.total_amount)
         .map_err(|e| invoice_store::StoreError::Internal(format!("金额解析失败: {}", e)))?;
 
-    let tax_amount = entry.tax_amount.as_ref()
+    let tax_amount = entry
+        .tax_amount
+        .as_ref()
         .and_then(|s| Decimal::from_str(s).ok());
 
     Ok(ReportedInvoice {
@@ -68,7 +70,11 @@ fn to_reported_invoice(entry: &ParsedInvoiceEntry, batch_id: i64) -> StoreResult
 }
 
 /// 第一轮：写入空数据库，统计重复数
-fn round1_insert_to_empty_db(db: &LedgerDb, batch_id: i64, invoices: &[ParsedInvoiceEntry]) -> StoreResult<usize> {
+fn round1_insert_to_empty_db(
+    db: &LedgerDb,
+    batch_id: i64,
+    invoices: &[ParsedInvoiceEntry],
+) -> StoreResult<usize> {
     let mut duplicate_count = 0;
 
     for entry in invoices {
@@ -95,7 +101,11 @@ fn round1_insert_to_empty_db(db: &LedgerDb, batch_id: i64, invoices: &[ParsedInv
 }
 
 /// 第二轮：再次写入相同数据，统计重复数
-fn round2_insert_same_data(db: &LedgerDb, batch_id: i64, invoices: &[ParsedInvoiceEntry]) -> StoreResult<usize> {
+fn round2_insert_same_data(
+    db: &LedgerDb,
+    batch_id: i64,
+    invoices: &[ParsedInvoiceEntry],
+) -> StoreResult<usize> {
     let mut duplicate_count = 0;
 
     for entry in invoices {
@@ -122,7 +132,11 @@ fn round2_insert_same_data(db: &LedgerDb, batch_id: i64, invoices: &[ParsedInvoi
 }
 
 /// 第三轮：修改部分发票金额后写入，验证能正确识别为不同发票
-fn round3_insert_modified(db: &LedgerDb, batch_id: i64, invoices: &[ParsedInvoiceEntry]) -> StoreResult<usize> {
+fn round3_insert_modified(
+    db: &LedgerDb,
+    batch_id: i64,
+    invoices: &[ParsedInvoiceEntry],
+) -> StoreResult<usize> {
     let mut new_invoice_count = 0;
 
     // 只修改前 5 张发票的金额和发票号
@@ -164,36 +178,46 @@ fn test_deduplication_validation() {
     let db = LedgerDb::new(":memory:").expect("无法创建数据库");
 
     // 创建批次
-    let batch1 = db.create_batch("第一轮测试", "2026-06").expect("创建批次失败");
-    let batch2 = db.create_batch("第二轮测试", "2026-06").expect("创建批次失败");
-    let batch3 = db.create_batch("第三轮测试", "2026-06").expect("创建批次失败");
+    let batch1 = db
+        .create_batch("第一轮测试", "2026-06")
+        .expect("创建批次失败");
+    let batch2 = db
+        .create_batch("第二轮测试", "2026-06")
+        .expect("创建批次失败");
+    let batch3 = db
+        .create_batch("第三轮测试", "2026-06")
+        .expect("创建批次失败");
 
     // ========== 第一轮：写入空数据库 ==========
     println!("\n[第一轮] 写入空数据库...");
-    let round1_duplicates = round1_insert_to_empty_db(&db, batch1, &invoices)
-        .expect("第一轮写入失败");
+    let round1_duplicates =
+        round1_insert_to_empty_db(&db, batch1, &invoices).expect("第一轮写入失败");
     println!("第一轮检测到 {} 条重复", round1_duplicates);
 
     // 验证批次统计
     let batch1_data = db.get_batch(batch1).expect("查询批次失败");
-    assert_eq!(batch1_data.invoice_count, total_count as i32, "第一轮：发票数量应为 {}", total_count);
+    assert_eq!(
+        batch1_data.invoice_count, total_count as i32,
+        "第一轮：发票数量应为 {}",
+        total_count
+    );
 
     // ========== 第二轮：再次写入相同数据 ==========
     println!("\n[第二轮] 再次写入相同数据...");
-    let round2_duplicates = round2_insert_same_data(&db, batch2, &invoices)
-        .expect("第二轮写入失败");
+    let round2_duplicates =
+        round2_insert_same_data(&db, batch2, &invoices).expect("第二轮写入失败");
     println!("第二轮检测到 {} 条重复", round2_duplicates);
 
     // 第二轮应该 100% 检测到重复
     assert_eq!(
         round2_duplicates, total_count,
-        "第二轮应检测到所有 {} 条为重复", total_count
+        "第二轮应检测到所有 {} 条为重复",
+        total_count
     );
 
     // ========== 第三轮：修改发票号和金额后写入 ==========
     println!("\n[第三轮] 修改部分发票（发票号+金额）后写入...");
-    let round3_new = round3_insert_modified(&db, batch3, &invoices)
-        .expect("第三轮写入失败");
+    let round3_new = round3_insert_modified(&db, batch3, &invoices).expect("第三轮写入失败");
     println!("第三轮新增 {} 条发票", round3_new);
 
     // 第三轮应该全部识别为新发票

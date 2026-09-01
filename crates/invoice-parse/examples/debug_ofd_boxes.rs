@@ -12,13 +12,7 @@ fn main() -> anyhow::Result<()> {
     for (i, b) in boxes.iter().enumerate() {
         println!(
             "{:3}: ({:6.1}, {:6.1}) {}x{} conf={:.2} \"{}\"",
-            i,
-            b.x,
-            b.y,
-            b.width as i32,
-            b.height as i32,
-            b.confidence,
-            b.text
+            i, b.x, b.y, b.width as i32, b.height as i32, b.confidence, b.text
         );
     }
 
@@ -28,12 +22,7 @@ fn main() -> anyhow::Result<()> {
     for (i, b) in merged.iter().enumerate() {
         println!(
             "{:3}: ({:6.1}, {:6.1}) {}x{} \"{}\"",
-            i,
-            b.x,
-            b.y,
-            b.width as i32,
-            b.height as i32,
-            b.text
+            i, b.x, b.y, b.width as i32, b.height as i32, b.text
         );
     }
 

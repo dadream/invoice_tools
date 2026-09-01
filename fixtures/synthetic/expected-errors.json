@@ -1,0 +1,26 @@
+{
+  "syntheticMarker": "synthetic-only",
+  "cases": [
+    {
+      "path": "malformed.pdf",
+      "component": "invoice-parse",
+      "expected": "MalformedFormat"
+    },
+    {
+      "path": "malformed.ofd",
+      "component": "invoice-parse",
+      "expected": "MalformedFormat"
+    },
+    {
+      "path": "expanded-over-limit.zip",
+      "component": "invoice-collect",
+      "expected": "rejected-empty-result"
+    },
+    {
+      "path": "duplicate-b.xml",
+      "component": "invoice-collect",
+      "expected": "duplicate-content",
+      "sameAs": "duplicate-a.xml"
+    }
+  ]
+}

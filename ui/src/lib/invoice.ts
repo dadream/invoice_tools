@@ -13,7 +13,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 
 /** 后端 `do_parse` 支持的扩展名，多一个都会被判 validation 错误。 */
-export const SUPPORTED_EXTENSIONS = ['xml', 'ofd', 'pdf'] as const
+export const SUPPORTED_EXTENSIONS = ['xml', 'ofd', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp'] as const
 
 /** 取小写扩展名；没有扩展名返回空串。 */
 export function fileExtension(path: string): string {

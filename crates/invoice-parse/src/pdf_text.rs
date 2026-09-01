@@ -134,12 +134,10 @@ pub fn extract_text_boxes(pdf_bytes: &[u8], path: &Path) -> Result<Vec<TextBox>,
         })?;
 
         let mut collector = TextBoxCollector::new();
-        pdf_extract::output_doc(&doc, &mut collector).map_err(|e| {
-            ParseError::MalformedFormat {
-                path: path.to_path_buf(),
-                format: "PDF",
-                detail: format!("提取文本框失败: {e}"),
-            }
+        pdf_extract::output_doc(&doc, &mut collector).map_err(|e| ParseError::MalformedFormat {
+            path: path.to_path_buf(),
+            format: "PDF",
+            detail: format!("提取文本框失败: {e}"),
         })?;
 
         Ok(collector.boxes)
@@ -209,7 +207,9 @@ mod tests {
         assert!(!boxes.is_empty(), "应提取到文本框");
 
         // Should find invoice number in boxes
-        let has_invoice_number = boxes.iter().any(|b| b.text.contains("26112000002267104336"));
+        let has_invoice_number = boxes
+            .iter()
+            .any(|b| b.text.contains("26112000002267104336"));
         assert!(has_invoice_number, "应包含发票号码");
     }
 

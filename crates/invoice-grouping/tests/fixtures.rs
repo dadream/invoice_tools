@@ -1,6 +1,6 @@
 use chrono::{NaiveDate, NaiveDateTime};
-use invoice_parse::model::{ParsedInvoice, TicketType, ParseLevel};
-use invoice_grouping::types::{AmbiguityResolver, Ambiguity, AmbiguityResolution};
+use invoice_grouping::types::{Ambiguity, AmbiguityResolution, AmbiguityResolver};
+use invoice_parse::model::{ParseLevel, ParsedInvoice, TicketType};
 use rust_decimal::Decimal;
 use std::path::PathBuf;
 
@@ -8,7 +8,10 @@ use std::path::PathBuf;
 pub struct DummyResolver;
 
 impl AmbiguityResolver for DummyResolver {
-    fn resolve(&self, _ambiguities: &[Ambiguity]) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
+    fn resolve(
+        &self,
+        _ambiguities: &[Ambiguity],
+    ) -> Result<Vec<AmbiguityResolution>, anyhow::Error> {
         // 返回空决策列表，让算法保留原始歧义检测结果
         Ok(vec![])
     }
@@ -31,12 +34,14 @@ pub fn make_transport(
         tax_amount: None,
         tax_rate: None,
         buyer_name: Some("测试公司".to_string()),
-        seller_name: Some(format!("{} → {}", from_city, to_city)), // 存储目的城市
+        seller_name: Some("测试承运人".to_string()),
         ticket_type,
+        transport_document_kind: invoice_parse::model::TransportDocumentKind::Sale,
         parse_level: ParseLevel::L0,
         confidence: 1.0,
         source_path: PathBuf::from(format!("synthetic/{}.xml", idx)),
         city: Some(from_city.to_string()),
+        travel_route: Some(format!("{}→{}", from_city, to_city)),
         departure_time: Some(NaiveDateTime::new(
             date,
             chrono::NaiveTime::from_hms_opt(hour, 0, 0).unwrap(),
@@ -62,10 +67,12 @@ pub fn make_hotel(
         buyer_name: Some("测试公司".to_string()),
         seller_name: None,
         ticket_type: TicketType::Hotel,
+        transport_document_kind: Default::default(),
         parse_level: ParseLevel::L0,
         confidence: 1.0,
         source_path: PathBuf::from(format!("synthetic/{}.xml", idx)),
         city: Some(city.to_string()),
+        travel_route: None,
         departure_time: None,
         checkin_date: Some(checkin_date),
     }
@@ -88,10 +95,12 @@ pub fn make_local(
         buyer_name: Some("测试公司".to_string()),
         seller_name: None,
         ticket_type,
+        transport_document_kind: Default::default(),
         parse_level: ParseLevel::L0,
         confidence: 1.0,
         source_path: PathBuf::from(format!("synthetic/{}.xml", idx)),
         city: Some(city.to_string()),
+        travel_route: None,
         departure_time: None,
         checkin_date: None,
     }

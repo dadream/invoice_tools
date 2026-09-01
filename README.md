@@ -1,6 +1,13 @@
 # Invoice Assistant
 
-发票报销 AI 助手 - 把散落在邮箱里的发票，变成按行程归好、查过重、排好版的批次。
+Windows 免安装、本地优先的发票收集、审核与报销整理工具。
+
+> 当前状态：开发验证阶段，尚不是公开可发布版本。
+> 唯一发布规格：`specs/mvp-release-baseline/` 1.0（已确认、实施中）。
+> 历史文档不能作为当前完成度、安全或发布结论，见 `docs/HISTORICAL-DOCUMENTS.md`。
+
+MVP 不调用外部大模型，不要求产品账号，不持久化邮箱授权码。用户数据默认保存在
+`%LOCALAPPDATA%\InvoiceAssistant\Data`；跨电脑备份为用户主动操作的未加密包。
 
 ## 项目结构
 
@@ -10,7 +17,7 @@
 │   ├── invoice-parse    # 多格式发票解析
 │   ├── invoice-collect  # IMAP 邮箱采集
 │   ├── invoice-grouping # 行程归组引擎
-│   └── invoice-store    # 加密存储系统
+│   └── invoice-store    # 本地台账与旧版凭据兼容
 ├── src-tauri/          # Tauri 后端
 │   └── src/            # Rust 应用代码
 └── ui/                 # Svelte 前端
@@ -19,33 +26,27 @@
 
 ## 开发环境要求
 
-- Rust 1.97+
-- Node.js 18+
-- Tauri CLI 2.0+
+- Windows 11 x64
+- Rust 1.97.1（由 `rust-toolchain.toml` 精确固定）
+- Node.js 24.14.0、npm 11.9.0
+- WebView2 Evergreen Runtime 与 Windows C++ 构建工具
 
 ## 快速开始
 
 ### 安装依赖
 
 ```bash
-# 安装 Tauri CLI
-cargo install tauri-cli --version "^2.0"
-
-# 安装前端依赖
+# 使用锁文件安装前端依赖
 cd ui
-npm install
+npm ci
 cd ..
 ```
 
 ### 开发模式
 
 ```bash
-# 方式 1: 使用脚本
-./scripts/dev-tauri.sh
-
-# 方式 2: 手动启动
-cd src-tauri
-cargo tauri dev
+cd ui
+npm run tauri dev
 ```
 
 这将启动：
@@ -55,41 +56,27 @@ cargo tauri dev
 ### 构建发布版
 
 ```bash
-# 方式 1: 使用脚本
-./scripts/build-tauri.sh
-
-# 方式 2: 手动构建
-cd src-tauri
-cargo tauri build
+cd ui
+npm run tauri build -- --no-bundle
 ```
 
-构建产物：
-- **Windows**: `src-tauri/target/release/invoice-assistant.exe`
-- **macOS**: `src-tauri/target/release/bundle/macos/Invoice Assistant.app`
-- **Linux**: `src-tauri/target/release/invoice-assistant`
+Windows 可执行文件位于根目录 `target/release/invoice-assistant.exe`。标准 portable ZIP
+和签名流水线仍属于发布任务，不能直接分发裸 EXE。
 
 ## 测试
 
 ```bash
-# 测试所有 Rust crates
-cargo test --workspace
-
-# 测试特定模块
-cargo test -p invoice-parse
-cargo test -p invoice-store
-
-# 前端测试（待添加）
-cd ui
-npm run test
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows.ps1
 ```
 
 ## 日志
 
-应用日志存储在：
-- **Linux/macOS**: `~/.invoice-assistant/logs/app.log`
-- **Windows**: `%USERPROFILE%\.invoice-assistant\logs\app.log`
+Windows 默认日志目录：
 
-开发模式下同时输出到终端。
+`%LOCALAPPDATA%\InvoiceAssistant\Data\logs`
+
+日志仅允许记录版本、阶段、错误码、计数和脱敏路径，不记录授权码、邮件正文、
+完整票号、税号或金额明细。开发模式下同时输出到终端。
 
 ## IPC 通道约定
 
@@ -157,7 +144,7 @@ pub enum AppError {
 - 环境变量配置日志级别（`RUST_LOG=debug`）
 - 结构化日志
 
-## 开发进度
+## 历史开发进度（已失效）
 
 - [x] S0.1 技术验证（invoice-parse）
 - [x] S0.2 Tauri 骨架
@@ -173,8 +160,13 @@ pub enum AppError {
 - [ ] G2 审核界面
 - [ ] H1 流水线集成
 
-详见：`docs/next-steps-roadmap.md`
+以上列表仅用于历史追溯。当前状态和阻断项见：
 
-## 许可证
+- `specs/mvp-release-baseline/tasks.md`
+- `docs/release/mvp-gap-audit-2026-08-19.md`
+- `docs/release/defect-and-release-gates.md`
 
-MIT License
+## 许可证与发布
+
+当前仓库未确认对外软件许可证；不得沿用旧文档中的 MIT 声明对外发布。
+公开 Beta 和正式版还需要产品负责人提供签名主体、发布主体、版权与支持信息。

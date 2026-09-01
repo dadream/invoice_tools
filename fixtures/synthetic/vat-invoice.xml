@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice fixture="synthetic" privacy="none">
+  <InvoiceNumber>26112000000000000001</InvoiceNumber>
+  <IssueDate>2026-06-18</IssueDate>
+  <TotalAmount>1200.00</TotalAmount>
+  <TaxAmount>67.92</TaxAmount>
+  <TaxRate>0.06</TaxRate>
+  <BuyerName>北京示例科技有限公司</BuyerName>
+  <SellerName>上海演示商贸有限公司</SellerName>
+</Invoice>

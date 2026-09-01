@@ -1,4 +1,4 @@
-use invoice_store::crypto::{encrypt, decrypt};
+use invoice_store::crypto::{decrypt, encrypt};
 use invoice_store::keychain::get_or_create_master_key;
 
 #[test]
