@@ -86,6 +86,20 @@ jobs:
         shell: pwsh
         run: .\scripts\test-release-version.ps1
 
+      # Tauri's generate_context! macro validates frontendDist during Rust
+      # compilation, so a clean checkout must build ui/dist first.
+      - name: Check UI types and Svelte diagnostics
+        working-directory: ui
+        run: npm run check
+
+      - name: Test UI
+        working-directory: ui
+        run: npm test
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
       - name: Check Rust formatting
         shell: pwsh
         run: cargo fmt --all -- --check
@@ -120,18 +134,6 @@ jobs:
       - name: Test production OCR worker roundtrip
         shell: pwsh
         run: cargo test -p invoice-assistant --test ocr_worker_process production_worker_roundtrips_image_and_scanned_pdf --locked -- --ignored --exact
-
-      - name: Check UI types and Svelte diagnostics
-        working-directory: ui
-        run: npm run check
-
-      - name: Test UI
-        working-directory: ui
-        run: npm test
-
-      - name: Build UI
-        working-directory: ui
-        run: npm run build
 
       - name: Verify post-build storage reserve
         shell: pwsh
