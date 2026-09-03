@@ -31,7 +31,18 @@ $rustErrorCodes = @(
         ForEach-Object { $_.Groups[1].Value } |
         Sort-Object -Unique
 ) -join ","
-$message = "cargo clippy exited with code $exitCode; workspace drive free: $freeGiB GiB; diskFull=$diskFull; memoryFailure=$memoryFailure; compilerDiagnostics=$diagnosticCount; rustErrorCodes=$rustErrorCodes"
+$lintCodes = @(
+    [regex]::Matches($logText, "clippy::([a-z0-9_]+)") |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique
+) -join ","
+$failureClasses = @(
+    if ($logText -match "(?i)failed to run custom build command") { "build-script" }
+    if ($logText -match "(?i)linking with .* failed") { "linker" }
+    if ($logText -match "(?i)could not compile") { "compiler" }
+    if ($logText -match "(?i)failed to download") { "download" }
+) -join ","
+$message = "cargo clippy exited with code $exitCode; workspace drive free: $freeGiB GiB; diskFull=$diskFull; memoryFailure=$memoryFailure; compilerDiagnostics=$diagnosticCount; rustErrorCodes=$rustErrorCodes; lintCodes=$lintCodes; failureClasses=$failureClasses"
 $message = $message.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
 
 # Surface only classified, non-sensitive failure metrics through the Checks
