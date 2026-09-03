@@ -82,10 +82,6 @@ jobs:
         shell: pwsh
         run: .\scripts\test-release-version.ps1
 
-      - name: Build OCR worker
-        shell: pwsh
-        run: cargo build -p invoice-parse --bin invoice-ocr-worker --locked
-
       - name: Check Rust formatting
         shell: pwsh
         run: cargo fmt --all -- --check
@@ -109,6 +105,13 @@ jobs:
       - name: Test forced scanned PDF OCR path
         shell: pwsh
         run: cargo test -p invoice-parse scanned_pdf_ocr_reads_synthetic_vat_invoice --locked -- --ignored
+
+      # Build this only when the process integration test needs the standalone
+      # executable. Building it before Clippy retains a second set of normal
+      # dev artifacts and can exhaust the hosted Windows runner's workspace.
+      - name: Build OCR worker
+        shell: pwsh
+        run: cargo build -p invoice-parse --bin invoice-ocr-worker --locked
 
       - name: Test production OCR worker roundtrip
         shell: pwsh
