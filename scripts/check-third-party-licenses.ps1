@@ -97,11 +97,16 @@ foreach ($asset in $ocrAssets) {
         -not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
         throw "OCR asset path is unsafe or missing: $($asset.path)"
     }
-    if ($null -ne $asset.bytes -and (Get-Item -LiteralPath $assetPath).Length -ne [long]$asset.bytes) {
-        throw "OCR asset size mismatch: $($asset.path)"
+    if ($null -ne $asset.bytes) {
+        if ((Get-Item -LiteralPath $assetPath).Length -ne [long]$asset.bytes) {
+            throw "OCR asset size mismatch: $($asset.path)"
+        }
+        if ((Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash -ne $asset.sha256) {
+            throw "OCR asset hash mismatch: $($asset.path)"
+        }
     }
-    if ((Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash -ne $asset.sha256) {
-        throw "OCR asset hash mismatch: $($asset.path)"
+    elseif ((Get-NormalizedTextSha256 -Path $assetPath) -ne $asset.sha256) {
+        throw "OCR license hash mismatch: $($asset.path)"
     }
 }
 Push-Location $projectRoot
