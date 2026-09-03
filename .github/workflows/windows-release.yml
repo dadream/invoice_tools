@@ -82,9 +82,53 @@ jobs:
         shell: pwsh
         run: .\scripts\test-release-version.ps1
 
-      - name: Run Windows compile and test gate
+      - name: Build OCR worker
         shell: pwsh
-        run: .\scripts\verify-windows.ps1 -MinimumFreeGiB 8 -SkipPrerequisiteChecks
+        run: cargo build -p invoice-parse --bin invoice-ocr-worker --locked
+
+      - name: Check Rust formatting
+        shell: pwsh
+        run: cargo fmt --all -- --check
+
+      - name: Run Rust Clippy
+        shell: pwsh
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Check Rust workspace
+        shell: pwsh
+        run: cargo check --workspace --all-targets --locked
+
+      - name: Test Rust workspace
+        shell: pwsh
+        run: cargo test --workspace --all-targets --locked
+
+      - name: Test forced OCR image path
+        shell: pwsh
+        run: cargo test -p invoice-parse offline_ocr_reads_synthetic_vat_invoice --locked -- --ignored
+
+      - name: Test forced scanned PDF OCR path
+        shell: pwsh
+        run: cargo test -p invoice-parse scanned_pdf_ocr_reads_synthetic_vat_invoice --locked -- --ignored
+
+      - name: Test production OCR worker roundtrip
+        shell: pwsh
+        run: cargo test -p invoice-assistant --test ocr_worker_process production_worker_roundtrips_image_and_scanned_pdf --locked -- --ignored --exact
+
+      - name: Check UI types and Svelte diagnostics
+        working-directory: ui
+        run: npm run check
+
+      - name: Test UI
+        working-directory: ui
+        run: npm test
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
+
+      - name: Verify post-build storage reserve
+        shell: pwsh
+        run: .\scripts\check-build-storage.ps1 -Mode Postflight -AutoCleanDev -MinimumFreeGiB 8 -EvidencePath artifacts/build-storage-postflight.validation.json
 
       - name: Reclaim debug build space before release compilation
         shell: pwsh
