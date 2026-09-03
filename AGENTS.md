@@ -108,6 +108,42 @@ The `ui` project uses **npm only**. `ui/package.json` declares npm and
   registry. Use `npm ci` so installation remains locked to
   `ui/package-lock.json`.
 
+## Product Design Consistency
+
+`docs/product-design-consistency-standards.md` is the authoritative UI and
+interaction consistency standard for current product work. Read the relevant
+sections before changing user-visible pages.
+
+- Reuse the documented page hierarchy, list-page structure, component sizes,
+  state language, and interaction behavior instead of introducing a near-copy
+  with slightly different styling.
+- When changing either email collection or batch list UI, compare both pages
+  in the same review so shared headers, controls, tables, links, and actions
+  remain aligned.
+- Treat the document's release checklist as part of implementation review.
+  Business scope remains governed by `specs/mvp-release-baseline/` and Concur
+  field semantics by `docs/concur-field-mapping-design.md`.
+
+## Implementation Completion Workflow
+
+After implementing a code or UI requirement intended for Windows user
+validation, do not stop after source checks or a frontend-only build. Complete
+the following handoff in the same task unless the user explicitly asks not to:
+
+1. Run the storage gate in `Preflight` mode.
+2. Run the relevant checks and tests, then build the frontend with the existing
+   npm dependencies.
+3. Close a currently running `invoice-assistant.exe` before rebuilding it; the
+   user has authorized this replacement step for normal development builds.
+4. Rebuild the Windows desktop executable with Cargo using locked dependencies.
+5. Run the storage gate in `Postflight` mode.
+6. Start the newly built Windows application visibly for user validation and
+   report its absolute executable path.
+
+Do not use Computer Use to perform the user's UI acceptance test. Compilation,
+automated checks, and launching the application are the implementation handoff;
+the user performs the final interactive validation.
+
 ## Git Commit Identity
 
 Repository commits use the same identity as the existing project history:

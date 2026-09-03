@@ -4817,10 +4817,10 @@ impl LedgerDb {
         Ok(tasks)
     }
 
-    /// 删除尚未被报销批次引用的本地邮件收集任务。
+    /// 删除尚未完成审核、且未被报销批次引用的本地邮件收集任务。
     ///
-    /// 邮件、附件和审核快照通过外键级联删除；一旦任务形成批次导入快照，
-    /// 必须保留来源台账，避免破坏已导入数据的可追溯关系。
+    /// 邮件、附件和审核快照通过外键级联删除；已完成审核或已形成批次导入
+    /// 快照的任务必须保留，避免破坏来源台账和已导入数据的可追溯关系。
     pub fn delete_email_collection_task(&self, task_id: i64) -> StoreResult<()> {
         let transaction = self.conn.unchecked_transaction()?;
         let status: Option<String> = transaction
@@ -4838,6 +4838,11 @@ impl LedgerDb {
         if status == "collecting" {
             return Err(StoreError::Validation(
                 "正在收集的任务不能删除，请等待完成或重启后再试".to_string(),
+            ));
+        }
+        if status == "completed" {
+            return Err(StoreError::Validation(
+                "已完成审核的收集任务不能删除".to_string(),
             ));
         }
         let import_count: i64 = transaction.query_row(
@@ -12668,7 +12673,7 @@ mod tests {
     }
 
     #[test]
-    fn email_collection_task_deletion_preserves_active_and_imported_sources() {
+    fn email_collection_task_deletion_preserves_active_completed_and_imported_sources() {
         let db = LedgerDb::new(":memory:").unwrap();
 
         let disposable = db
@@ -12699,6 +12704,24 @@ mod tests {
             db.delete_email_collection_task(collecting),
             Err(StoreError::Validation(message)) if message.contains("正在收集")
         ));
+
+        let completed = db
+            .create_email_collection_task(
+                "审核完成",
+                "user@example.test",
+                "2026-06-01",
+                "2026-07-01",
+            )
+            .unwrap();
+        db.mark_email_collection_started(completed, "deletion-completed-task")
+            .unwrap();
+        db.store_email_collection_results(completed, &[]).unwrap();
+        db.complete_email_collection_review(completed).unwrap();
+        assert!(matches!(
+            db.delete_email_collection_task(completed),
+            Err(StoreError::Validation(message)) if message.contains("已完成审核")
+        ));
+        assert!(db.get_email_collection_task(completed).is_ok());
 
         let imported = db
             .create_email_collection_task(

@@ -169,8 +169,8 @@ pub fn list_email_collection_tasks(
         .map_err(|error| map_store_error("读取邮件收集任务失败", error))
 }
 
-/// 删除本地收集任务及其受控材料目录，不会连接邮箱或修改服务器邮件。
-/// 已形成批次导入快照的任务由存储层拒绝删除，以保留来源追溯关系。
+/// 删除尚未完成审核的本地收集任务及其受控材料目录，不会连接邮箱或修改服务器邮件。
+/// 已完成审核或已形成批次导入快照的任务由存储层拒绝删除，以保留来源追溯关系。
 #[tauri::command]
 pub fn delete_email_collection_task(task_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
     validate_positive_id(task_id, "邮件收集任务")?;
@@ -183,6 +183,9 @@ pub fn delete_email_collection_task(task_id: i64, state: State<Mutex<AppState>>)
         return Err(AppError::validation(
             "正在收集的任务不能删除，请等待完成或重启后再试",
         ));
+    }
+    if task.status == "completed" {
+        return Err(AppError::validation("已完成审核的收集任务不能删除"));
     }
     let staged_materials = stage_collection_task_materials(task_id)?;
     if let Err(error) = app_state.ledger_db()?.delete_email_collection_task(task_id) {

@@ -1,6 +1,6 @@
 [package]
 name = "invoice-assistant"
-version = "0.1.0"
+version = "0.1.1"
 description = "本地优先的发票收集、审核与报销整理工具"
 authors = ["Invoice Assistant Team"]
 publish = false

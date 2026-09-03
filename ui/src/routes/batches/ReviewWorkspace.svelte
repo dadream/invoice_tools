@@ -265,7 +265,7 @@
 
   {#if ofdOriginalCount > 0 && listMode !== 'pending'}
     <section class="attention-strip" aria-label="原件状态">
-      <span class="ofd-chip" title="当前 MVP 不提供签章或真伪验证；OFD 原件仍随费用保存，不影响整理、归组和报销。">OFD 原件 {ofdOriginalCount} 份 <small>ⓘ</small></span>
+      <span class="ofd-chip" title="当前不提供签章或真伪验证；OFD 原件仍随费用保存，不影响整理、归组和报销。">OFD 原件 {ofdOriginalCount} 份 <small>ⓘ</small></span>
     </section>
   {/if}
   {#if statusMessage}<p class="status-message" role="status">{statusMessage}</p>{/if}

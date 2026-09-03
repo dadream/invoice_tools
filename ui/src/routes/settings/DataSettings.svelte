@@ -165,7 +165,7 @@
 <section class="settings-section">
   <h2>数据备份与迁移</h2>
   <p class="description">
-    备份属于你，可以复制到另一台电脑导入。MVP 备份未加密，请像保护原始发票一样保管。
+    备份属于你，可以复制到另一台电脑导入。当前备份未加密，请像保护原始发票一样保管。
   </p>
 
   <div class="warning" role="note">
