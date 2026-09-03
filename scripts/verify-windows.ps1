@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [ValidateRange(-1, 1024)]
+    [double]$MinimumFreeGiB = -1
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +24,7 @@ $uiRoot = Join-Path $projectRoot "ui"
 & (Join-Path $PSScriptRoot "check-build-storage.ps1") `
     -Mode Preflight `
     -AutoCleanDev `
+    -MinimumFreeGiB $MinimumFreeGiB `
     -EvidencePath "artifacts/build-storage-preflight.validation.json"
 & (Join-Path $PSScriptRoot "test-build-storage-gate.ps1")
 & (Join-Path $PSScriptRoot "scan-secrets.ps1")
@@ -99,4 +102,5 @@ finally {
 & (Join-Path $PSScriptRoot "check-build-storage.ps1") `
     -Mode Postflight `
     -AutoCleanDev `
+    -MinimumFreeGiB $MinimumFreeGiB `
     -EvidencePath "artifacts/build-storage-postflight.validation.json"

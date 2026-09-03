@@ -14,6 +14,10 @@ jobs:
     # Pin the release baseline to Windows Server 2022 instead of weakening it.
     runs-on: windows-2022
     timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,4 +42,4 @@ jobs:
 
       - name: Run the same Windows quality gate as local development
         shell: pwsh
-        run: .\scripts\verify-windows.ps1
+        run: .\scripts\verify-windows.ps1 -MinimumFreeGiB 8

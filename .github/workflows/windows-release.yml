@@ -18,6 +18,10 @@ jobs:
     # Keep enough workspace capacity for the debug quality gate plus release build.
     runs-on: windows-2022
     timeout-minutes: 75
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - name: Checkout tagged source
         uses: actions/checkout@v4
@@ -44,11 +48,15 @@ jobs:
 
       - name: Run Windows quality gate
         shell: pwsh
-        run: .\scripts\verify-windows.ps1
+        run: .\scripts\verify-windows.ps1 -MinimumFreeGiB 8
+
+      - name: Reclaim debug build space before release compilation
+        shell: pwsh
+        run: cargo clean --profile dev
 
       - name: Build minimal portable release assets
         shell: pwsh
-        run: .\scripts\build-portable.ps1 -SkipVerify
+        run: .\scripts\build-portable.ps1 -SkipVerify -MinimumFreeGiB 8
 
       - name: Verify packaged release without GUI automation
         shell: pwsh

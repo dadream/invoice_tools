@@ -3,7 +3,9 @@ param(
     [switch]$SkipVerify,
     [switch]$SkipBuild,
     [ValidatePattern('^$|^[A-Za-z0-9][A-Za-z0-9.-]{0,63}$')]
-    [string]$PackageTag = ""
+    [string]$PackageTag = "",
+    [ValidateRange(-1, 1024)]
+    [double]$MinimumFreeGiB = -1
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,6 +60,7 @@ function Write-JsonUtf8NoBom {
 & (Join-Path $PSScriptRoot "check-build-storage.ps1") `
     -Mode Preflight `
     -AutoCleanDev `
+    -MinimumFreeGiB $MinimumFreeGiB `
     -EvidencePath "artifacts/build-storage-portable-preflight.validation.json"
 
 $updateManifestUrl = [string]$env:INVOICE_UPDATE_MANIFEST_URL
@@ -310,6 +313,7 @@ $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
 & (Join-Path $PSScriptRoot "check-build-storage.ps1") `
     -Mode Postflight `
     -AutoCleanDev `
+    -MinimumFreeGiB $MinimumFreeGiB `
     -EvidencePath "artifacts/build-storage-portable-postflight.validation.json"
 
 Write-Output "Portable internal Alpha created:"
