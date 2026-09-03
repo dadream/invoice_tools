@@ -133,17 +133,17 @@ foreach ($entry in @($inventory.fixtures)) {
     }
     if ($item.Extension -in @('.json', '.toml', '.xml', '.eml', '.txt', '.md')) {
         $normalized = Get-NormalizedTextFixture -Path $full
-        if ($normalized.bytes -ne [long]$entry.bytes) { throw "Fixture byte count mismatch" }
-        if ($normalized.sha256 -ne $entry.sha256) { throw "Fixture hash mismatch" }
+        if ($normalized.bytes -ne [long]$entry.bytes) { throw "Fixture byte count mismatch: $($entry.path)" }
+        if ($normalized.sha256 -ne $entry.sha256) { throw "Fixture hash mismatch: $($entry.path)" }
         $content = $normalized.text
         if (-not (Test-SyntheticMarker $content)) {
             throw "Text fixture lacks an explicit synthetic marker"
         }
     }
     else {
-        if ($item.Length -ne [long]$entry.bytes) { throw "Fixture byte count mismatch" }
+        if ($item.Length -ne [long]$entry.bytes) { throw "Fixture byte count mismatch: $($entry.path)" }
         if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ne $entry.sha256) {
-            throw "Fixture hash mismatch"
+            throw "Fixture hash mismatch: $($entry.path)"
         }
     }
 }

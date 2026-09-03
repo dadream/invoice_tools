@@ -1,0 +1,8 @@
+*.dll binary
+*.ofd binary
+*.onnx binary
+*.pdf binary
+*.png binary
+*.ttf binary
+*.woff2 binary
+*.zip binary
