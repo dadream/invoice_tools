@@ -46,9 +46,45 @@ jobs:
         shell: pwsh
         run: rustup toolchain install 1.97.1 --component rustfmt --component clippy
 
-      - name: Run Windows quality gate
+      - name: Verify build storage capacity
         shell: pwsh
-        run: .\scripts\verify-windows.ps1 -MinimumFreeGiB 8
+        run: .\scripts\check-build-storage.ps1 -Mode Preflight -AutoCleanDev -MinimumFreeGiB 8 -EvidencePath artifacts/build-storage-preflight.validation.json
+
+      - name: Test build storage guard
+        shell: pwsh
+        run: .\scripts\test-build-storage-gate.ps1
+
+      - name: Scan repository secrets
+        shell: pwsh
+        run: .\scripts\scan-secrets.ps1
+
+      - name: Test secret scanner
+        shell: pwsh
+        run: .\scripts\test-secret-scan.ps1
+
+      - name: Verify synthetic fixture inventory
+        shell: pwsh
+        run: .\scripts\scan-private-fixtures.ps1 -SelfTest
+
+      - name: Test update manifest policy
+        shell: pwsh
+        run: .\scripts\test-update-manifest-config.ps1
+
+      - name: Test Concur build gate
+        shell: pwsh
+        run: .\scripts\test-concur-send-build-gate.ps1
+
+      - name: Verify third-party licenses
+        shell: pwsh
+        run: .\scripts\check-third-party-licenses.ps1
+
+      - name: Test release version tooling
+        shell: pwsh
+        run: .\scripts\test-release-version.ps1
+
+      - name: Run Windows compile and test gate
+        shell: pwsh
+        run: .\scripts\verify-windows.ps1 -MinimumFreeGiB 8 -SkipPrerequisiteChecks
 
       - name: Reclaim debug build space before release compilation
         shell: pwsh

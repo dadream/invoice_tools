@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
+    [switch]$SkipPrerequisiteChecks,
     [ValidateRange(-1, 1024)]
     [double]$MinimumFreeGiB = -1
 )
@@ -21,20 +22,22 @@ function Invoke-Checked {
 }
 
 $uiRoot = Join-Path $projectRoot "ui"
-& (Join-Path $PSScriptRoot "check-build-storage.ps1") `
-    -Mode Preflight `
-    -AutoCleanDev `
-    -MinimumFreeGiB $MinimumFreeGiB `
-    -EvidencePath "artifacts/build-storage-preflight.validation.json"
-& (Join-Path $PSScriptRoot "test-build-storage-gate.ps1")
-& (Join-Path $PSScriptRoot "scan-secrets.ps1")
-& (Join-Path $PSScriptRoot "test-secret-scan.ps1")
-& (Join-Path $PSScriptRoot "scan-private-fixtures.ps1") -SelfTest
-& (Join-Path $PSScriptRoot "test-update-manifest-config.ps1")
-& (Join-Path $PSScriptRoot "test-concur-send-build-gate.ps1")
-& (Join-Path $PSScriptRoot "check-third-party-licenses.ps1")
-& (Join-Path $PSScriptRoot "assert-release-version.ps1") | Out-Host
-& (Join-Path $PSScriptRoot "test-release-version.ps1")
+if (-not $SkipPrerequisiteChecks) {
+    & (Join-Path $PSScriptRoot "check-build-storage.ps1") `
+        -Mode Preflight `
+        -AutoCleanDev `
+        -MinimumFreeGiB $MinimumFreeGiB `
+        -EvidencePath "artifacts/build-storage-preflight.validation.json"
+    & (Join-Path $PSScriptRoot "test-build-storage-gate.ps1")
+    & (Join-Path $PSScriptRoot "scan-secrets.ps1")
+    & (Join-Path $PSScriptRoot "test-secret-scan.ps1")
+    & (Join-Path $PSScriptRoot "scan-private-fixtures.ps1") -SelfTest
+    & (Join-Path $PSScriptRoot "test-update-manifest-config.ps1")
+    & (Join-Path $PSScriptRoot "test-concur-send-build-gate.ps1")
+    & (Join-Path $PSScriptRoot "check-third-party-licenses.ps1")
+    & (Join-Path $PSScriptRoot "assert-release-version.ps1") | Out-Host
+    & (Join-Path $PSScriptRoot "test-release-version.ps1")
+}
 
 $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -ne $cargoCommand) {
