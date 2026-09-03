@@ -169,6 +169,47 @@ pub fn list_email_collection_tasks(
         .map_err(|error| map_store_error("读取邮件收集任务失败", error))
 }
 
+/// 删除本地收集任务及其受控材料目录，不会连接邮箱或修改服务器邮件。
+/// 已形成批次导入快照的任务由存储层拒绝删除，以保留来源追溯关系。
+#[tauri::command]
+pub fn delete_email_collection_task(task_id: i64, state: State<Mutex<AppState>>) -> AppResult<()> {
+    validate_positive_id(task_id, "邮件收集任务")?;
+    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+    let task = app_state
+        .ledger_db()?
+        .get_email_collection_task(task_id)
+        .map_err(|error| map_store_error("读取邮件收集任务失败", error))?;
+    if task.status == "collecting" {
+        return Err(AppError::validation(
+            "正在收集的任务不能删除，请等待完成或重启后再试",
+        ));
+    }
+    let staged_materials = stage_collection_task_materials(task_id)?;
+    if let Err(error) = app_state.ledger_db()?.delete_email_collection_task(task_id) {
+        if let Some((original, staged)) = staged_materials.as_ref() {
+            if let Err(restore_error) = fs::rename(staged, original) {
+                return Err(AppError::io(format!(
+                    "任务未删除，但恢复本地材料目录失败: {restore_error}"
+                )));
+            }
+        }
+        return Err(map_store_error("删除邮件收集任务失败", error));
+    }
+    drop(app_state);
+
+    if let Some((_, staged)) = staged_materials {
+        if let Err(error) = fs::remove_dir_all(&staged) {
+            tracing::warn!(
+                task_id,
+                path = %staged.display(),
+                %error,
+                "收集任务已删除，但暂存材料目录清理失败"
+            );
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_email_collection_task(
     task_id: i64,
@@ -1268,6 +1309,40 @@ fn collection_material_dir(task_id: i64) -> AppResult<PathBuf> {
         return Err(AppError::validation("邮件材料目录必须是普通本地目录"));
     }
     Ok(directory)
+}
+
+fn stage_collection_task_materials(task_id: i64) -> AppResult<Option<(PathBuf, PathBuf)>> {
+    let data_root = crate::paths::data_root()
+        .map_err(|error| AppError::io(format!("无法定位数据目录: {error}")))?;
+    let library = data_root.join("collection-files");
+    if !library.exists() {
+        return Ok(None);
+    }
+    let library_metadata = fs::symlink_metadata(&library)?;
+    if !library_metadata.is_dir() || is_reparse_point(&library_metadata) {
+        return Err(AppError::validation("邮件材料库必须是普通本地目录"));
+    }
+    let target = library.join(format!("task-{task_id}"));
+    if !target.exists() {
+        return Ok(None);
+    }
+    let target_metadata = fs::symlink_metadata(&target)?;
+    if !target_metadata.is_dir() || is_reparse_point(&target_metadata) {
+        return Err(AppError::validation(
+            "邮件收集任务材料目录不安全，未执行删除",
+        ));
+    }
+    let canonical_library =
+        fs::canonicalize(&library).map_err(|_| AppError::validation("邮件材料库路径无效"))?;
+    let canonical_target =
+        fs::canonicalize(&target).map_err(|_| AppError::validation("邮件收集任务材料路径无效"))?;
+    if canonical_target.parent() != Some(canonical_library.as_path()) {
+        return Err(AppError::validation("邮件收集任务材料目录超出受控范围"));
+    }
+    let staged =
+        canonical_library.join(format!(".deleting-task-{task_id}-{}", uuid::Uuid::new_v4()));
+    fs::rename(&canonical_target, &staged)?;
+    Ok(Some((canonical_target, staged)))
 }
 
 fn collection_library_bytes(root: &Path) -> AppResult<u64> {

@@ -55,6 +55,72 @@ fn test_single_trip_with_return() {
 }
 
 #[test]
+fn return_ticket_with_lower_input_index_still_closes_trip() {
+    // Real imports preserve a deterministic input order that is unrelated to travel
+    // time. The return ticket may therefore have a lower input index than the outbound.
+    let invoices = vec![
+        make_transport(
+            1,
+            TicketType::Rail,
+            d(6, 18),
+            10,
+            "太原南",
+            "北京丰台",
+            "228.0",
+        ),
+        make_transport(
+            2,
+            TicketType::Rail,
+            d(6, 15),
+            10,
+            "北京丰台",
+            "太原南",
+            "210.0",
+        ),
+    ];
+
+    let result = group_invoices(&invoices, &make_config(vec!["北京"])).unwrap();
+
+    assert_eq!(result.trips.len(), 1);
+    assert!(result
+        .ambiguities
+        .iter()
+        .all(|ambiguity| !matches!(ambiguity.kind, AmbiguityKind::NoReturnTicket)));
+}
+
+#[test]
+fn return_from_nearby_city_with_lower_input_index_closes_trip() {
+    let invoices = vec![
+        make_transport(
+            1,
+            TicketType::Rail,
+            d(6, 25),
+            13,
+            "邯郸东",
+            "北京西",
+            "209.0",
+        ),
+        make_transport(
+            2,
+            TicketType::Rail,
+            d(6, 24),
+            10,
+            "北京西",
+            "邢台东",
+            "185.0",
+        ),
+    ];
+
+    let result = group_invoices(&invoices, &make_config(vec!["北京"])).unwrap();
+
+    assert_eq!(result.trips.len(), 1);
+    assert!(result
+        .ambiguities
+        .iter()
+        .all(|ambiguity| !matches!(ambiguity.kind, AmbiguityKind::NoReturnTicket)));
+}
+
+#[test]
 fn test_home_city_station_library_resolves_qinghe_for_trip_boundaries() {
     let mut outbound = make_transport(1, TicketType::Rail, d(7, 3), 9, "清河", "上海虹桥", "553.0");
     outbound.travel_route = Some("清河站→上海虹桥站".to_string());
@@ -133,10 +199,10 @@ fn test_same_day_return_keeps_destination_without_hotel() {
         }
         other => panic!("期望同日往返识别为张家口出差，实际 {other:?}"),
     }
-    assert!(result
-        .ambiguities
-        .iter()
-        .all(|ambiguity| !matches!(&ambiguity.kind, AmbiguityKind::TransferStopover)));
+    assert!(result.ambiguities.iter().all(|ambiguity| !matches!(
+        &ambiguity.kind,
+        AmbiguityKind::TransferStopover | AmbiguityKind::TimeOverlap
+    )));
 }
 
 #[test]
@@ -501,6 +567,22 @@ fn test_weekend_between_trips_ambiguity() {
     );
 }
 
+#[test]
+fn explicit_return_home_before_weekend_keeps_trips_independent() {
+    let invoices = vec![
+        make_transport(1, TicketType::Rail, d(7, 4), 9, "北京", "上海", "553.0"),
+        make_transport(2, TicketType::Rail, d(7, 4), 18, "上海", "北京", "553.0"),
+        make_transport(3, TicketType::Flight, d(7, 7), 9, "北京", "深圳", "850.0"),
+    ];
+
+    let result = group_invoices(&invoices, &make_config(vec!["北京"])).unwrap();
+
+    assert!(result
+        .ambiguities
+        .iter()
+        .all(|ambiguity| !matches!(ambiguity.kind, AmbiguityKind::WeekendBetweenTrips)));
+}
+
 // ============================================================================
 // 歧义场景：中转停留 4-12 小时
 // ============================================================================
@@ -533,6 +615,15 @@ fn test_transfer_stopover_ambiguity() {
             .iter()
             .any(|amb| matches!(amb.kind, AmbiguityKind::TransferStopover)),
         "必须包含 TransferStopover 类型的歧义"
+    );
+    assert_eq!(
+        result
+            .ambiguities
+            .iter()
+            .filter(|ambiguity| matches!(ambiguity.kind, AmbiguityKind::TransferStopover))
+            .count(),
+        1,
+        "同一段中转判断只应向用户展示一次"
     );
 
     // 郑州应被判为中转点（不在城市链中）
@@ -797,4 +888,92 @@ fn out_of_town_hotel_creates_trip_when_company_bought_transport() {
         .ambiguities
         .iter()
         .any(|ambiguity| matches!(ambiguity.kind, AmbiguityKind::MissingTransportEvidence)));
+}
+
+#[test]
+fn courier_logistics_has_its_own_monthly_group() {
+    let courier = make_local(1, d(6, 8), "北京", TicketType::CourierLogistics, "15.0");
+    let meal = make_local(2, d(6, 8), "北京", TicketType::Meal, "80.0");
+    let result = group_invoices(&[courier, meal], &make_config(vec!["北京"])).unwrap();
+
+    assert_eq!(result.trips.len(), 2);
+    assert!(result.trips.iter().any(|trip| {
+        matches!(
+            trip.kind,
+            TripKind::CourierMonth {
+                year: 2026,
+                month: 6
+            }
+        ) && trip.invoice_ids == [0]
+    }));
+    assert!(result.trips.iter().any(|trip| {
+        matches!(
+            trip.kind,
+            TripKind::LocalMonth {
+                year: 2026,
+                month: 6
+            }
+        ) && trip.invoice_ids == [1]
+    }));
+}
+
+#[test]
+fn monthly_group_uses_itinerary_date_before_issue_date() {
+    let mut itinerary = make_local(1, d(6, 8), "北京", TicketType::CityTransport, "45.0");
+    itinerary.departure_time = d(5, 27).and_hms_opt(9, 0, 0);
+    let result = group_invoices(&[itinerary], &make_config(vec!["北京"])).unwrap();
+
+    assert!(matches!(
+        result.trips[0].kind,
+        TripKind::LocalMonth {
+            year: 2026,
+            month: 5
+        }
+    ));
+}
+
+#[test]
+fn return_from_nearby_city_keeps_primary_destination_and_matches_route_city_costs() {
+    let outbound = make_transport(1, TicketType::Rail, d(6, 24), 10, "北京", "邢台", "185.0");
+    let inbound = make_transport(2, TicketType::Rail, d(6, 25), 13, "邯郸", "北京", "209.0");
+    let handan_meal = make_local(3, d(6, 25), "邯郸", TicketType::Meal, "36.0");
+    let result = group_invoices(
+        &[outbound, inbound, handan_meal],
+        &make_config(vec!["北京"]),
+    )
+    .unwrap();
+
+    assert_eq!(result.trips.len(), 1);
+    assert_eq!(result.trips[0].invoice_ids, vec![0, 1, 2]);
+    assert!(matches!(
+        &result.trips[0].kind,
+        TripKind::BusinessTrip { cities, .. } if cities == &["邢台".to_string()]
+    ));
+}
+
+#[test]
+fn safe_merchant_district_hint_attaches_meal_to_trip() {
+    let outbound = make_transport(1, TicketType::Rail, d(6, 4), 8, "北京", "赤峰", "196.0");
+    let inbound = make_transport(2, TicketType::Rail, d(6, 5), 17, "赤峰", "北京", "243.0");
+    let mut meal = make_local(3, d(6, 4), "", TicketType::Meal, "80.0");
+    meal.city = None;
+    meal.seller_name = Some("松山区锡蒙餐厅".to_string());
+    let result = group_invoices(&[outbound, inbound, meal], &make_config(vec!["北京"])).unwrap();
+
+    assert_eq!(result.trips.len(), 1);
+    assert_eq!(result.trips[0].invoice_ids, vec![0, 1, 2]);
+}
+
+#[test]
+fn railway_onboard_meal_attaches_to_same_day_business_trip_without_city() {
+    let outbound = make_transport(1, TicketType::Rail, d(5, 13), 8, "北京", "张家口", "72.0");
+    let inbound = make_transport(2, TicketType::Rail, d(5, 13), 18, "张家口", "北京", "58.0");
+    let mut meal = make_local(3, d(5, 13), "", TicketType::Meal, "28.0");
+    meal.city = None;
+    meal.seller_name = Some("山西铁路文化旅游集团有限公司列车服务分公司".to_string());
+
+    let result = group_invoices(&[outbound, inbound, meal], &make_config(vec!["北京"])).unwrap();
+
+    assert_eq!(result.trips.len(), 1);
+    assert_eq!(result.trips[0].invoice_ids, vec![0, 1, 2]);
 }

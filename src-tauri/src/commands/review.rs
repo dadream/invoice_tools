@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Mutex;
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use invoice_grouping::types::{
-    Ambiguity, AmbiguityResolution, AmbiguityResolver, GroupingConfig, StationCityAlias, TripKind,
+    Ambiguity, AmbiguityKind, AmbiguityResolution, AmbiguityResolver, GroupingConfig,
+    StationCityAlias, TripKind,
 };
 use invoice_grouping::{group_invoices, GROUPING_RULE_VERSION};
 use invoice_parse::model::{
@@ -39,6 +40,12 @@ const DATETIME_LOCAL_FMT: &str = "%Y-%m-%dT%H:%M";
 const DATETIME_FMT: &str = "%Y-%m-%d %H:%M:%S";
 const MAX_PREVIEW_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_ATTACHED_DOCUMENT_BYTES: u64 = 100 * 1024 * 1024;
+type GroupingRecomputeInputs = (
+    Vec<ReportedInvoice>,
+    Vec<ExpenseItem>,
+    String,
+    Vec<StationCityAlias>,
+);
 
 #[cfg(target_os = "windows")]
 pub(crate) fn open_with_windows_default(path: &Path) -> AppResult<()> {
@@ -784,7 +791,7 @@ fn parse_expense_item_update(input: ExpenseItemReviewInput) -> AppResult<Expense
             .filter(|value| !value.is_empty())
     };
     Ok(ExpenseItemUpdate {
-        category_code: input.category_code,
+        category_code: input.category_code.trim().to_string(),
         category_confirmed: input.category_confirmed,
         transaction_date,
         transaction_date_confirmed: input.transaction_date_confirmed,
@@ -797,9 +804,9 @@ fn parse_expense_item_update(input: ExpenseItemReviewInput) -> AppResult<Expense
             province_code: optional(input.location.province_code),
             country_code: optional(input.location.country_code),
         },
-        payment_method: input.payment_method,
+        payment_method: input.payment_method.trim().to_string(),
         gross_amount,
-        currency_code: input.currency_code,
+        currency_code: input.currency_code.trim().to_ascii_uppercase(),
         tax_details,
     })
 }
@@ -861,6 +868,18 @@ fn parse_ticket_type(ticket_type: TicketType) -> ParseTicketType {
     }
 }
 
+fn parse_expense_category_code(category_code: &str) -> ParseTicketType {
+    match category_code {
+        "rail" => ParseTicketType::Rail,
+        "flight" => ParseTicketType::Flight,
+        "hotel" => ParseTicketType::Hotel,
+        "city_transport" => ParseTicketType::CityTransport,
+        "meal" => ParseTicketType::Meal,
+        "courier_logistics" => ParseTicketType::CourierLogistics,
+        _ => ParseTicketType::Other,
+    }
+}
+
 fn grouping_source_invoice(invoice: &ReportedInvoice) -> ParsedInvoice {
     ParsedInvoice {
         invoice_number: invoice.invoice_number.clone(),
@@ -895,6 +914,9 @@ fn regroup_kind(kind: &TripKind) -> (String, String) {
         }
         TripKind::LocalMonth { month, .. } => {
             ("local_month".to_string(), format!("{month} 月市内消费"))
+        }
+        TripKind::CourierMonth { month, .. } => {
+            ("courier_month".to_string(), format!("{month} 月快递物流"))
         }
         TripKind::Excluded => ("excluded".to_string(), "已排除票据".to_string()),
         TripKind::NeedsReview { reason } => {
@@ -1088,6 +1110,70 @@ pub fn assign_pending_invoice_document(
         .ledger_db()?
         .assign_pending_invoice_document_with_audit(pending_document_id, expense_item_id, &role)
         .map_err(|error| map_store_error("挂载批次材料", error))
+}
+
+#[tauri::command]
+pub async fn convert_didi_itinerary_to_expense(
+    pending_document_id: i64,
+    state: State<'_, Mutex<AppState>>,
+) -> AppResult<ExpenseItem> {
+    let pending = {
+        let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+        app_state
+            .ledger_db()?
+            .get_pending_invoice_document(pending_document_id)
+            .map_err(|error| map_store_error("读取滴滴行程单", error))?
+            .ok_or_else(|| AppError::validation("待处理材料不存在"))?
+    };
+    if pending.status != "pending" || pending.proposed_role != "itinerary" {
+        return Err(AppError::validation("该材料不是可转换的待处理行程单"));
+    }
+
+    let path = PathBuf::from(&pending.file_path);
+    let facts =
+        tauri::async_runtime::spawn_blocking(move || supporting_facts_from_managed_file(&path))
+            .await
+            .map_err(|_| AppError::internal("滴滴行程单分析线程异常"))?
+            .ok_or_else(|| AppError::validation("无法从该材料提取可靠的行程金额和日期"))?;
+    if facts.kind != "ride_hailing_itinerary" || facts.provider != "didi" {
+        return Err(AppError::validation(
+            "仅支持将明确识别的滴滴出行行程单转为费用",
+        ));
+    }
+    if facts.total_amount <= Decimal::ZERO {
+        return Err(AppError::validation("滴滴行程单金额无效，不能创建费用"));
+    }
+    let start_date = facts
+        .start_date
+        .ok_or_else(|| AppError::validation("滴滴行程单缺少可靠的行程开始日期"))?;
+    let end_date = facts.end_date.unwrap_or(start_date);
+    let now = Utc::now().naive_utc();
+    let invoice = ReportedInvoice {
+        id: 0,
+        batch_id: pending.batch_id,
+        // 行程单不是税务发票，不伪造发票号码。
+        invoice_number: String::new(),
+        issue_date: start_date,
+        amount: facts.total_amount,
+        tax_amount: None,
+        buyer_name: None,
+        seller_name: Some("滴滴出行".to_string()),
+        ticket_type: TicketType::CityTransport,
+        city: facts.cities.first().cloned(),
+        departure_time: start_date.and_hms_opt(0, 0, 0),
+        checkin_date: None,
+        file_path: pending.file_path,
+        created_at: now,
+        updated_at: now,
+        verification_result: None,
+        is_duplicate: false,
+        duplicate_reason: None,
+    };
+    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+    app_state
+        .ledger_db()?
+        .convert_pending_itinerary_to_expense(pending_document_id, &invoice, end_date)
+        .map_err(|error| map_store_error("从滴滴行程单创建费用", error))
 }
 
 #[tauri::command]
@@ -1648,12 +1734,15 @@ pub fn set_group_transport_evidence(
 fn load_grouping_recompute_inputs(
     db: &LedgerDb,
     batch_id: i64,
-) -> AppResult<(Vec<ReportedInvoice>, String, Vec<StationCityAlias>)> {
-    let included_ids = db
+) -> AppResult<GroupingRecomputeInputs> {
+    let expenses = db
         .list_expense_items_by_batch(batch_id)
         .map_err(|error| map_store_error("读取费用清单", error))?
         .into_iter()
         .filter(|expense| expense.inclusion_status == "included")
+        .collect::<Vec<_>>();
+    let included_ids = expenses
+        .iter()
         .map(|expense| expense.primary_invoice_id)
         .collect::<HashSet<_>>();
     let invoices = db
@@ -1672,7 +1761,7 @@ fn load_grouping_recompute_inputs(
         .ok_or_else(|| AppError::validation("请先在设置中填写常驻城市"))?;
     let home_station_aliases =
         super::settings::load_effective_home_station_aliases(db, &home_city)?;
-    Ok((invoices, home_city, home_station_aliases))
+    Ok((invoices, expenses, home_city, home_station_aliases))
 }
 
 /// Re-read every managed primary invoice without mutating the ledger, compare the automatic
@@ -1728,7 +1817,7 @@ pub fn audit_batch_source_rebuild_for_ledger(
         if expense.inclusion_status != "included" || expense.category_source == "manual_review" {
             manual_decision_expense_count += 1;
         }
-        let parsed = match super::invoice::do_parse(
+        let mut parsed = match super::invoice::do_parse(
             &invoice.file_path,
             Some(invoice.ticket_type.to_str()),
         ) {
@@ -1759,6 +1848,9 @@ pub fn audit_batch_source_rebuild_for_ledger(
         if expense.category_source != "manual_review" && source_category != expense.category_code {
             automatic_category_mismatch_invoice_ids.push(invoice.id);
         }
+        // 费用清单是归组使用的稳定产品模型。人工确认的分类也是可审计、
+        // 可重放的用户决定，重建时必须应用，不能退回 reported_invoices 的旧类型。
+        parsed.ticket_type = parse_expense_category_code(&expense.category_code);
         reparsed_invoices.push((invoice.id, parsed));
     }
 
@@ -1909,6 +2001,7 @@ pub fn audit_batch_source_rebuild_for_ledger(
 fn build_grouping_recompute(
     batch_id: i64,
     invoices: Vec<ReportedInvoice>,
+    expenses: Vec<ExpenseItem>,
     home_city: String,
     home_station_aliases: Vec<StationCityAlias>,
     preserved_evidence: HashMap<GroupEvidenceKey, String>,
@@ -1924,11 +2017,26 @@ fn build_grouping_recompute(
     }
 
     let mut unresolved_transport_count = 0usize;
-    let parsed = invoices
+    let expense_categories = expenses
+        .iter()
+        .map(|expense| {
+            (
+                expense.primary_invoice_id,
+                parse_expense_category_code(&expense.category_code),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let mut parsed_with_ids = invoices
         .iter()
         .map(|invoice| {
             let mut fact = grouping_source_invoice(invoice);
-            let is_transport = matches!(invoice.ticket_type, TicketType::Rail | TicketType::Flight);
+            if let Some(category) = expense_categories.get(&invoice.id).copied() {
+                fact.ticket_type = category;
+            }
+            let is_transport = matches!(
+                fact.ticket_type,
+                ParseTicketType::Rail | ParseTicketType::Flight
+            );
             if is_transport || fact.city.is_none() {
                 if let Ok(reparsed) =
                     super::invoice::do_parse(&invoice.file_path, Some(invoice.ticket_type.to_str()))
@@ -1953,8 +2061,15 @@ fn build_grouping_recompute(
                 fact.parse_level = ParseLevel::L4;
                 fact.confidence = 0.0;
             }
-            fact
+            (invoice.id, fact)
         })
+        .collect::<Vec<_>>();
+    // 行程单和酒店明细提供的实际日期、城市属于可重复读取的源文件事实。
+    // 每次重新归组都从已挂载材料恢复这些事实，不能依赖上一次写入数据库的结果。
+    enrich_reparsed_invoices_from_attached_documents(&mut parsed_with_ids, &expenses);
+    let parsed = parsed_with_ids
+        .into_iter()
+        .map(|(_, invoice)| invoice)
         .collect::<Vec<_>>();
     let grouped = group_invoices(
         &parsed,
@@ -1997,6 +2112,18 @@ fn build_grouping_recompute(
                         parsed[*input_index].transport_document_kind,
                         TransportDocumentKind::Refund | TransportDocumentKind::Change
                     )
+                })
+                .collect::<Vec<_>>();
+            let transport_routes = trip
+                .invoice_ids
+                .iter()
+                .filter_map(|input_index| {
+                    parsed[*input_index].travel_route.as_ref().map(|route| {
+                        serde_json::json!({
+                            "inputIndex": input_index,
+                            "route": route,
+                        })
+                    })
                 })
                 .collect::<Vec<_>>();
             let automatic_transport_evidence_status = if kind == "business_trip" {
@@ -2043,6 +2170,7 @@ fn build_grouping_recompute(
                     "transportEvidenceStatus": transport_evidence_status,
                     "activeTransportInputIndexes": active_transport_input_indexes,
                     "transportAdjustmentInputIndexes": adjustment_input_indexes,
+                    "transportRoutes": transport_routes,
                 })
                 .to_string(),
                 members,
@@ -2050,13 +2178,50 @@ fn build_grouping_recompute(
         })
         .collect::<Vec<_>>();
     let group_count = groups.len();
+    let accepted_without_personal_transport = groups
+        .iter()
+        .filter(|group| {
+            serde_json::from_str::<serde_json::Value>(&group.evidence_json)
+                .ok()
+                .and_then(|evidence| {
+                    evidence
+                        .get("transportEvidenceStatus")
+                        .and_then(serde_json::Value::as_str)
+                        .map(|status| matches!(status, "company_paid" | "not_required"))
+                })
+                .unwrap_or(false)
+        })
+        .map(|group| {
+            group
+                .members
+                .iter()
+                .map(|member| member.input_index)
+                .collect::<HashSet<_>>()
+        })
+        .collect::<Vec<_>>();
+    let effective_ambiguities = grouped
+        .ambiguities
+        .iter()
+        .filter(|ambiguity| {
+            !matches!(ambiguity.kind, AmbiguityKind::MissingTransportEvidence)
+                || !accepted_without_personal_transport
+                    .iter()
+                    .any(|member_indexes| {
+                        !ambiguity.involved_invoice_ids.is_empty()
+                            && ambiguity
+                                .involved_invoice_ids
+                                .iter()
+                                .all(|input_index| member_indexes.contains(input_index))
+                    })
+        })
+        .collect::<Vec<_>>();
     let grouping = NewBatchGrouping {
         batch_id,
         rule_version: format!("{GROUPING_RULE_VERSION}-route-recompute"),
         home_cities_json: serde_json::to_string(&vec![home_city])
             .map_err(|_| AppError::internal("序列化常驻城市失败"))?,
         overall_confidence: grouped.overall_confidence,
-        ambiguities_json: serde_json::to_string(&grouped.ambiguities)
+        ambiguities_json: serde_json::to_string(&effective_ambiguities)
             .map_err(|_| AppError::internal("序列化归组待确认项失败"))?,
         groups,
     };
@@ -2078,13 +2243,15 @@ pub fn recompute_batch_grouping_for_ledger(
     db: &LedgerDb,
     batch_id: i64,
 ) -> AppResult<GroupingRecomputeResult> {
-    let (invoices, home_city, home_station_aliases) = load_grouping_recompute_inputs(db, batch_id)?;
+    let (invoices, expenses, home_city, home_station_aliases) =
+        load_grouping_recompute_inputs(db, batch_id)?;
     let existing_grouping = db
         .get_batch_grouping(batch_id)
         .map_err(|error| map_store_error("读取现有归组证据", error))?;
     let (grouping, result) = build_grouping_recompute(
         batch_id,
         invoices,
+        expenses,
         home_city,
         home_station_aliases,
         preserved_transport_evidence(existing_grouping.as_ref()),
@@ -2099,16 +2266,17 @@ pub async fn recompute_batch_grouping(
     batch_id: i64,
     state: State<'_, Mutex<AppState>>,
 ) -> AppResult<GroupingRecomputeResult> {
-    let (invoices, home_city, home_station_aliases, preserved_evidence) = {
+    let (invoices, expenses, home_city, home_station_aliases, preserved_evidence) = {
         let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
         let db = app_state.ledger_db()?;
-        let (invoices, home_city, home_station_aliases) =
+        let (invoices, expenses, home_city, home_station_aliases) =
             load_grouping_recompute_inputs(db, batch_id)?;
         let existing_grouping = db
             .get_batch_grouping(batch_id)
             .map_err(|error| map_store_error("读取现有归组证据", error))?;
         (
             invoices,
+            expenses,
             home_city,
             home_station_aliases,
             preserved_transport_evidence(existing_grouping.as_ref()),
@@ -2118,6 +2286,7 @@ pub async fn recompute_batch_grouping(
         build_grouping_recompute(
             batch_id,
             invoices,
+            expenses,
             home_city,
             home_station_aliases,
             preserved_evidence,
@@ -2212,9 +2381,6 @@ pub fn complete_batch_review(
         .map_err(|error| match error {
             StoreError::Validation(message) if message.contains("no reimbursable") => {
                 AppError::validation("批次中没有可计入报销的费用")
-            }
-            StoreError::Validation(message) if message.contains("invalid signature") => {
-                AppError::validation("仍有计入报销的发票签章校验失败")
             }
             StoreError::Validation(message) if message.contains("unconfirmed transaction date") => {
                 AppError::validation("仍有计入报销的费用未确认实际发生日期")

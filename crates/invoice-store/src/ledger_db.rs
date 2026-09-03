@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// Current on-disk ledger schema. Backup/import metadata must use this same value.
-pub const LEDGER_SCHEMA_VERSION: i32 = 18;
+pub const LEDGER_SCHEMA_VERSION: i32 = 19;
 
 /// ledger.db 管理器
 pub struct LedgerDb {
@@ -1245,6 +1245,42 @@ impl LedgerDb {
                  PRAGMA user_version = 18;",
             )?;
             version = 18;
+        }
+
+        if version == 18 {
+            // PDF 打印合订本与 Excel、Concur 一样绑定冻结审核版本，并在同一
+            // 交付历史中记录。SQLite 不能直接修改 CHECK 约束，因此保留原记录
+            // 重建表；没有其他表引用 delivery_tasks，可安全进行本次迁移。
+            self.conn.execute_batch(
+                "ALTER TABLE delivery_tasks RENAME TO delivery_tasks_v18;
+                 CREATE TABLE delivery_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id INTEGER NOT NULL,
+                    review_snapshot_id INTEGER NOT NULL,
+                    kind TEXT NOT NULL CHECK(kind IN ('excel', 'pdf', 'concur')),
+                    status TEXT NOT NULL DEFAULT 'pending'
+                        CHECK(status IN ('pending', 'running', 'succeeded', 'failed')),
+                    output_path TEXT,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    completed_at TEXT,
+                    UNIQUE(review_snapshot_id, kind),
+                    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE,
+                    FOREIGN KEY (review_snapshot_id) REFERENCES batch_review_snapshots(id) ON DELETE RESTRICT
+                 );
+                 INSERT INTO delivery_tasks (
+                    id, batch_id, review_snapshot_id, kind, status, output_path,
+                    last_error, created_at, updated_at, completed_at
+                 ) SELECT id, batch_id, review_snapshot_id, kind, status, output_path,
+                          last_error, created_at, updated_at, completed_at
+                   FROM delivery_tasks_v18;
+                 DROP TABLE delivery_tasks_v18;
+                 CREATE INDEX idx_delivery_tasks_batch
+                    ON delivery_tasks(batch_id, id DESC);
+                 PRAGMA user_version = 19;",
+            )?;
+            version = 19;
         }
 
         debug_assert_eq!(version, LEDGER_SCHEMA_VERSION);
@@ -3355,11 +3391,6 @@ impl LedgerDb {
                 if changed != 1 {
                     return Err(StoreError::NotFound(format!("Invoice {invoice_id}")));
                 }
-                // 城市、日期和类型变化会使原确定性归组依据过期，必须再次人工确认。
-                transaction.execute(
-                    "UPDATE invoice_groups SET requires_review = 1 WHERE batch_id = ?1",
-                    params![batch_id],
-                )?;
                 Ok(())
             },
         )
@@ -3802,6 +3833,51 @@ impl LedgerDb {
                      WHERE id = ?1 AND batch_id = ?2",
                     params![group_id, batch_id, updated],
                 )?;
+                if matches!(status, "company_paid" | "not_required") {
+                    let member_indexes = transaction
+                        .prepare(
+                            "SELECT input_index FROM invoice_group_members WHERE group_id = ?1",
+                        )?
+                        .query_map(params![group_id], |row| row.get::<_, i64>(0))?
+                        .collect::<Result<HashSet<_>, _>>()?;
+                    let ambiguity_raw: String = transaction.query_row(
+                        "SELECT ambiguities_json FROM batch_grouping WHERE batch_id = ?1",
+                        params![batch_id],
+                        |row| row.get(0),
+                    )?;
+                    let mut ambiguity_value: serde_json::Value =
+                        serde_json::from_str(&ambiguity_raw).map_err(|_| {
+                            StoreError::Validation("grouping ambiguities are invalid".to_string())
+                        })?;
+                    let ambiguity_list = ambiguity_value.as_array_mut().ok_or_else(|| {
+                        StoreError::Validation("grouping ambiguities are invalid".to_string())
+                    })?;
+                    ambiguity_list.retain(|ambiguity| {
+                        let is_missing_transport =
+                            ambiguity.get("kind").and_then(serde_json::Value::as_str)
+                                == Some("MissingTransportEvidence");
+                        let belongs_to_group = ambiguity
+                            .get("involved_invoice_ids")
+                            .and_then(serde_json::Value::as_array)
+                            .is_some_and(|indexes| {
+                                !indexes.is_empty()
+                                    && indexes.iter().all(|index| {
+                                        index
+                                            .as_i64()
+                                            .is_some_and(|value| member_indexes.contains(&value))
+                                    })
+                            });
+                        !(is_missing_transport && belongs_to_group)
+                    });
+                    let updated_ambiguities =
+                        serde_json::to_string(&ambiguity_value).map_err(|error| {
+                            StoreError::Internal(format!("serialize grouping ambiguities: {error}"))
+                        })?;
+                    transaction.execute(
+                        "UPDATE batch_grouping SET ambiguities_json = ?2 WHERE batch_id = ?1",
+                        params![batch_id, updated_ambiguities],
+                    )?;
+                }
                 Ok(())
             },
         )
@@ -3911,11 +3987,12 @@ impl LedgerDb {
                         .get("involved_invoice_ids")
                         .and_then(serde_json::Value::as_array)
                         .is_some_and(|indexes| {
-                            indexes.iter().any(|index| {
-                                index
-                                    .as_i64()
-                                    .is_some_and(|value| member_indexes.contains(&value))
-                            })
+                            !indexes.is_empty()
+                                && indexes.iter().all(|index| {
+                                    index
+                                        .as_i64()
+                                        .is_some_and(|value| member_indexes.contains(&value))
+                                })
                         })
                 });
                 let updated_ambiguities =
@@ -4738,6 +4815,52 @@ impl LedgerDb {
             .query_map([], Self::parse_email_collection_task_row)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(tasks)
+    }
+
+    /// 删除尚未被报销批次引用的本地邮件收集任务。
+    ///
+    /// 邮件、附件和审核快照通过外键级联删除；一旦任务形成批次导入快照，
+    /// 必须保留来源台账，避免破坏已导入数据的可追溯关系。
+    pub fn delete_email_collection_task(&self, task_id: i64) -> StoreResult<()> {
+        let transaction = self.conn.unchecked_transaction()?;
+        let status: Option<String> = transaction
+            .query_row(
+                "SELECT status FROM email_collection_tasks WHERE id = ?1",
+                params![task_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(status) = status else {
+            return Err(StoreError::NotFound(format!(
+                "Email collection task {task_id}"
+            )));
+        };
+        if status == "collecting" {
+            return Err(StoreError::Validation(
+                "正在收集的任务不能删除，请等待完成或重启后再试".to_string(),
+            ));
+        }
+        let import_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM batch_collection_imports WHERE task_id = ?1",
+            params![task_id],
+            |row| row.get(0),
+        )?;
+        if import_count > 0 {
+            return Err(StoreError::Validation(
+                "该收集任务已导入报销批次，为保护来源记录不能删除".to_string(),
+            ));
+        }
+        let changed = transaction.execute(
+            "DELETE FROM email_collection_tasks WHERE id = ?1",
+            params![task_id],
+        )?;
+        if changed != 1 {
+            return Err(StoreError::NotFound(format!(
+                "Email collection task {task_id}"
+            )));
+        }
+        transaction.commit()?;
+        Ok(())
     }
 
     pub fn mark_email_collection_started(
@@ -6138,27 +6261,51 @@ impl LedgerDb {
     fn validate_expense_item_update(update: &ExpenseItemUpdate) -> StoreResult<()> {
         let valid_category = matches!(
             update.category_code.as_str(),
-            "rail" | "flight" | "hotel" | "city_transport" | "meal" | "other"
+            "rail" | "flight" | "hotel" | "city_transport" | "meal" | "courier_logistics" | "other"
         );
         let valid_payment = matches!(
             update.payment_method.as_str(),
             "unknown" | "personal_card" | "corporate_card" | "cash" | "other"
         );
         let currency = update.currency_code.trim().to_ascii_uppercase();
-        if !valid_category
-            || !valid_payment
-            || update.gross_amount < Decimal::ZERO
-            || currency.len() != 3
-            || !currency.chars().all(|value| value.is_ascii_uppercase())
-            || update.description.chars().count() > 500
-            || update.counterparty_name.chars().count() > 200
-            || update
-                .tax_details
-                .iter()
-                .any(|tax| tax.amount < Decimal::ZERO || tax.amount > update.gross_amount)
+        if !valid_category {
+            return Err(StoreError::Validation("费用类型不受支持".to_string()));
+        }
+        if !valid_payment {
+            return Err(StoreError::Validation("付款方式不受支持".to_string()));
+        }
+        if update.gross_amount < Decimal::ZERO {
+            return Err(StoreError::Validation("实际报销金额不能小于 0".to_string()));
+        }
+        if currency.len() != 3 || !currency.chars().all(|value| value.is_ascii_uppercase()) {
+            return Err(StoreError::Validation(
+                "币种必须是 3 位大写字母".to_string(),
+            ));
+        }
+        if update.description.chars().count() > 500 {
+            return Err(StoreError::Validation(
+                "业务说明不能超过 500 个字符".to_string(),
+            ));
+        }
+        if update.counterparty_name.chars().count() > 200 {
+            return Err(StoreError::Validation(
+                "交易方名称不能超过 200 个字符".to_string(),
+            ));
+        }
+        if update
+            .tax_details
+            .iter()
+            .any(|tax| tax.amount < Decimal::ZERO)
+        {
+            return Err(StoreError::Validation("费用税额不能小于 0".to_string()));
+        }
+        if update
+            .tax_details
+            .iter()
+            .any(|tax| tax.amount > update.gross_amount)
         {
             return Err(StoreError::Validation(
-                "invalid stable expense fields".to_string(),
+                "费用税额不能大于实际报销金额".to_string(),
             ));
         }
         Ok(())
@@ -6679,7 +6826,6 @@ impl LedgerDb {
         Self::update_batch_stats_for_connection(&transaction, batch_id)?;
 
         let content = Self::review_snapshot(&transaction, batch_id)?;
-        let reimbursable = Self::reimbursable_snapshot_invoices(&content);
         let included_expenses = Self::included_snapshot_expenses(&content);
         if included_expenses.is_empty() {
             return Err(StoreError::Validation(
@@ -6713,14 +6859,6 @@ impl LedgerDb {
         }
         // 邮件来源审核属于独立收集任务生命周期。批次审核只校验已经导入的
         // 发票、费用、配套材料和归组，不再被旧版批次内邮件台账阻断。
-        if reimbursable
-            .iter()
-            .any(|invoice| invoice.verification_result.as_deref() == Some("invalid"))
-        {
-            return Err(StoreError::Validation(
-                "batch contains an included invoice with invalid signature".to_string(),
-            ));
-        }
         if content.grouping.as_ref().is_some_and(|grouping| {
             serde_json::from_str::<Vec<serde_json::Value>>(&grouping.ambiguities_json)
                 .map(|ambiguities| !ambiguities.is_empty())
@@ -6907,7 +7045,7 @@ impl LedgerDb {
     }
 
     pub fn start_delivery_task(&self, batch_id: i64, kind: &str) -> StoreResult<DeliveryTask> {
-        if !matches!(kind, "excel" | "concur") {
+        if !matches!(kind, "excel" | "pdf" | "concur") {
             return Err(StoreError::Validation("invalid delivery kind".to_string()));
         }
         let snapshot = self
@@ -7064,12 +7202,6 @@ impl LedgerDb {
                         )?;
                     }
                 }
-                if changed > 0 {
-                    transaction.execute(
-                        "UPDATE invoice_groups SET requires_review = 1 WHERE batch_id = ?1",
-                        params![batch_id],
-                    )?;
-                }
                 Ok(changed)
             },
         )
@@ -7163,11 +7295,6 @@ impl LedgerDb {
                         "ExpenseItem {expense_item_id}"
                     )));
                 }
-                // 实际发生日期、类别和地点是归组依据；修改后要求重新确认归组。
-                transaction.execute(
-                    "UPDATE invoice_groups SET requires_review = 1 WHERE batch_id = ?1",
-                    params![batch_id],
-                )?;
                 Ok(())
             },
         )?;
@@ -7236,10 +7363,6 @@ impl LedgerDb {
                         Self::now_text(),
                         batch_id,
                     ],
-                )?;
-                transaction.execute(
-                    "UPDATE invoice_groups SET requires_review = 1 WHERE batch_id = ?1",
-                    params![batch_id],
                 )?;
                 Ok(())
             },
@@ -7333,6 +7456,211 @@ impl LedgerDb {
             .into_iter()
             .find(|document| document.id == document_id)
             .ok_or_else(|| StoreError::NotFound(format!("InvoiceDocument {document_id}")))
+    }
+
+    /// Convert a user-confirmed Didi itinerary into an expense aggregate when the tax invoice
+    /// exists only on paper. The itinerary remains an itinerary attachment; no electronic main
+    /// invoice is invented. If grouping already exists, a review-required group is appended so
+    /// the new expense can never silently bypass grouping review.
+    pub fn convert_pending_itinerary_to_expense(
+        &self,
+        pending_document_id: i64,
+        invoice: &ReportedInvoice,
+        itinerary_end_date: NaiveDate,
+    ) -> StoreResult<ExpenseItem> {
+        if invoice.ticket_type != TicketType::CityTransport
+            || invoice.amount <= Decimal::ZERO
+            || !invoice.invoice_number.trim().is_empty()
+            || itinerary_end_date < invoice.issue_date
+        {
+            return Err(StoreError::Validation(
+                "invalid itinerary expense fields".to_string(),
+            ));
+        }
+
+        let transaction = self.conn.unchecked_transaction()?;
+        Self::ensure_batch_draft(&transaction, invoice.batch_id)?;
+        let pending = transaction
+            .query_row(
+                "SELECT id, batch_id, proposed_role, file_path, original_name,
+                        mime_type, sha256, detection_reason, status,
+                        assigned_expense_item_id, created_at, updated_at
+                 FROM pending_invoice_documents WHERE id = ?1",
+                params![pending_document_id],
+                Self::parse_pending_invoice_document_row,
+            )
+            .optional()?
+            .ok_or_else(|| {
+                StoreError::NotFound(format!("PendingInvoiceDocument {pending_document_id}"))
+            })?;
+        if pending.batch_id != invoice.batch_id
+            || pending.status != "pending"
+            || pending.proposed_role != "itinerary"
+            || pending.file_path != invoice.file_path
+        {
+            return Err(StoreError::Validation(
+                "pending itinerary is not available for conversion".to_string(),
+            ));
+        }
+        if let Some(sha256) = pending.sha256.as_deref().filter(|value| !value.is_empty()) {
+            let already_used: i64 = transaction.query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM invoice_documents document
+                    JOIN expense_items expense ON expense.id = document.expense_item_id
+                    WHERE expense.batch_id = ?1 AND document.sha256 = ?2
+                 )",
+                params![invoice.batch_id, sha256],
+                |row| row.get(0),
+            )?;
+            if already_used != 0 {
+                return Err(StoreError::Validation(
+                    "itinerary is already attached to an expense".to_string(),
+                ));
+            }
+        }
+
+        let now = Self::now_text();
+        transaction.execute(
+            "INSERT INTO reported_invoices (
+                batch_id, invoice_number, issue_date, amount, tax_amount,
+                buyer_name, seller_name, ticket_type, city, departure_time, checkin_date,
+                file_path, created_at, updated_at, verification_result,
+                is_duplicate, duplicate_reason
+             ) VALUES (?1, '', ?2, ?3, NULL, NULL, ?4, 'city_transport', ?5, ?6, NULL,
+                       ?7, ?8, ?8, NULL, 0, NULL)",
+            params![
+                invoice.batch_id,
+                invoice.issue_date.format("%Y-%m-%d").to_string(),
+                invoice.amount.to_string(),
+                invoice.seller_name,
+                invoice.city,
+                invoice
+                    .departure_time
+                    .as_ref()
+                    .map(|value| value.format("%Y-%m-%d %H:%M:%S").to_string()),
+                invoice.file_path,
+                now,
+            ],
+        )?;
+        let invoice_id = transaction.last_insert_rowid();
+        let expense_item_id = Self::ensure_expense_item_for_invoice(&transaction, invoice_id)?;
+        let provenance_json = serde_json::json!({
+            "category_code": "supporting_document.didi_itinerary",
+            "transaction_date": "itinerary.start_date",
+            "counterparty_name": "itinerary.provider",
+            "location": "itinerary.city",
+            "gross_amount": "itinerary.total_amount",
+            "currency_code": "default.CNY",
+            "main_invoice": "paper_not_imported"
+        })
+        .to_string();
+        transaction.execute(
+            "UPDATE expense_items
+             SET category_code = 'city_transport',
+                 category_source = 'supporting_document.didi_itinerary',
+                 category_confirmed = 1,
+                 transaction_date = ?2,
+                 transaction_date_source = 'itinerary.start_date',
+                 transaction_date_confirmed = 1,
+                 description = '滴滴出行行程单（纸质发票未导入）',
+                 counterparty_name = '滴滴出行',
+                 provenance_json = ?3,
+                 updated_at = ?4
+             WHERE id = ?1",
+            params![
+                expense_item_id,
+                invoice.issue_date.format("%Y-%m-%d").to_string(),
+                provenance_json,
+                now,
+            ],
+        )?;
+        let document_changed = transaction.execute(
+            "UPDATE invoice_documents
+             SET source_pending_document_id = ?3, role = 'itinerary',
+                 original_name = ?4, mime_type = ?5, sha256 = ?6
+             WHERE batch_id = ?1 AND expense_item_id = ?2
+               AND source_invoice_id = ?7 AND role = 'main_invoice'",
+            params![
+                invoice.batch_id,
+                expense_item_id,
+                pending.id,
+                pending.original_name,
+                pending.mime_type,
+                pending.sha256,
+                invoice_id,
+            ],
+        )?;
+        if document_changed != 1 {
+            return Err(StoreError::Validation(
+                "itinerary expense attachment was not created".to_string(),
+            ));
+        }
+        let pending_changed = transaction.execute(
+            "UPDATE pending_invoice_documents
+             SET status = 'attached', assigned_expense_item_id = ?2, updated_at = ?3
+             WHERE id = ?1 AND status = 'pending'",
+            params![pending.id, expense_item_id, now],
+        )?;
+        if pending_changed != 1 {
+            return Err(StoreError::Validation(
+                "pending itinerary changed concurrently".to_string(),
+            ));
+        }
+
+        let has_grouping: i64 = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM batch_grouping WHERE batch_id = ?1)",
+            params![invoice.batch_id],
+            |row| row.get(0),
+        )?;
+        if has_grouping != 0 {
+            let group_index: i64 = transaction.query_row(
+                "SELECT COALESCE(MAX(group_index), -1) + 1
+                 FROM invoice_groups WHERE batch_id = ?1",
+                params![invoice.batch_id],
+                |row| row.get(0),
+            )?;
+            let title = format!(
+                "待归组 · 滴滴出行 {}",
+                invoice.issue_date.format("%Y-%m-%d")
+            );
+            transaction.execute(
+                "INSERT INTO invoice_groups (
+                    batch_id, group_index, kind, title, start_date, end_date,
+                    confidence, requires_review, evidence_json
+                 ) VALUES (?1, ?2, 'needs_review', ?3, ?4, ?5, 0.5, 1, ?6)",
+                params![
+                    invoice.batch_id,
+                    group_index,
+                    title,
+                    invoice.issue_date.format("%Y-%m-%d").to_string(),
+                    itinerary_end_date.format("%Y-%m-%d").to_string(),
+                    serde_json::json!({"source": "didi_itinerary_conversion"}).to_string(),
+                ],
+            )?;
+            let group_id = transaction.last_insert_rowid();
+            let input_index: i64 = transaction.query_row(
+                "SELECT COALESCE(MAX(member.input_index), -1) + 1
+                 FROM invoice_group_members member
+                 JOIN invoice_groups grouped ON grouped.id = member.group_id
+                 WHERE grouped.batch_id = ?1",
+                params![invoice.batch_id],
+                |row| row.get(0),
+            )?;
+            transaction.execute(
+                "INSERT INTO invoice_group_members (group_id, invoice_id, input_index, match_reason)
+                 VALUES (?1, ?2, ?3, '滴滴行程单转费用后待确认归组')",
+                params![group_id, invoice_id, input_index],
+            )?;
+            transaction.execute(
+                "UPDATE expense_items SET trip_group_id = ?2, updated_at = ?3 WHERE id = ?1",
+                params![expense_item_id, group_id, now],
+            )?;
+        }
+
+        Self::update_batch_stats_for_connection(&transaction, invoice.batch_id)?;
+        transaction.commit()?;
+        self.get_expense_item(expense_item_id)?
+            .ok_or_else(|| StoreError::NotFound(format!("ExpenseItem {expense_item_id}")))
     }
 
     pub fn ignore_pending_invoice_document_with_audit(
@@ -10374,6 +10702,52 @@ mod tests {
     }
 
     #[test]
+    fn v19_migration_preserves_delivery_history_and_allows_pdf_tasks() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = temp_dir.path().join("v18-delivery-kind.db");
+        let batch_id = {
+            let db = LedgerDb::new(&db_path).unwrap();
+            let batch_id = db.create_batch("历史交付记录", "2026-06").unwrap();
+            let now = LedgerDb::now_text();
+            db.conn
+                .execute(
+                    "INSERT INTO batch_review_snapshots (
+                        batch_id, version, content_json, content_sha256, invoice_count,
+                        total_amount, created_at, invalidated_at
+                     ) VALUES (?1, 1, '{}', 'test-digest', 1, '10.00', ?2, NULL)",
+                    params![batch_id, now],
+                )
+                .unwrap();
+            let snapshot_id = db.conn.last_insert_rowid();
+            db.conn
+                .execute(
+                    "INSERT INTO delivery_tasks (
+                        batch_id, review_snapshot_id, kind, status, output_path,
+                        last_error, created_at, updated_at, completed_at
+                     ) VALUES (?1, ?2, 'excel', 'succeeded', 'C:/test.xlsx',
+                               NULL, ?3, ?3, ?3)",
+                    params![batch_id, snapshot_id, now],
+                )
+                .unwrap();
+            db.conn.execute("PRAGMA user_version = 18", []).unwrap();
+            batch_id
+        };
+
+        let migrated = LedgerDb::new(&db_path).unwrap();
+        let tasks = migrated.list_delivery_tasks(batch_id).unwrap();
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].kind, "excel");
+        let pdf_task = migrated.start_delivery_task(batch_id, "pdf").unwrap();
+        assert_eq!(pdf_task.kind, "pdf");
+        assert_eq!(pdf_task.status, "running");
+        let version: i32 = migrated
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, LEDGER_SCHEMA_VERSION);
+    }
+
+    #[test]
     fn future_schema_is_rejected_before_any_current_schema_write() {
         let temp_dir = tempfile::tempdir().unwrap();
         let db_path = temp_dir.path().join("future.db");
@@ -10615,6 +10989,139 @@ mod tests {
     }
 
     #[test]
+    fn courier_logistics_expense_can_be_reviewed_and_saved() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("快递费用保存", "2026-06").unwrap();
+        let mut invoice = grouping_test_invoice(batch_id, "10000000000000000902", "15.00");
+        invoice.ticket_type = TicketType::CourierLogistics;
+        let invoice_id = db.add_invoice(&invoice).unwrap();
+        let expense = db
+            .list_expense_items_by_batch(batch_id)
+            .unwrap()
+            .into_iter()
+            .find(|item| item.primary_invoice_id == invoice_id)
+            .unwrap();
+
+        let updated = db
+            .update_expense_item_with_audit(
+                expense.id,
+                &ExpenseItemUpdate {
+                    category_code: "courier_logistics".to_string(),
+                    category_confirmed: true,
+                    transaction_date: expense.transaction_date,
+                    transaction_date_confirmed: true,
+                    description: "寄送报销材料".to_string(),
+                    counterparty_name: expense.counterparty_name.clone(),
+                    location: expense.location.clone(),
+                    payment_method: expense.payment_method.clone(),
+                    gross_amount: expense.gross_amount,
+                    currency_code: expense.currency_code.clone(),
+                    tax_details: expense.tax_details.clone(),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(updated.category_code, "courier_logistics");
+        assert!(updated.category_confirmed);
+        assert_eq!(updated.description, "寄送报销材料");
+    }
+
+    #[test]
+    fn expense_and_invoice_field_reviews_do_not_reopen_confirmed_grouping() {
+        use crate::models::{ExpenseCategoryDetection, NewInvoiceGroup, NewInvoiceGroupMember};
+
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("费用与归组解耦", "2026-06").unwrap();
+        let mut invoice = grouping_test_invoice(batch_id, "10000000000000000901", "88.00");
+        invoice.ticket_type = TicketType::Other;
+        let invoice_id = db.add_invoice(&invoice).unwrap();
+        let expense_id = db.list_expense_items_by_batch(batch_id).unwrap()[0].id;
+        db.replace_batch_grouping(&NewBatchGrouping {
+            batch_id,
+            rule_version: "deterministic-v1".to_string(),
+            home_cities_json: "[\"北京\"]".to_string(),
+            overall_confidence: 1.0,
+            ambiguities_json: "[]".to_string(),
+            groups: vec![NewInvoiceGroup {
+                group_index: 0,
+                kind: "local_month".to_string(),
+                title: "6 月市内消费".to_string(),
+                start_date: "2026-06-01".to_string(),
+                end_date: "2026-06-30".to_string(),
+                confidence: 1.0,
+                requires_review: false,
+                evidence_json: "{}".to_string(),
+                members: vec![NewInvoiceGroupMember {
+                    invoice_id,
+                    input_index: 0,
+                    match_reason: "月份匹配".to_string(),
+                }],
+            }],
+        })
+        .unwrap();
+        let grouping_stays_confirmed =
+            || !db.get_batch_grouping(batch_id).unwrap().unwrap().groups[0].requires_review;
+
+        db.apply_detected_expense_categories_with_audit(
+            batch_id,
+            &[ExpenseCategoryDetection {
+                expense_item_id: expense_id,
+                category_code: "meal".to_string(),
+                source: "parser.reanalysis".to_string(),
+                confirmed: true,
+            }],
+        )
+        .unwrap();
+        assert!(grouping_stays_confirmed());
+
+        db.apply_supporting_document_facts_with_audit(
+            expense_id,
+            NaiveDate::from_ymd_opt(2026, 6, 2).unwrap(),
+            Some("北京"),
+        )
+        .unwrap();
+        assert!(grouping_stays_confirmed());
+
+        let expense = db.get_expense_item(expense_id).unwrap().unwrap();
+        db.update_expense_item_with_audit(
+            expense_id,
+            &ExpenseItemUpdate {
+                category_code: "meal".to_string(),
+                category_confirmed: true,
+                transaction_date: expense.transaction_date,
+                transaction_date_confirmed: true,
+                description: expense.description,
+                counterparty_name: expense.counterparty_name,
+                location: expense.location,
+                payment_method: expense.payment_method,
+                gross_amount: expense.gross_amount,
+                currency_code: expense.currency_code,
+                tax_details: expense.tax_details,
+            },
+        )
+        .unwrap();
+        assert!(grouping_stays_confirmed());
+
+        db.update_invoice_review_fields(
+            invoice_id,
+            &InvoiceReviewUpdate {
+                invoice_number: invoice.invoice_number,
+                issue_date: invoice.issue_date,
+                amount: invoice.amount,
+                tax_amount: invoice.tax_amount,
+                buyer_name: invoice.buyer_name,
+                seller_name: Some("人工确认商户".to_string()),
+                ticket_type: TicketType::Meal,
+                city: Some("北京".to_string()),
+                departure_time: None,
+                checkin_date: None,
+            },
+        )
+        .unwrap();
+        assert!(grouping_stays_confirmed());
+    }
+
+    #[test]
     fn parsed_supporting_document_is_linked_and_excluded_from_expense_total() {
         let db = LedgerDb::new(":memory:").unwrap();
         let batch_id = db.create_batch("配套材料纠正", "2026-06").unwrap();
@@ -10842,13 +11349,9 @@ mod tests {
             db.get_batch(batch_id).unwrap().total_amount,
             Decimal::from_str("300.00").unwrap()
         );
-        assert!(db
-            .get_batch_grouping(batch_id)
-            .unwrap()
-            .unwrap()
-            .groups
-            .iter()
-            .all(|group| group.requires_review));
+        let grouping_after_invoice_edit = db.get_batch_grouping(batch_id).unwrap().unwrap();
+        assert!(!grouping_after_invoice_edit.groups[0].requires_review);
+        assert!(grouping_after_invoice_edit.groups[1].requires_review);
         assert_eq!(
             db.list_review_actions(batch_id).unwrap()[0].action_type,
             "invoice_fields_updated"
@@ -11047,6 +11550,105 @@ mod tests {
         let restored = db.get_batch_grouping(batch_id).unwrap().unwrap();
         assert!(restored.groups[0].requires_review);
         assert!(restored.ambiguities_json.contains("accept current group"));
+    }
+
+    #[test]
+    fn transport_decision_removes_resolved_missing_evidence_ambiguity() {
+        use crate::models::{NewInvoiceGroup, NewInvoiceGroupMember};
+
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("公司购票出差", "2026-06").unwrap();
+        let mut meal = grouping_test_invoice(batch_id, "10000000000000000031", "80.00");
+        meal.ticket_type = TicketType::Meal;
+        let invoice_id = db.add_invoice(&meal).unwrap();
+        db.replace_batch_grouping(&NewBatchGrouping {
+            batch_id,
+            rule_version: "deterministic-v2".to_string(),
+            home_cities_json: "[\"北京\"]".to_string(),
+            overall_confidence: 0.8,
+            ambiguities_json: "[{\"kind\":\"MissingTransportEvidence\",\"description\":\"缺少个人交通票\",\"involved_invoice_ids\":[0],\"candidates\":[]}]".to_string(),
+            groups: vec![NewInvoiceGroup {
+                group_index: 0,
+                kind: "business_trip".to_string(),
+                title: "上海出差".to_string(),
+                start_date: "2026-06-01".to_string(),
+                end_date: "2026-06-02".to_string(),
+                confidence: 0.8,
+                requires_review: true,
+                evidence_json: "{\"transportEvidenceStatus\":\"missing\"}".to_string(),
+                members: vec![NewInvoiceGroupMember {
+                    invoice_id,
+                    input_index: 0,
+                    match_reason: "异地住宿候选".to_string(),
+                }],
+            }],
+        })
+        .unwrap();
+        let group_id = db.get_batch_grouping(batch_id).unwrap().unwrap().groups[0].id;
+
+        db.set_invoice_group_transport_evidence(batch_id, group_id, "company_paid")
+            .unwrap();
+
+        let grouping = db.get_batch_grouping(batch_id).unwrap().unwrap();
+        assert_eq!(grouping.ambiguities_json, "[]");
+        assert!(grouping.groups[0].evidence_json.contains("company_paid"));
+    }
+
+    #[test]
+    fn confirming_one_group_keeps_ambiguity_shared_with_another_group() {
+        use crate::models::{NewInvoiceGroup, NewInvoiceGroupMember};
+
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("跨组判断", "2026-06").unwrap();
+        let first_id = db
+            .add_invoice(&grouping_test_invoice(
+                batch_id,
+                "10000000000000000032",
+                "40.00",
+            ))
+            .unwrap();
+        let second_id = db
+            .add_invoice(&grouping_test_invoice(
+                batch_id,
+                "10000000000000000033",
+                "50.00",
+            ))
+            .unwrap();
+        let make_group = |group_index, title: &str, invoice_id, input_index| NewInvoiceGroup {
+            group_index,
+            kind: "local_month".to_string(),
+            title: title.to_string(),
+            start_date: "2026-06-01".to_string(),
+            end_date: "2026-06-30".to_string(),
+            confidence: 0.8,
+            requires_review: true,
+            evidence_json: "{}".to_string(),
+            members: vec![NewInvoiceGroupMember {
+                invoice_id,
+                input_index,
+                match_reason: "月份匹配".to_string(),
+            }],
+        };
+        db.replace_batch_grouping(&NewBatchGrouping {
+            batch_id,
+            rule_version: "deterministic-v2".to_string(),
+            home_cities_json: "[\"北京\"]".to_string(),
+            overall_confidence: 0.8,
+            ambiguities_json: "[{\"kind\":\"MultipleTripMatch\",\"description\":\"跨组判断\",\"involved_invoice_ids\":[0,1],\"candidates\":[]}]".to_string(),
+            groups: vec![
+                make_group(0, "第一组", first_id, 0),
+                make_group(1, "第二组", second_id, 1),
+            ],
+        })
+        .unwrap();
+        let first_group_id = db.get_batch_grouping(batch_id).unwrap().unwrap().groups[0].id;
+
+        db.confirm_invoice_group(batch_id, first_group_id).unwrap();
+
+        let grouping = db.get_batch_grouping(batch_id).unwrap().unwrap();
+        assert!(grouping.ambiguities_json.contains("跨组判断"));
+        assert!(!grouping.groups[0].requires_review);
+        assert!(grouping.groups[1].requires_review);
     }
 
     #[test]
@@ -11878,6 +12480,71 @@ mod tests {
     }
 
     #[test]
+    fn pending_didi_itinerary_can_create_expense_without_inventing_main_invoice() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        let batch_id = db.create_batch("滴滴纸质发票", "2026-06").unwrap();
+        let now = "2026-06-30 12:00:00";
+        db.conn
+            .execute(
+                "INSERT INTO pending_invoice_documents (
+                    batch_id, proposed_role, file_path, original_name, mime_type,
+                    sha256, detection_reason, status, assigned_expense_item_id,
+                    created_at, updated_at
+                 ) VALUES (?1, 'itinerary', ?2, ?3, 'application/pdf', ?4,
+                           'itinerary_detected', 'pending', NULL, ?5, ?5)",
+                params![
+                    batch_id,
+                    "C:/task/didi-only-itinerary.pdf",
+                    "滴滴出行行程报销单.pdf",
+                    "sha256-didi-only-itinerary",
+                    now,
+                ],
+            )
+            .unwrap();
+        let pending_id = db.conn.last_insert_rowid();
+        let start_date = NaiveDate::from_ymd_opt(2026, 6, 18).unwrap();
+        let mut invoice = grouping_test_invoice(batch_id, "", "88.00");
+        invoice.issue_date = start_date;
+        invoice.ticket_type = TicketType::CityTransport;
+        invoice.seller_name = Some("滴滴出行".to_string());
+        invoice.city = Some("北京".to_string());
+        invoice.departure_time = start_date.and_hms_opt(0, 0, 0);
+        invoice.file_path = "C:/task/didi-only-itinerary.pdf".to_string();
+
+        let expense = db
+            .convert_pending_itinerary_to_expense(pending_id, &invoice, start_date)
+            .unwrap();
+
+        assert_eq!(expense.category_code, "city_transport");
+        assert!(expense.category_confirmed);
+        assert_eq!(expense.transaction_date, start_date);
+        assert!(expense.transaction_date_confirmed);
+        assert_eq!(expense.counterparty_name, "滴滴出行");
+        assert_eq!(expense.gross_amount, Decimal::from_str("88.00").unwrap());
+        assert!(expense
+            .documents
+            .iter()
+            .any(|document| document.role == "itinerary"
+                && document.source_pending_document_id == Some(pending_id)));
+        assert!(expense
+            .documents
+            .iter()
+            .all(|document| document.role != "main_invoice"));
+        let pending = db
+            .get_pending_invoice_document(pending_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(pending.status, "attached");
+        assert_eq!(pending.assigned_expense_item_id, Some(expense.id));
+        let batch = db.get_batch(batch_id).unwrap();
+        assert_eq!(batch.invoice_count, 1);
+        assert_eq!(batch.total_amount, Decimal::from_str("88.00").unwrap());
+        assert!(db
+            .convert_pending_itinerary_to_expense(pending_id, &invoice, start_date)
+            .is_err());
+    }
+
+    #[test]
     fn manual_download_supplement_reuses_message_and_resolves_actionable_item() {
         let db = LedgerDb::new(":memory:").unwrap();
         let first_pipeline = "55555555-5555-4555-8555-555555555555";
@@ -11998,6 +12665,70 @@ mod tests {
                 .into_iter()
                 .collect(),
         }
+    }
+
+    #[test]
+    fn email_collection_task_deletion_preserves_active_and_imported_sources() {
+        let db = LedgerDb::new(":memory:").unwrap();
+
+        let disposable = db
+            .create_email_collection_task(
+                "可删除任务",
+                "user@example.test",
+                "2026-06-01",
+                "2026-07-01",
+            )
+            .unwrap();
+        db.delete_email_collection_task(disposable).unwrap();
+        assert!(matches!(
+            db.get_email_collection_task(disposable),
+            Err(StoreError::NotFound(_))
+        ));
+
+        let collecting = db
+            .create_email_collection_task(
+                "正在收集",
+                "user@example.test",
+                "2026-06-01",
+                "2026-07-01",
+            )
+            .unwrap();
+        db.mark_email_collection_started(collecting, "deletion-active-task")
+            .unwrap();
+        assert!(matches!(
+            db.delete_email_collection_task(collecting),
+            Err(StoreError::Validation(message)) if message.contains("正在收集")
+        ));
+
+        let imported = db
+            .create_email_collection_task(
+                "已导入任务",
+                "user@example.test",
+                "2026-06-01",
+                "2026-07-01",
+            )
+            .unwrap();
+        db.mark_email_collection_started(imported, "deletion-imported-task")
+            .unwrap();
+        db.store_email_collection_results(
+            imported,
+            &[collected_message(
+                901,
+                "has_candidates",
+                Some("collection-files/task-imported/invoice.pdf"),
+            )],
+        )
+        .unwrap();
+        let attachment_id =
+            db.list_collected_email_messages(imported).unwrap()[0].attachments[0].id;
+        let batch_id = db.create_batch("导入来源保护", "2026-06").unwrap();
+        db.create_batch_collection_import(batch_id, imported, &[attachment_id])
+            .unwrap();
+        assert!(matches!(
+            db.delete_email_collection_task(imported),
+            Err(StoreError::Validation(message)) if message.contains("已导入报销批次")
+        ));
+        assert!(db.get_email_collection_task(imported).is_ok());
     }
 
     #[test]

@@ -8,6 +8,22 @@ $fontLockPath = Join-Path $projectRoot "third_party\fonts\fonts.lock.json"
 $ocrLockPath = Join-Path $projectRoot "third_party\ocr\ocr.lock.json"
 $blockedPattern = '(?i)(AGPL|SSPL|GPL-3)'
 
+function Get-NormalizedTextSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+    $text = $utf8.GetString($bytes).Replace("`r`n", "`n").Replace("`r", "`n")
+    $normalizedBytes = $utf8.GetBytes($text)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha256.ComputeHash($normalizedBytes))).Replace('-', '')
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -ne $cargoCommand) {
     $cargoExe = $cargoCommand.Source
@@ -39,7 +55,7 @@ foreach ($font in $fontLock.fonts) {
         -not (Test-Path -LiteralPath $licensePath -PathType Leaf)) {
         throw "font license path is unsafe or missing: $($font.licenseFile)"
     }
-    if ((Get-FileHash -LiteralPath $licensePath -Algorithm SHA256).Hash -ne $font.licenseSha256 -or
+    if ((Get-NormalizedTextSha256 -Path $licensePath) -ne $font.licenseSha256 -or
         (Get-Content -LiteralPath $licensePath -Raw) -notmatch 'SIL OPEN FONT LICENSE') {
         throw "font license verification failed: $($font.family)"
     }

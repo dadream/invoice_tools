@@ -44,7 +44,9 @@ use crate::AppState;
 /// - 底部合计行显示"合计"和总金额
 #[tauri::command]
 pub fn export_batch_excel(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
-    let app_state = state.lock().unwrap();
+    let app_state = state
+        .lock()
+        .map_err(|_| AppError::internal("应用状态不可用，请重启软件后重试"))?;
     let db = app_state.ledger_db()?;
 
     let batch = db
@@ -590,7 +592,9 @@ pub fn build_excel_bytes(
 /// 导出审核后的 UTF-8 CSV。返回值带 BOM，便于 Windows Excel 直接识别中文。
 #[tauri::command]
 pub fn export_batch_csv(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
-    let app_state = state.lock().unwrap();
+    let app_state = state
+        .lock()
+        .map_err(|_| AppError::internal("应用状态不可用，请重启软件后重试"))?;
     let db = app_state.ledger_db()?;
     let batch = db
         .get_batch(batch_id)
@@ -702,21 +706,6 @@ fn push_csv_row(output: &mut String, fields: &[String]) {
 /// 使用 printpdf 内置 Helvetica 字体（仅支持英文和数字）。
 /// 中文字段（批次名、销方名）会显示为空白或乱码。
 /// 如需中文支持，需下载并内嵌 Noto Sans SC 字体（约 2-8 MB）。
-#[tauri::command]
-pub fn export_batch_pdf(state: State<Mutex<AppState>>, batch_id: i64) -> AppResult<Vec<u8>> {
-    let app_state = state.lock().unwrap();
-    let db = app_state.ledger_db()?;
-
-    let batch = db
-        .get_batch(batch_id)
-        .map_err(|e| AppError::database(format!("获取批次失败: {}", e)))?;
-    let (_, invoices) = db
-        .get_active_snapshot_invoices(batch_id)
-        .map_err(|e| AppError::validation(format!("请先完成审核并生成有效版本：{e}")))?;
-
-    build_pdf_bytes(&batch, &invoices)
-}
-
 pub fn build_pdf_bytes(
     batch: &invoice_store::models::Batch,
     invoices: &[invoice_store::models::ReportedInvoice],

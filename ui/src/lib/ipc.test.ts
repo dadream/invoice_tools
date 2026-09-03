@@ -79,6 +79,12 @@ describe('describeError', () => {
     expect(text).toContain('重试')
   })
 
+  it('shows validation guidance without implying a transient retry', () => {
+    const text = describeError({ kind: 'validation', message: '费用类型不受支持', recoverable: true })
+    expect(text).toBe('费用类型不受支持')
+    expect(text).not.toContain('稍后重试')
+  })
+
   it('points at logs for unrecoverable errors', () => {
     const text = describeError({ kind: 'internal', message: '崩了', recoverable: false })
     expect(text).toContain('日志')

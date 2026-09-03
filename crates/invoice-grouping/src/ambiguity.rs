@@ -1,10 +1,12 @@
 use crate::types::*;
 use chrono::{Datelike, Duration, NaiveDate};
 use invoice_parse::model::{ParsedInvoice, TicketType};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // 使用 deterministic 模块的辅助函数
-use crate::deterministic::{extract_destination, is_home_city, is_route_anchor_invoice};
+use crate::deterministic::{
+    extract_departure, extract_destination, is_home_city, is_route_anchor_invoice,
+};
 
 const TRANSFER_THRESHOLD_HOURS: i64 = 4;
 const STOPOVER_THRESHOLD_HOURS: i64 = 12;
@@ -46,7 +48,12 @@ pub fn detect_ambiguities(
     ));
 
     // 4. 检测周末夹缝歧义
-    ambiguities.extend(detect_weekend_between_trips(trips, invoices, home_cities));
+    ambiguities.extend(detect_weekend_between_trips(
+        trips,
+        invoices,
+        home_cities,
+        station_aliases,
+    ));
 
     // 5. 检测同城多次往返歧义
     ambiguities.extend(detect_multiple_visits_same_city(
@@ -70,12 +77,19 @@ fn detect_no_return_ticket(
     for trip in trips {
         if let TripKind::BusinessTrip { .. } = trip.kind {
             // 检查最后一张交通票是否回到常驻城市
-            let intercity_in_trip: Vec<usize> = trip
+            let mut intercity_in_trip: Vec<usize> = trip
                 .invoice_ids
                 .iter()
                 .filter(|&&id| is_route_anchor_invoice(&invoices[id]))
                 .copied()
                 .collect();
+
+            // Trip members are stored in stable input order so that evidence remains
+            // reproducible. Route closure, however, is a time-domain decision: the
+            // highest input index may be the outbound ticket even when a lower index
+            // is the later return ticket (as in the real Taiyuan/Xingtai batches).
+            intercity_in_trip
+                .sort_by_key(|&id| (invoices[id].departure_time, invoices[id].issue_date, id));
 
             if let Some(&last_id) = intercity_in_trip.last() {
                 let last_inv = &invoices[last_id];
@@ -109,38 +123,40 @@ fn detect_time_overlap(
     let mut ambiguities = Vec::new();
 
     // 简化实现：检查同一天是否有多张交通票从同一起点出发去不同目的地
-    let mut same_day_transports: HashMap<NaiveDate, Vec<(usize, &ParsedInvoice)>> = HashMap::new();
+    let mut same_origin_departures: HashMap<(NaiveDate, String), Vec<(usize, String)>> =
+        HashMap::new();
 
     for (idx, inv) in invoices.iter().enumerate() {
-        if is_route_anchor_invoice(inv) {
-            if let Some(dt) = inv.departure_time {
-                same_day_transports
-                    .entry(dt.date())
-                    .or_default()
-                    .push((idx, inv));
-            }
+        if !is_route_anchor_invoice(inv) {
+            continue;
+        }
+        if let (Some(departure_time), Some(origin), Some(destination)) = (
+            inv.departure_time,
+            extract_departure(inv, home_cities, station_aliases),
+            extract_destination(inv, home_cities, station_aliases),
+        ) {
+            same_origin_departures
+                .entry((departure_time.date(), origin))
+                .or_default()
+                .push((idx, destination));
         }
     }
 
-    for (date, transports) in same_day_transports {
-        if transports.len() >= 2 {
-            // 检查是否有不同目的地
-            let destinations: Vec<String> = transports
-                .iter()
-                .filter_map(|(_, inv)| extract_destination(inv, home_cities, station_aliases))
-                .collect();
-
-            if destinations.len() >= 2 && destinations[0] != destinations[1] {
-                ambiguities.push(Ambiguity {
-                    kind: AmbiguityKind::TimeOverlap,
-                    description: format!("{} 有多张交通票去往不同城市", date),
-                    involved_invoice_ids: transports.iter().map(|(idx, _)| *idx).collect(),
-                    candidates: vec![
-                        "第一张票作废/改签".to_string(),
-                        "并行出差（特殊情况）".to_string(),
-                    ],
-                });
-            }
+    for ((date, origin), transports) in same_origin_departures {
+        let destinations = transports
+            .iter()
+            .map(|(_, destination)| destination.as_str())
+            .collect::<HashSet<_>>();
+        if transports.len() >= 2 && destinations.len() >= 2 {
+            ambiguities.push(Ambiguity {
+                kind: AmbiguityKind::TimeOverlap,
+                description: format!("{} 从 {} 出发的交通票去往不同城市", date, origin),
+                involved_invoice_ids: transports.iter().map(|(idx, _)| *idx).collect(),
+                candidates: vec![
+                    "第一张票作废/改签".to_string(),
+                    "并行出差（特殊情况）".to_string(),
+                ],
+            });
         }
     }
 
@@ -159,12 +175,14 @@ fn detect_transfer_stopover(
     for trip in trips {
         if let TripKind::BusinessTrip { .. } = trip.kind {
             // 检查行程中的连续交通票
-            let intercity_ids: Vec<usize> = trip
+            let mut intercity_ids: Vec<usize> = trip
                 .invoice_ids
                 .iter()
                 .filter(|&&id| is_route_anchor_invoice(&invoices[id]))
                 .copied()
                 .collect();
+            intercity_ids
+                .sort_by_key(|&id| (invoices[id].departure_time, invoices[id].issue_date, id));
 
             for i in 0..intercity_ids.len().saturating_sub(1) {
                 let curr_inv = &invoices[intercity_ids[i]];
@@ -226,8 +244,9 @@ fn detect_transfer_stopover(
 /// 4. 检测周末夹缝歧义
 fn detect_weekend_between_trips(
     trips: &[Trip],
-    _invoices: &[ParsedInvoice],
-    _home_cities: &[String],
+    invoices: &[ParsedInvoice],
+    home_cities: &[String],
+    station_aliases: Option<&[StationCityAlias]>,
 ) -> Vec<Ambiguity> {
     let mut ambiguities = Vec::new();
 
@@ -246,6 +265,22 @@ fn detect_weekend_between_trips(
         let (_, trip2) = business_trips[i + 1];
 
         let gap_days = (trip2.start_date - trip1.end_date).num_days();
+
+        let mut first_trip_transport = trip1
+            .invoice_ids
+            .iter()
+            .copied()
+            .filter(|&id| is_route_anchor_invoice(&invoices[id]))
+            .collect::<Vec<_>>();
+        first_trip_transport
+            .sort_by_key(|&id| (invoices[id].departure_time, invoices[id].issue_date, id));
+        let explicitly_returned_home = first_trip_transport.last().is_some_and(|&id| {
+            extract_destination(&invoices[id], home_cities, station_aliases)
+                .is_some_and(|destination| is_home_city(&destination, home_cities))
+        });
+        if explicitly_returned_home {
+            continue;
+        }
 
         // 2-3 天间隔（可能包含周末）
         if (2..=3).contains(&gap_days) {

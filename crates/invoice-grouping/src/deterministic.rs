@@ -1,7 +1,7 @@
 use crate::types::*;
 use chrono::{Datelike, Duration, NaiveDate};
 use invoice_parse::model::{ParsedInvoice, TicketType, TransportDocumentKind};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 const TRANSFER_THRESHOLD_HOURS: i64 = 4;
 const STOPOVER_THRESHOLD_HOURS: i64 = 12;
@@ -73,7 +73,11 @@ pub fn group_deterministic(
         .collect();
 
     if !remaining.is_empty() {
-        trips.extend(group_local_by_month(&remaining, invoices));
+        let (courier_ids, local_ids): (Vec<_>, Vec<_>) = remaining
+            .into_iter()
+            .partition(|id| invoices[*id].ticket_type == TicketType::CourierLogistics);
+        trips.extend(group_courier_by_month(&courier_ids, invoices));
+        trips.extend(group_local_by_month(&local_ids, invoices));
     }
 
     // Step 6: 检测全局歧义
@@ -83,6 +87,18 @@ pub fn group_deterministic(
         &config.home_cities,
         station_aliases,
     ));
+
+    // A local grouping decision and the global audit can discover the same uncertainty.
+    // Present it once: users confirm a business fact, not two implementation stages.
+    let mut seen_ambiguities = HashSet::new();
+    all_ambiguities.retain(|ambiguity| {
+        let mut involved_invoice_ids = ambiguity.involved_invoice_ids.clone();
+        involved_invoice_ids.sort_unstable();
+        seen_ambiguities.insert((
+            std::mem::discriminant(&ambiguity.kind),
+            involved_invoice_ids,
+        ))
+    });
 
     (trips, all_ambiguities)
 }
@@ -326,6 +342,7 @@ fn trip_label(trip: &Trip) -> String {
             format!("{} 至 {} · {}", start, end, cities.join(" → "))
         }
         TripKind::LocalMonth { year, month } => format!("{year} 年 {month} 月市内消费"),
+        TripKind::CourierMonth { year, month } => format!("{year} 年 {month} 月快递物流"),
         TripKind::Excluded => "已排除票据".to_string(),
         TripKind::NeedsReview { reason } => format!("待人工复核：{reason}"),
     }
@@ -496,9 +513,24 @@ fn build_trip_from_segment(
         station_aliases,
     );
     ambiguities.append(&mut transfer_ambiguities);
+    // 标题只展示实际停留/办事城市；费用匹配还应接受同一段路线中的其他
+    // 非常驻城市。例如“北京→邢台、邯郸→北京”的返程车站不同，或
+    // “北京→呼和浩特、包头→北京”的多地行程，都不应把当地费用丢进市内桶。
+    let matching_cities = segment_route_cities(
+        &segment.intercity_ids,
+        all_invoices,
+        home_cities,
+        station_aliases,
+    );
 
     // Step 3: 挂载住宿票
-    let hotel_ids = attach_hotels(&segment.intercity_ids, all_invoices, start, end, &cities);
+    let hotel_ids = attach_hotels(
+        &segment.intercity_ids,
+        all_invoices,
+        start,
+        end,
+        &matching_cities,
+    );
     invoice_ids.extend(hotel_ids);
 
     // Step 4: 挂载零散票（出租车、餐饮等）
@@ -507,7 +539,7 @@ fn build_trip_from_segment(
         all_invoices,
         start,
         end,
-        &cities,
+        &matching_cities,
         home_cities,
     );
     invoice_ids.extend(local_ids);
@@ -606,6 +638,32 @@ fn build_city_chain_with_ambiguities(
     (cities, ambiguities)
 }
 
+/// 返回一段行程内所有明确出现过的非常驻路线城市。该集合只用于匹配费用，
+/// 不直接作为行程标题，避免把返程换乘站误写成主要出差地。
+fn segment_route_cities(
+    intercity_ids: &[usize],
+    all_invoices: &[ParsedInvoice],
+    home_cities: &[String],
+    station_aliases: Option<&[StationCityAlias]>,
+) -> Vec<String> {
+    let mut cities = Vec::new();
+    for invoice_id in intercity_ids {
+        let invoice = &all_invoices[*invoice_id];
+        for city in [
+            extract_departure(invoice, home_cities, station_aliases),
+            extract_destination(invoice, home_cities, station_aliases),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !is_home_city(&city, home_cities) && !cities.contains(&city) {
+                cities.push(city);
+            }
+        }
+    }
+    cities
+}
+
 /// Step 3: 挂载住宿票
 fn attach_hotels(
     intercity_ids: &[usize],
@@ -666,30 +724,32 @@ fn attach_local_expenses(
             !already_assigned.contains(idx)
                 && matches!(
                     inv.ticket_type,
-                    TicketType::CityTransport
-                        | TicketType::Meal
-                        | TicketType::CourierLogistics
-                        | TicketType::Other
+                    TicketType::CityTransport | TicketType::Meal | TicketType::Other
                 )
-                && inv.city.is_some()
+                && (local_expense_city(inv).is_some() || is_railway_onboard_meal(inv))
         })
         .filter(|(_, inv)| {
             // 市内交通发票通常在行程结束后统一开具。行程单已经提供实际上车
             // 时间时，归组必须使用上车日期，不能再用开票日期。
-            let date = inv
-                .departure_time
-                .map(|value| value.date())
-                .unwrap_or(inv.issue_date);
-            let city = inv.city.as_ref().unwrap();
+            let date = effective_expense_date(inv);
 
             // 时间在缓冲范围内
             if date < start_with_buffer || date > end_with_buffer {
                 return false;
             }
 
+            // 列车服务商开具的餐食通常没有消费城市，但同日处于一段明确
+            // 差旅行程时，日期和商户性质已经是充分证据。多行程重叠仍由
+            // 后续去重逻辑生成歧义，不静默复制到多个组。
+            if is_railway_onboard_meal(inv) {
+                return true;
+            }
+
+            let city = local_expense_city(inv).expect("filtered local expense city");
             // 异地餐饮/零散费用必须匹配行程城市；常驻地只允许机场/车站接驳交通。
-            cities.contains(city)
-                || (inv.ticket_type == TicketType::CityTransport && is_home_city(city, home_cities))
+            cities.contains(&city)
+                || (inv.ticket_type == TicketType::CityTransport
+                    && is_home_city(&city, home_cities))
         })
         .map(|(idx, _)| idx)
         .collect()
@@ -697,10 +757,24 @@ fn attach_local_expenses(
 
 /// Step 5: 残余票按月归入市内桶
 fn group_local_by_month(invoice_ids: &[usize], all_invoices: &[ParsedInvoice]) -> Vec<Trip> {
-    let mut by_month: HashMap<(i32, u32), Vec<usize>> = HashMap::new();
+    group_monthly(invoice_ids, all_invoices, false)
+}
+
+fn group_courier_by_month(invoice_ids: &[usize], all_invoices: &[ParsedInvoice]) -> Vec<Trip> {
+    group_monthly(invoice_ids, all_invoices, true)
+}
+
+fn group_monthly(
+    invoice_ids: &[usize],
+    all_invoices: &[ParsedInvoice],
+    courier: bool,
+) -> Vec<Trip> {
+    let mut by_month: BTreeMap<(i32, u32), Vec<usize>> = BTreeMap::new();
 
     for &id in invoice_ids {
-        let date = all_invoices[id].issue_date;
+        // 行程单/车票/住宿提供的实际日期优先于开票日期。延迟开票不能改变
+        // 费用所属月份；只有没有业务日期时才回退到开票日期。
+        let date = effective_expense_date(&all_invoices[id]);
         by_month
             .entry((date.year(), date.month()))
             .or_default()
@@ -722,7 +796,11 @@ fn group_local_by_month(invoice_ids: &[usize], all_invoices: &[ParsedInvoice]) -
             };
 
             Trip {
-                kind: TripKind::LocalMonth { year, month },
+                kind: if courier {
+                    TripKind::CourierMonth { year, month }
+                } else {
+                    TripKind::LocalMonth { year, month }
+                },
                 invoice_ids: ids,
                 start_date: start,
                 end_date: end,
@@ -730,6 +808,46 @@ fn group_local_by_month(invoice_ids: &[usize], all_invoices: &[ParsedInvoice]) -
             }
         })
         .collect()
+}
+
+fn effective_expense_date(invoice: &ParsedInvoice) -> NaiveDate {
+    invoice
+        .departure_time
+        .map(|value| value.date())
+        .or(invoice.checkin_date)
+        .unwrap_or(invoice.issue_date)
+}
+
+fn local_expense_city(invoice: &ParsedInvoice) -> Option<String> {
+    invoice.city.clone().or_else(|| {
+        matches!(
+            invoice.ticket_type,
+            TicketType::Meal | TicketType::CityTransport | TicketType::Hotel
+        )
+        .then(|| {
+            invoice
+                .seller_name
+                .as_deref()
+                .and_then(invoice_parse::field_extractor::merchant_city_hint)
+        })
+        .flatten()
+    })
+}
+
+fn is_railway_onboard_meal(invoice: &ParsedInvoice) -> bool {
+    if invoice.ticket_type != TicketType::Meal {
+        return false;
+    }
+    let seller = invoice.seller_name.as_deref().unwrap_or_default();
+    [
+        "铁路文化旅游",
+        "京铁列车服务",
+        "列车服务",
+        "铁路餐饮",
+        "列车餐饮",
+    ]
+    .iter()
+    .any(|marker| seller.contains(marker))
 }
 
 /// Step 6: 检测歧义（调用独立的 ambiguity 模块）
@@ -786,7 +904,7 @@ fn normalize_route_place(
 }
 
 /// 从交通票中提取出发城市。常驻城市站点库优先于通用名称剥离。
-fn extract_departure(
+pub(crate) fn extract_departure(
     inv: &ParsedInvoice,
     home_cities: &[String],
     station_aliases: Option<&[StationCityAlias]>,

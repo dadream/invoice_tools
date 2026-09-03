@@ -12,6 +12,8 @@ pub enum TripKind {
     },
     /// 市内消费：某年某月的本地消费
     LocalMonth { year: i32, month: u32 },
+    /// 快递/物流：与市内消费和差旅费用分开，按实际发生月份归组。
+    CourierMonth { year: i32, month: u32 },
     /// 用户标记为排除（如家属票、同事票）
     Excluded,
     /// 需要人工审核（歧义未解决或低置信度）

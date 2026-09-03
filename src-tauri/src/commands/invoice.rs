@@ -12,7 +12,6 @@ use tauri::State;
 
 use invoice_parse::manifest::TagHints;
 use invoice_parse::model::{ParseError, ParseLevel, ParsedInvoice, TicketType as ParseTicketType};
-use invoice_parse::verify::SignatureStatus;
 use invoice_store::models::{BatchStatus, ReportedInvoice, TicketType as StoreTicketType};
 
 use crate::error::{AppError, AppResult};
@@ -41,7 +40,7 @@ pub struct ParsedInvoiceDto {
     pub departure_time: Option<String>,
     pub checkin_date: Option<String>,
     pub source_path: String,
-    /// valid/invalid/unsupported/not_signed/not_applicable
+    /// 兼容旧版 IPC；MVP 不执行验签，固定为空字符串。
     pub verification_result: String,
 }
 
@@ -64,7 +63,7 @@ impl From<ParsedInvoice> for ParsedInvoiceDto {
                 .map(|dt| dt.format(DATETIME_FMT).to_string()),
             checkin_date: p.checkin_date.map(|d| d.format(DATE_FMT).to_string()),
             source_path: p.source_path.display().to_string(),
-            verification_result: String::new(), // 由调用方单独填充
+            verification_result: String::new(),
         }
     }
 }
@@ -144,16 +143,6 @@ pub(crate) fn parse_level_to_string(level: ParseLevel) -> &'static str {
         ParseLevel::L1 => "L1",
         ParseLevel::L2 => "L2",
         ParseLevel::L4 => "L4",
-    }
-}
-
-/// 将 SignatureStatus 转为字符串（供前端展示）
-fn signature_status_to_string(status: &SignatureStatus) -> &'static str {
-    match status {
-        SignatureStatus::Valid => "valid",
-        SignatureStatus::Invalid { .. } => "invalid",
-        SignatureStatus::Unsupported { .. } => "unsupported",
-        SignatureStatus::NotSigned => "not_signed",
     }
 }
 
@@ -381,34 +370,8 @@ pub(crate) fn do_parse(path: &str, ticket_type: Option<&str>) -> AppResult<Parse
 #[tauri::command]
 pub fn parse_invoice(path: String, ticket_type: Option<String>) -> AppResult<ParsedInvoiceDto> {
     let parsed = do_parse(&path, ticket_type.as_deref())?;
-
-    // 验签：根据扩展名调用对应验签函数
-    let p = Path::new(&path);
-    let ext = p
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-
-    let bytes =
-        std::fs::read(p).map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
-
-    let verification_result = match ext.as_str() {
-        "xml" => match invoice_parse::verify::verify_xml_signature(&bytes, p) {
-            Ok(status) => signature_status_to_string(&status).to_string(),
-            Err(_) => "unsupported".to_string(),
-        },
-        "ofd" => match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
-            Ok(status) => signature_status_to_string(&status).to_string(),
-            Err(_) => "unsupported".to_string(),
-        },
-        "pdf" => "not_applicable".to_string(),
-        _ => "not_applicable".to_string(),
-    };
-
-    let mut dto = ParsedInvoiceDto::from(parsed);
-    dto.verification_result = verification_result;
-    Ok(dto)
+    // MVP 只负责解析并保留原件，不对 OFD/XML 签章或发票真伪作判断。
+    Ok(ParsedInvoiceDto::from(parsed))
 }
 
 /// 按多字段组合查重：发票号精确匹配 或 (金额+日期+票种) 模糊匹配
@@ -516,31 +479,7 @@ pub fn add_invoice_to_batch(
     // 2. 重新解析
     let parsed = do_parse(&path, ticket_type.as_deref())?;
 
-    // 3. 验签
-    let p = Path::new(&path);
-    let ext = p
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-
-    let bytes =
-        std::fs::read(p).map_err(|e| AppError::io(format!("读取文件失败（{}）", e.kind())))?;
-
-    let verification_result = match ext.as_str() {
-        "xml" => match invoice_parse::verify::verify_xml_signature(&bytes, p) {
-            Ok(status) => Some(signature_status_to_string(&status).to_string()),
-            Err(_) => Some("unsupported".to_string()),
-        },
-        "ofd" => match invoice_parse::verify::verify_ofd_signature(&bytes, p) {
-            Ok(status) => Some(signature_status_to_string(&status).to_string()),
-            Err(_) => Some("unsupported".to_string()),
-        },
-        "pdf" => Some("not_applicable".to_string()),
-        _ => None,
-    };
-
-    // 4. 查重（不阻断，但标记）
+    // 3. 查重（不阻断，但标记）。MVP 不执行签章或真伪验证。
     let store_ticket_type = to_store_ticket_type(parsed.ticket_type);
     let duplicates = db
         .find_potential_duplicates(
@@ -587,7 +526,7 @@ pub fn add_invoice_to_batch(
             .unwrap_or(path),
         created_at: now,
         updated_at: now,
-        verification_result,
+        verification_result: None,
         is_duplicate,
         duplicate_reason,
     };
@@ -799,27 +738,6 @@ mod tests {
     }
 
     #[test]
-    fn signature_status_to_string_maps_all_variants() {
-        assert_eq!(signature_status_to_string(&SignatureStatus::Valid), "valid");
-        assert_eq!(
-            signature_status_to_string(&SignatureStatus::Invalid {
-                reason: "test".into()
-            }),
-            "invalid"
-        );
-        assert_eq!(
-            signature_status_to_string(&SignatureStatus::NotSigned),
-            "not_signed"
-        );
-        assert_eq!(
-            signature_status_to_string(&SignatureStatus::Unsupported {
-                reason: "test".into()
-            }),
-            "unsupported"
-        );
-    }
-
-    #[test]
     fn parse_invoice_rejects_missing_file() {
         let err = parse_invoice("/nonexistent/path/invoice.xml".into(), None).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Validation);
@@ -957,8 +875,7 @@ mod tests {
             source_path: std::path::PathBuf::from("/tmp/a.xml"),
         };
 
-        let mut dto = ParsedInvoiceDto::from(parsed);
-        dto.verification_result = "valid".to_string();
+        let dto = ParsedInvoiceDto::from(parsed);
 
         let json = serde_json::to_value(dto).unwrap();
         // 金额必须是字符串，不能是 JSON number（否则前端拿到 f64）
@@ -967,7 +884,7 @@ mod tests {
         assert_eq!(json["issue_date"], "2026-07-03");
         assert_eq!(json["ticket_type"], "rail");
         assert_eq!(json["parse_level"], "L0");
-        assert_eq!(json["verification_result"], "valid");
+        assert_eq!(json["verification_result"], "");
         assert!(json["total_amount"].is_string());
         assert!(json["verification_result"].is_string());
     }

@@ -25,7 +25,7 @@ export interface InvoiceGroupMember {
 export interface InvoiceGroup {
   id: number
   group_index: number
-  kind: 'business_trip' | 'local_month' | 'excluded' | 'needs_review' | 'manual'
+  kind: 'business_trip' | 'local_month' | 'courier_month' | 'excluded' | 'needs_review' | 'manual'
   title: string
   start_date: string
   end_date: string
@@ -69,7 +69,7 @@ export interface DeliveryTask {
   id: number
   batch_id: number
   review_snapshot_id: number
-  kind: 'excel' | 'concur'
+  kind: 'excel' | 'pdf' | 'concur'
   status: 'pending' | 'running' | 'succeeded' | 'failed'
   output_path: string | null
   last_error: string | null
@@ -646,24 +646,6 @@ export const PARSE_LEVEL_SEVERITY: Record<ParseLevel, 'ok' | 'warn' | 'danger'> 
   L1: 'ok',
   L2: 'warn',
   L4: 'danger',
-}
-
-/** 验签结果标签 */
-export const VERIFICATION_LABELS: Record<VerificationResult, string> = {
-  valid: '✓ 签章验证通过',
-  invalid: '✗ 签章验证失败',
-  unsupported: '签章格式暂不支持',
-  not_signed: '未发现数字签章',
-  not_applicable: '无需验签',
-}
-
-/** 验签结果配色 */
-export const VERIFICATION_COLORS: Record<VerificationResult, string> = {
-  valid: 'green',
-  invalid: 'red',
-  unsupported: 'amber',
-  not_signed: 'gray',
-  not_applicable: 'gray',
 }
 
 /**

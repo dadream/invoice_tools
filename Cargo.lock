@@ -2367,6 +2367,7 @@ dependencies = [
  "calamine",
  "chrono",
  "dirs",
+ "image",
  "invoice-collect",
  "invoice-grouping",
  "invoice-parse",

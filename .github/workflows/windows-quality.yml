@@ -16,6 +16,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify application version files agree
+        shell: pwsh
+        run: .\scripts\assert-release-version.ps1
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

@@ -41,6 +41,9 @@ static PARENTHESIZED_CITY_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"[（(]([\p{Han}]{2,8}?)(?:市)?[）)]").unwrap());
 static TAX_BUREAU_CITY_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?m)(?:国家税务总局|^)([\p{Han}]{2,8})市税务局").unwrap());
+static MERCHANT_NAME_CITY_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?:^|省|自治区)([\p{Han}]{2,8})市(?:[\p{Han}]{1,8}(?:区|县|旗))?").unwrap()
+});
 
 /// 从可见文本或结构化字段文本判断交通票据性质。
 /// 结构化解析器会优先读取 `TypeOfBusiness`；本函数用于文本层/OCR 回落。
@@ -96,6 +99,29 @@ pub fn extract_consistent_seller_jurisdiction_city(
         .and_then(|captures| captures.get(1))
         .map(|value| value.as_str().trim_end_matches('市').to_string())?;
     (tax_city == legal_name_city).then_some(tax_city)
+}
+
+/// 从本地服务商法定名称/分支机构名称中提取城市提示，供差旅费用匹配使用。
+///
+/// 该提示不替代票面地址字段，只在餐饮、住宿和市内交通等本地服务已经由
+/// 上层确认后使用。显式“某某市”优先；没有市名时仅支持少量不存在重名
+/// 风险的城区。像“朝阳区”这类多城市重名行政区刻意不做猜测。
+pub fn merchant_city_hint(seller_name: &str) -> Option<String> {
+    if let Some(city) = MERCHANT_NAME_CITY_RE
+        .captures(seller_name)
+        .and_then(|captures| captures.get(1))
+        .map(|value| value.as_str().to_string())
+    {
+        return Some(city);
+    }
+    [
+        ("松山区", "赤峰"),
+        ("迎泽区", "太原"),
+        ("桥东区", "张家口"),
+        ("回民区", "呼和浩特"),
+    ]
+    .into_iter()
+    .find_map(|(district, city)| seller_name.contains(district).then_some(city.to_string()))
 }
 
 /// 从交通票 seller_name 提取出发城市
@@ -293,5 +319,23 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn merchant_city_hint_requires_an_explicit_city_or_safe_district() {
+        assert_eq!(
+            merchant_city_hint("太原市迎泽区顺华牛肉粉馆水西门店").as_deref(),
+            Some("太原")
+        );
+        assert_eq!(
+            merchant_city_hint("松山区锡蒙餐厅").as_deref(),
+            Some("赤峰")
+        );
+        assert_eq!(
+            merchant_city_hint("北京市某某餐饮有限公司").as_deref(),
+            Some("北京")
+        );
+        assert_eq!(merchant_city_hint("北京某某餐饮有限公司"), None);
+        assert_eq!(merchant_city_hint("朝阳区某餐厅"), None);
     }
 }

@@ -1483,6 +1483,9 @@ async fn parse_invoices(
 fn classify_supporting_document_before_parse(path: &Path) -> Option<PendingDocumentCandidate> {
     let facts = supporting_facts_for_path(path)?;
     let (proposed_role, detection_reason) = match facts.kind.as_str() {
+        "ride_hailing_itinerary" if facts.provider == "didi" => {
+            ("itinerary", "didi_itinerary_detected")
+        }
         "ride_hailing_itinerary" => ("itinerary", "itinerary_detected"),
         "courier_detail" => ("detail", "detail_detected"),
         "hotel_folio" => ("supporting", "hotel_folio_detected"),
@@ -1616,7 +1619,11 @@ fn classify_pending_document(path: &Path, error: &anyhow::Error) -> PendingDocum
                 || text.contains("行程单")
             {
                 proposed_role = "itinerary";
-                detection_reason = "itinerary_detected";
+                detection_reason = if text.contains("滴滴") {
+                    "didi_itinerary_detected"
+                } else {
+                    "itinerary_detected"
+                };
             } else if text.contains("明细") || text.contains("清单") {
                 proposed_role = "detail";
                 detection_reason = "detail_detected";
@@ -2022,19 +2029,6 @@ async fn store_batch(
             .map(|document| document.source_path.clone())
             .collect::<Vec<_>>(),
     )?;
-    let mut verification_by_invoice = HashMap::<String, String>::new();
-    for (invoice, stored_path) in checked.invoices.iter().zip(stored_paths.iter()) {
-        let Some(status) = verification_for_path(stored_path)? else {
-            continue;
-        };
-        let key = canonical_identity_key(invoice);
-        let replace = verification_by_invoice.get(&key).map_or(true, |existing| {
-            verification_rank(&status) > verification_rank(existing)
-        });
-        if replace {
-            verification_by_invoice.insert(key, status);
-        }
-    }
     let mut reported_invoices = Vec::with_capacity(checked.invoices.len());
     for (index, (invoice, stored_path)) in
         checked.invoices.iter().zip(stored_paths.iter()).enumerate()
@@ -2047,7 +2041,7 @@ async fn store_batch(
             (index + 1) as f32 / checked.invoices.len() as f32,
             index,
             Some(checked.invoices.len()),
-            &format!("校验原件 {}/{}", index + 1, checked.invoices.len()),
+            &format!("整理费用 {}/{}", index + 1, checked.invoices.len()),
         );
         let duplicate_reason = checked
             .duplicate_reasons_by_index
@@ -2076,9 +2070,8 @@ async fn store_batch(
             file_path: stored_path.to_string_lossy().into_owned(),
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
-            verification_result: verification_by_invoice
-                .get(&canonical_identity_key(invoice))
-                .cloned(),
+            // MVP 保留 OFD/XML 原件，但不执行签章或真伪验证。
+            verification_result: None,
             is_duplicate: duplicate_reason.is_some(),
             duplicate_reason,
         });
@@ -2113,6 +2106,21 @@ async fn store_batch(
                     )
                 })
                 .collect::<Vec<_>>();
+            let transport_routes = trip
+                .invoice_ids
+                .iter()
+                .filter_map(|input_index| {
+                    checked.invoices[*input_index]
+                        .travel_route
+                        .as_ref()
+                        .map(|route| {
+                            serde_json::json!({
+                                "inputIndex": input_index,
+                                "route": route,
+                            })
+                        })
+                })
+                .collect::<Vec<_>>();
             let transport_evidence_status = if kind == "business_trip" {
                 if active_transport_input_indexes.is_empty() {
                     requires_review = true;
@@ -2138,9 +2146,6 @@ async fn store_batch(
                     })
                 })
                 .collect::<Vec<_>>();
-            if !parse_review_reasons.is_empty() {
-                requires_review = true;
-            }
             let members = trip
                 .invoice_ids
                 .iter()
@@ -2162,6 +2167,7 @@ async fn store_batch(
                 "transportEvidenceStatus": transport_evidence_status,
                 "activeTransportInputIndexes": active_transport_input_indexes,
                 "transportAdjustmentInputIndexes": transport_adjustment_input_indexes,
+                "transportRoutes": transport_routes,
             })
             .to_string();
             Ok(IndexedInvoiceGroup {
@@ -2223,15 +2229,6 @@ async fn store_batch(
             email_messages,
         )
         .map_err(|error| AppError::database(format!("原子保存待审核批次失败: {error}")))
-}
-
-fn canonical_identity_key(invoice: &ParsedInvoice) -> String {
-    format!(
-        "{}|{}|{}",
-        invoice.invoice_number.trim(),
-        invoice.issue_date,
-        invoice.total_amount.normalize()
-    )
 }
 
 fn automatic_supporting_match(
@@ -2350,17 +2347,6 @@ fn enrich_invoices_from_supporting_documents(
             }
             _ => {}
         }
-    }
-}
-
-fn verification_rank(value: &str) -> u8 {
-    match value {
-        "invalid" => 5,
-        "valid" => 4,
-        "unsupported" => 3,
-        "not_signed" => 2,
-        "not_applicable" => 1,
-        _ => 0,
     }
 }
 
@@ -2501,6 +2487,11 @@ fn grouping_kind_metadata(kind: &TripKind) -> (String, String, bool) {
             format!("{month} 月市内消费"),
             false,
         ),
+        TripKind::CourierMonth { month, .. } => (
+            "courier_month".to_string(),
+            format!("{month} 月快递物流"),
+            false,
+        ),
         TripKind::Excluded => ("excluded".to_string(), "已排除票据".to_string(), true),
         TripKind::NeedsReview { reason } => (
             "needs_review".to_string(),
@@ -2593,52 +2584,6 @@ fn email_staging_filename(content_hash: &str, name: &str) -> String {
         stem.push('i');
     }
     format!("{prefix}{stem}{suffix}")
-}
-
-/// 解析单个发票文件
-fn verification_for_path(path: &Path) -> AppResult<Option<String>> {
-    let declared_extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    if matches!(
-        declared_extension.as_str(),
-        "pdf" | "png" | "jpg" | "jpeg" | "webp" | "bmp"
-    ) {
-        return Ok(Some("not_applicable".to_string()));
-    }
-    if !matches!(declared_extension.as_str(), "xml" | "ofd") && !path.is_file() {
-        return Ok(None);
-    }
-    let bytes = std::fs::read(path)
-        .map_err(|error| AppError::io(format!("验签读取失败（{}）", error.kind())))?;
-    let extension = detected_input_format(path, &bytes).to_string();
-    if !matches!(
-        extension.as_str(),
-        "xml" | "ofd" | "pdf" | "png" | "jpg" | "jpeg" | "webp" | "bmp"
-    ) {
-        return Ok(None);
-    }
-    if matches!(
-        extension.as_str(),
-        "pdf" | "png" | "jpg" | "jpeg" | "webp" | "bmp"
-    ) {
-        return Ok(Some("not_applicable".to_string()));
-    }
-    let status = match extension.as_str() {
-        "xml" => invoice_parse::verify::verify_xml_signature(&bytes, path),
-        "ofd" => invoice_parse::verify::verify_ofd_signature(&bytes, path),
-        _ => unreachable!(),
-    };
-    Ok(Some(match status {
-        Ok(invoice_parse::verify::SignatureStatus::Valid) => "valid".to_string(),
-        Ok(invoice_parse::verify::SignatureStatus::NotSigned) => "not_signed".to_string(),
-        Ok(invoice_parse::verify::SignatureStatus::Invalid { .. }) => "invalid".to_string(),
-        Ok(invoice_parse::verify::SignatureStatus::Unsupported { .. }) | Err(_) => {
-            "unsupported".to_string()
-        }
-    }))
 }
 
 fn parse_single_invoice(path: &Path, hints: &TagHints) -> Result<ParsedInvoice, anyhow::Error> {
@@ -3111,33 +3056,6 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_signature_status_is_preserved_for_review() {
-        let temp = tempfile::tempdir().unwrap();
-        let unsigned_xml = temp.path().join("unsigned.xml");
-        std::fs::write(&unsigned_xml, b"<Invoice></Invoice>").unwrap();
-        assert_eq!(
-            verification_for_path(&unsigned_xml).unwrap().as_deref(),
-            Some("not_signed")
-        );
-
-        let malformed_xml = temp.path().join("malformed.xml");
-        std::fs::write(&malformed_xml, [0xff, 0xfe]).unwrap();
-        assert_eq!(
-            verification_for_path(&malformed_xml).unwrap().as_deref(),
-            Some("unsupported")
-        );
-        assert_eq!(
-            verification_for_path(Path::new("missing.pdf"))
-                .unwrap()
-                .as_deref(),
-            Some("not_applicable")
-        );
-        assert!(verification_for_path(Path::new("unknown.txt"))
-            .unwrap()
-            .is_none());
-    }
-
-    #[test]
     fn parser_dispatch_prefers_magic_over_missing_or_wrong_extension() {
         assert_eq!(
             detected_input_format(Path::new("long-name-without-extension"), b"%PDF-1.7\n"),
@@ -3555,18 +3473,6 @@ mod tests {
                 .collect::<Vec<_>>(),
         )
         .expect("pending originals must persist");
-        let mut verification_by_invoice = HashMap::<String, String>::new();
-        for (invoice, path) in checked.invoices.iter().zip(stored_paths.iter()) {
-            let Some(status) = verification_for_path(path).unwrap() else {
-                continue;
-            };
-            let key = canonical_identity_key(invoice);
-            if verification_by_invoice.get(&key).map_or(true, |current| {
-                verification_rank(&status) > verification_rank(current)
-            }) {
-                verification_by_invoice.insert(key, status);
-            }
-        }
         let reported = checked
             .invoices
             .iter()
@@ -3587,9 +3493,7 @@ mod tests {
                 file_path: path.to_string_lossy().into_owned(),
                 created_at: chrono::Utc::now().naive_utc(),
                 updated_at: chrono::Utc::now().naive_utc(),
-                verification_result: verification_by_invoice
-                    .get(&canonical_identity_key(invoice))
-                    .cloned(),
+                verification_result: None,
                 is_duplicate: false,
                 duplicate_reason: None,
             })

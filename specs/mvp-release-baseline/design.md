@@ -1,13 +1,13 @@
 # Invoice Assistant MVP 统一设计基线
 
-> 状态：已确认，实施中
-> 版本：1.4
-> 日期：2026-08-26
+> 状态：D01–D32 已确认；非 Concur 功能已完成产品验收，Concur 真实适配待验证
+> 版本：2.1
+> 日期：2026-09-03
 > 对应需求：`specs/mvp-release-baseline/requirements.md`
 
 ## 1. 设计结论
 
-MVP 是 Windows 11 x64 免安装、本地优先、无账号的单用户应用。程序不调用外部大模型，不持久化邮箱授权码；确定性规则无法判断的项目进入人工审核。核心费用数据使用目标系统无关的稳定本地模型，Concur字段只在上传阶段通过版本化配置生成投影。批次内部只包含“费用清单”和“归组”两个一级视图；用户完成审核后，系统冻结审核快照并进入独立交付选择，再导出Excel或上传Concur。核心发布范围包含用户触发、用户可见的Concur未提交草稿创建、费用填写和发票关联，收据邮件作为兼容降级；MVP 同时提供带警告的未加密备份导出/导入。
+MVP 是 Windows 11 x64 免安装、本地优先、无账号的单用户应用。程序不调用外部大模型，不持久化邮箱授权码；确定性规则无法判断的项目进入人工审核。邮件收集是独立、只读、结果持久化的任务；发票解析只在用户把收集结果或本地票据导入批次后开始。核心费用数据使用目标系统无关的稳定本地模型，Concur字段只在上传阶段通过版本化配置生成投影。批次内部只包含“费用清单”和“归组”两个一级视图；用户完成审核后，系统冻结审核快照并进入独立交付选择，再导出Excel/打印PDF或上传Concur。核心发布范围包含用户触发、用户可见的Concur未提交草稿创建、费用填写和发票关联，收据邮件作为兼容降级；MVP 同时提供带警告的未加密备份导出/导入。
 
 程序文件、用户数据、用户输出和会话秘密是四个独立安全边界。免安装更新只替换程序；数据库迁移必须先快照；邮箱读取严格只读；任何外发和删除操作均由用户明确触发。
 
@@ -47,8 +47,9 @@ MVP 是 Windows 11 x64 免安装、本地优先、无账号的单用户应用。
 
 ### 2.5 Layout Strategy
 
-- 224px 常驻左侧导航。
-- 审核工作区使用不对称三栏：240px 行程树、弹性发票列表、380–460px 原件检查器。
+- 左侧导航默认展开并允许折叠，折叠状态保留清晰图标、标签提示和当前页面状态。
+- 费用清单、归组清单和邮件台账使用列表→独立详情的层级；单条费用详情使用左侧稳定字段、右侧原件查看器，不同时挤入第三栏。
+- 归组详情把本组费用作为主要工作区；每笔费用信息与其操作同一行/同一卡片，避免按钮单独成行制造大块无意义空白。
 - 首次设置使用左侧说明、右侧表单；不使用居中浮动大卡片作为主结构。
 - 图标统一使用 Lucide；MVP 只实现完整浅色主题。
 - 页面切换 160ms、抽屉 180ms、状态变化 120ms，并尊重减少动态效果。
@@ -63,7 +64,8 @@ flowchart LR
     end
 
     subgraph Local["本地处理边界"]
-        COLLECT["采集与去重"]
+        COLLECT["独立邮件收集台账\n分类 / 下载 / 链接 / 二维码"]
+        IMPORT["批次内选择来源\n收集缓存 / 本地票据"]
         PARSE["结构化解析 / 本地 OCR"]
         AGGREGATE["发票单聚合"]
         EXPENSE["稳定本地费用项"]
@@ -72,15 +74,15 @@ flowchart LR
         REVIEW["双视图人工审核\n费用清单 / 归组"]
         SNAPSHOT["冻结 ReviewSnapshot"]
         DELIVERY["独立交付选择"]
-        OUTPUT["导出 Excel\n其他本地格式为次级动作"]
+        OUTPUT["导出文件\nExcel / 打印 PDF"]
         MAP["目标字段映射投影 / 上传会话"]
     end
 
-    IMAP --> COLLECT
-    FILES --> COLLECT
-    COLLECT --> PARSE --> AGGREGATE --> EXPENSE --> VALIDATE --> GROUP --> REVIEW
+    IMAP --> COLLECT --> IMPORT
+    FILES --> IMPORT
+    IMPORT --> PARSE --> AGGREGATE --> EXPENSE --> VALIDATE --> GROUP --> REVIEW
     REVIEW -->|"用户点击完成审核"| SNAPSHOT --> DELIVERY
-    DELIVERY -->|"导出 Excel"| OUTPUT
+    DELIVERY -->|"导出文件"| OUTPUT
     DELIVERY -->|"上传到 Concur"| MAP --> CONCUR["Concur未提交报销单草稿\n费用 + 对应发票"]
     DELIVERY -.->|"兼容路径"| RECEIPTS["SMTP 到 Concur 收据库"]
     Local --> DATA["本机 DataRoot"]
@@ -102,14 +104,15 @@ flowchart LR
 | 模块 | 输入 | 输出 | 关键约束 |
 |---|---|---|---|
 | SessionCredential | UI 一次性授权码 | 内存凭据句柄 | 不序列化、不日志化、退出清除 |
-| Collector | 邮箱配置/文件路径/日期区间 | 原件与来源元数据 | IMAP 只读、PEEK、三重去重 |
+| Collector | 邮箱配置/日期区间 | 持久邮件台账、原件、链接/二维码与来源元数据 | IMAP 只读、PEEK、单次下载；不解析发票 |
+| BatchImporter | 已完成收集缓存/本地票据文件 | 批次输入清单 | 批次创建与来源分离；本地无 EML；可重建 |
 | Parser | 原件 | 字段、置信度、解析证据 | 结构化优先；本地 OCR 随包分发 |
 | InvoiceAggregator | 已分类文件与解析证据 | `DocumentAsset`、`InvoiceRecord`、待挂载材料 | 配套材料不独立计费；保留全部来源 |
 | ExpenseModel | 发票单、行程、用户输入 | 版本化 `ExpenseItem` | 字段语义稳定；不包含Concur名称、选项ID或必填性 |
 | Validator | 字段、设置、历史台账 | 问题、重复依据、阻断状态 | 精确小数；不静默纠正 |
 | Grouper | 发票单、常驻城市、规则 | 锚点行程组、归入建议、歧义 | 强证据先建组；无锚点不建差旅行程；无 LLM |
 | Review | 行程、发票单、本地费用项、票据文件、问题 | 已确认批次 | 只审核本地字段；阻断项必须由人解决；重复计入须显式确认 |
-| Exporter | 已确认批次 | Excel/CSV/PDF/目录 | 张数金额跨格式一致 |
+| Exporter | 已确认批次 | Excel、材料打印 PDF | 同一审核快照；PDF 无封面/目录/异常页并使用全局页码 |
 | TargetMapping | 已确认 `ExpenseItem`、目标档案、上传补充值 | `MappedExpensePayload` 与映射快照 | 版本化、可解释；不反写本地费用项；缺口只阻断该目标上传 |
 | ConcurAdapter | 已冻结映射投影、原始发票、当前授权会话 | 未提交报销单草稿、费用、附件关联结果 | 用户触发且可见；外部ID；幂等；回读核对；不最终提交 |
 | ConcurMailer | 已确认附件、会话 SMTP 凭据 | 试发/批量发送结果 | 用户确认、限流、幂等 |
@@ -240,8 +243,8 @@ stateDiagram-v2
     Grouping --> ReviewRequired
     ReviewRequired --> ReviewCompleted: 用户点击完成审核
     ReviewCompleted --> DeliveryReady: 冻结ReviewSnapshot
-    DeliveryReady --> ExportingExcel: 用户选择导出Excel
-    ExportingExcel --> DeliveryReady: 记录交付结果
+    DeliveryReady --> ExportingLocal: 用户选择Excel或打印PDF
+    ExportingLocal --> DeliveryReady: 记录交付结果
     DeliveryReady --> PreparingConcur: 用户选择上传Concur
     PreparingConcur --> ConcurUploading: 映射预检通过
     ConcurUploading --> DeliveryReady: 记录交付结果
@@ -252,7 +255,7 @@ stateDiagram-v2
     NormalizingExpense --> Failed
     Validating --> Failed
     Grouping --> Failed
-    ExportingExcel --> Failed
+    ExportingLocal --> Failed
     PreparingConcur --> Failed
     ConcurUploading --> Failed
     Failed --> Configuring: 修复配置
@@ -317,7 +320,9 @@ OCR 引擎和模型必须随免安装包提供、版本固定并纳入许可/SBO
 
 批次页固定使用`费用清单`和`归组`两个一级视图。费用清单承担浏览、筛选、批量处理、单条核对、重复和待挂载材料；归组承担明确行程组、市内消费、待归组、拆分和合并。问题作为两个视图内的状态与筛选，修改记录作为右侧检查器中的审计信息，不额外占用一级标签。
 
-费用清单的三栏布局展示筛选/问题、费用项列表和该费用项的“费用信息、票据信息、问题与依据”及原件。单条核对只编辑稳定 `ExpenseItem` 和必要的 `InvoiceRecord` 票面事实，不显示Concur字段名称、目标选项ID或租户必填标记。默认先显示本地阻断项、重复未计入和待挂载材料，再显示警告和低置信项目。移动、合并、拆分、排除、恢复和编辑均需键盘等价操作；批量操作提供撤销。
+费用清单先以表格和筛选呈现；点击费用进入独立核对页面，左侧编辑“费用信息、票据信息、问题与依据”，右侧为可折叠/全屏的原件查看器。单条核对只编辑稳定 `ExpenseItem` 和必要的 `InvoiceRecord` 票面事实，不显示Concur字段名称、目标选项ID或租户必填标记。默认先显示本地阻断项、重复未计入和待挂载材料，再显示警告和低置信项目。移动、合并、拆分、排除、恢复和编辑均需键盘等价操作；批量操作提供撤销。
+
+费用字段确认与归组确认使用独立状态：费用清单只核对日期、类型、金额等本地事实，归组页只核对组成员关系。任一页面保存都不依赖另一页面已确认。待处理材料作为与“本次费用”“未计入”并列的列表，提供挂载、转为费用和明确忽略。
 
 两个视图共享粘性页头和底部审核摘要。底部只显示计入张数/金额、重复未计入、其他排除、未解决阻断数和“完成审核”；审核期间不显示导出、上传或创建Concur草稿。按钮禁用时必须就地说明阻断项。
 
@@ -326,12 +331,12 @@ OCR 引擎和模型必须随免安装包提供、版本固定并纳入许可/SBO
 ### 8.1 输出
 
 - 本地交付只能从有效 `ReviewSnapshot` 的独立“交付选择”页面启动；不得作为批次标签或审核中的操作出现。
-- Excel是交付选择中的主本地入口：使用稳定本地费用字段、票面事实、行程、问题处理结果和金额汇总；不要求Concur映射完整。
-- CSV：明确编码、列名、日期和金额格式。
-- 打印合订本：A4 可打印，保留原件可读性。
-- 标准目录：按批次/行程组织原件和输出。
-- 每种输出均写入同一确认批次 ID 和内容摘要，便于交叉核对。
-- CSV、PDF和标准目录若保留，只能作为进入Excel导出流程后的次级附加格式或后续能力，不与“导出Excel”“上传到Concur”并列成为批次操作。
+- 本地入口命名为“导出文件”，提供 Excel 和打印 PDF；都使用同一有效审核快照且不要求Concur映射完整。
+- Excel 使用稳定本地费用字段、票面事实、行程、问题处理结果和金额汇总。
+- 打印 PDF 只合并计入费用关联的有效发票、行程单、水单和其他材料；第一页直接是第一份凭证，不生成封面、费用/材料目录或异常附录。
+- 打印 PDF 使用 A4 页面和跨全部材料连续的全局页码；PDF/图片/OFD/XML按可打印能力转换，失败项留在 UI 警告而不插入错误页。
+- 生成过程显示准备、逐材料转换、写入、校验和完成阶段；同目录临时写入、同步并原子替换目标文件。
+- CSV、标准目录和原件集合若保留，只能作为次级或诊断输出，不作为MVP交付主入口。
 
 ### 8.2 Concur草稿上传
 
@@ -440,17 +445,23 @@ D10 采用 B。设置页和退出菜单提供“退出并清除程序与数据�
 ### 11.1 包结构
 
 ```text
-InvoiceAssistant-<version>-windows11-x64-portable/
+InvoiceAssistant-<version>-windows-x64-portable/
 ├─ InvoiceAssistant.exe
-├─ runtime/
-├─ README-首次使用.md
-├─ PRIVACY.md
-├─ TERMS.md
-├─ RELEASE-NOTES.md
+├─ invoice-ocr-worker.exe
+├─ ocr/                         # 固定版本运行库与模型
+├─ LICENSES/                    # 依法必须随分发物提供的许可
+├─ README-FIRST.txt
+├─ PRIVACY.md                   # 内部Alpha可明确标为草案；公开版必须定稿
+├─ USER-AGREEMENT.md            # 内部Alpha可明确标为草案；公开版必须定稿
 ├─ THIRD-PARTY-NOTICES.txt
 ├─ version.json
-└─ SHA256SUMS
+├─ manifest.json
+└─ SHA256SUMS.txt
 ```
+
+用户 ZIP 使用显式白名单。发布说明、SBOM 和 ZIP 独立 SHA-256 是同一 GitHub Release 的旁挂附件，不占用用户程序目录；IT 审核包、机器验证 JSON、开放缺陷、性能/隐私处置报告、夹具清单、设计和 schema 文档只进入受控发布证据。字体许可归入 `LICENSES/FONTS`，OCR 许可归入 `LICENSES/OCR`，避免根目录堆叠。
+
+本机构建目录按职责分层：`artifacts/releases/<version>/` 保存当前候选和旁挂附件，`artifacts/evidence/<run-id>/` 保存验证证据，`artifacts/archive/` 只保存受保留策略管理的历史候选。上述目录均为生成数据，不进入 Git，也不包含用户 DataRoot。
 
 默认包使用系统 Evergreen WebView2。启动前通过原生代码检查 Runtime、数据目录、空间和数据库兼容性。缺少 Runtime 时只提供微软官方/企业 IT 处理路径，不静默安装和提权。
 
@@ -465,9 +476,18 @@ InvoiceAssistant-<version>-windows11-x64-portable/
 
 Alpha 使用指定 GitHub Release；正式版迁移到官方 HTTPS 下载页。MVP 只提示版本，不自动下载或替换。用户解压到新目录，启动后读取稳定 `DataRoot`；数据库迁移前快照，失败可回退旧程序和快照。
 
+### 11.4 版本和 GitHub 构建
+
+- 应用使用完整 SemVer：稳定版 `0.1.0`、`0.2.0`，预发布版 `0.2.0-alpha.1`、`0.2.0-beta.1`；标签分别为 `v0.1.0`、`v0.2.0` 等。
+- 发布前由版本脚本同时更新并校验 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `ui/package.json`。数据库 schema、备份格式、解析器和归组规则保持独立版本。
+- 日常 push/PR 只运行质量门禁，不创建可下载 Release。只有精确匹配 `v*.*.*`（含合法预发布后缀）的标签进入发布流水线。
+- 发布流水线从标签提交执行干净检出、锁定依赖验证、完整质量门禁、release 构建、签名策略、最小包封装、解压复验、SHA-256、SBOM和来源证明。
+- 构建完成先形成 draft/prerelease；发布 job 使用受保护 GitHub Environment 或等价人工批准。任何版本不一致、工作树来源不明、签名策略不满足、包白名单漂移或复验失败都必须停止。
+- GitHub Release 资产只包含用户 ZIP、ZIP 的 `.sha256`、SBOM 和必要发布说明；内部验证证据按最短可满足审计的保留期存放在 Actions artifact 或受控存储中，不公开混入用户包。
+
 ## 12. UI 信息架构与关键流程
 
-常驻导航：工作台、报销批次、历史台账、设置。
+常驻导航：工作台、邮件收集、报销批次、历史台账、设置；导航支持折叠。
 
 首次使用：
 
@@ -480,7 +500,7 @@ flowchart LR
     E --> F["第一个批次"]
 ```
 
-主流程：配置来源 → 采集/解析 → 发票单聚合 → 建立稳定本地费用项 → 重复与计入判定 → 锚点建行程组 → 其他费用归入 → 在费用清单/归组双视图完成人工审核 → 冻结审核快照 → 进入独立交付选择 → 导出Excel或选择目标后生成映射投影并上传Concur草稿。
+主流程：创建并审核邮件收集任务（或准备本地票据）→ 新建仅含名称的批次 → 在批次中选择来源导入 → 发票解析/发票单聚合 → 建立稳定本地费用项 → 重复与计入判定 → 锚点建行程组 → 其他费用归入 → 在费用清单/归组双视图分别完成人工审核 → 冻结审核快照 → 进入独立交付选择 → 导出Excel/打印PDF或选择目标后生成映射投影并上传Concur草稿。
 
 关键 UX 规则：
 
@@ -489,7 +509,7 @@ flowchart LR
 - 所有后台阶段显示最近进展、已完成数量和安全停止操作。
 - 批次内部只显示费用清单和归组两个一级视图，不显示输出、Concur或记录标签。
 - 阻断项未解决不能完成审核；未生成有效审核快照不能启动任何新交付。
-- 交付选择把“导出Excel”和“上传到Concur”作为两个主入口；完成一种后可返回执行另一种。
+- 交付选择把“导出文件”和“上传到Concur”作为两个主入口；导出文件内提供 Excel 和打印 PDF，完成一种后可返回执行另一种。
 - 审核后修改本地数据会使快照失效，必须重新完成审核；返回批次恢复原视图和筛选上下文。
 - 单条核对页只使用本地费用字段；Concur字段仅出现在映射设置、上传预检和上传结果。
 - 切换Concur租户或映射版本后，本地费用项显示值、审核状态和本地输出不得变化。

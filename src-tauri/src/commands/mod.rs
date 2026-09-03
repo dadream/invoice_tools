@@ -9,6 +9,7 @@ pub mod invoice;
 pub mod onboarding;
 pub mod pipeline;
 pub(crate) mod pipeline_cancel;
+pub mod print_export;
 pub mod review;
 pub mod settings;
 pub mod update;

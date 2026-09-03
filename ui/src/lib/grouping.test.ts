@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { displayGroupTitle, transportDocumentKind } from './grouping'
+import { displayGroupTitle, transportDocumentKind, transportRouteForInvoice } from './grouping'
 import type { InvoiceGroup, InvoiceGroupMember } from './types'
 
 function group(title: string, kind: InvoiceGroup['kind'] = 'business_trip'): InvoiceGroup {
@@ -17,6 +17,19 @@ describe('grouping presentation', () => {
 
   it('uses one local-month label without the year', () => {
     expect(displayGroupTitle(group('2026 年 6 月市内消费', 'local_month'))).toBe('6 月市内消费')
+  })
+
+  it('uses a dedicated courier-month label', () => {
+    expect(displayGroupTitle(group('2026 年 6 月快递物流', 'courier_month'))).toBe('6 月快递物流')
+  })
+
+  it('reads the exact route for a transport member', () => {
+    const value = group('邢台出差')
+    value.members = [{ invoice_id: 9, invoice_number: 'x', input_index: 47, match_reason: '' }]
+    value.evidence_json = JSON.stringify({
+      transportRoutes: [{ inputIndex: 47, route: '北京西→邢台东' }],
+    })
+    expect(transportRouteForInvoice(value, 9)).toBe('北京西→邢台东')
   })
 
   it('recognizes refund members from the persisted match reason', () => {

@@ -1,8 +1,10 @@
 # Invoice Assistant 产品 UI 与用户交互设计
 
+> **执行优先级说明（2026-09-03）：** 本文保留页面设计细节，但当前产品行为以 `specs/mvp-release-baseline/` 2.0 的 D23–D31 / R33–R40 为准。若本文仍出现三栏审核、批次创建时选择来源、费用/归组互相阻断、旧打印目录或验签任务等表述，均视为历史方案。
+
 > 状态：MVP 设计基线
-> 版本：v1.2
-> 日期：2026-08-26
+> 版本：v1.3（已对齐 MVP 2.0 优先级）
+> 日期：2026-09-03
 > 目标平台：Windows 免安装 Tauri / WebView2 本地端
 > 适用范围：功能 MVP，以及发布后的账号与数据加密扩展
 > 相关文档：`invoice-reimbursement-product-spec.md`、`docs/user-account-and-data-encryption-design.md`

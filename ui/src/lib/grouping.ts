@@ -26,6 +26,21 @@ export function transportDocumentKindForInvoice(group: InvoiceGroup, invoiceId: 
   return transportDocumentKind(group.members.find((member) => member.invoice_id === invoiceId))
 }
 
+export function transportRouteForInvoice(group: InvoiceGroup, invoiceId: number): string | null {
+  const inputIndex = group.members.find((member) => member.invoice_id === invoiceId)?.input_index
+  if (inputIndex === undefined) return null
+  const routes = evidence(group).transportRoutes
+  if (!Array.isArray(routes)) return null
+  for (const value of routes) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) continue
+    const record = value as Record<string, unknown>
+    if (record.inputIndex === inputIndex && typeof record.route === 'string' && record.route.trim()) {
+      return record.route.trim()
+    }
+  }
+  return null
+}
+
 export function groupTransportEvidenceStatus(group: InvoiceGroup, expenses: ExpenseItem[]): TransportEvidenceStatus {
   const stored = evidence(group).transportEvidenceStatus
   if (stored === 'present' || stored === 'missing' || stored === 'company_paid' || stored === 'not_required') return stored
@@ -44,6 +59,10 @@ export function displayGroupTitle(group: InvoiceGroup, expenses: ExpenseItem[] =
   if (group.kind === 'local_month') {
     const match = group.start_date.match(/^\d{4}-(\d{2})/)
     return match ? `${Number(match[1])} 月市内消费` : '市内消费'
+  }
+  if (group.kind === 'courier_month') {
+    const match = group.start_date.match(/^\d{4}-(\d{2})/)
+    return match ? `${Number(match[1])} 月快递物流` : '快递物流'
   }
   if (group.kind === 'excluded') return '未计入费用'
   if (group.kind === 'needs_review') return '待确定归属的费用'

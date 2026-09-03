@@ -19,6 +19,11 @@ if (-not [string]::IsNullOrWhiteSpace($PackageTag)) {
 $stage = Join-Path $artifactRoot $packageBase
 $zipPath = Join-Path $artifactRoot ($packageBase + ".zip")
 $zipHashPath = $zipPath + ".sha256"
+$releaseAssetBase = "InvoiceAssistant-$version"
+if (-not [string]::IsNullOrWhiteSpace($PackageTag)) {
+    $releaseAssetBase = "$releaseAssetBase-$PackageTag"
+}
+$sbomPath = Join-Path $artifactRoot ($releaseAssetBase + "-SBOM.cdx.json")
 $exeSource = Join-Path $projectRoot "target\release\invoice-assistant.exe"
 $workerSource = Join-Path $projectRoot "target\release\invoice-ocr-worker.exe"
 $cargoExe = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".cargo\bin\cargo.exe"
@@ -80,7 +85,7 @@ if (-not [string]::IsNullOrWhiteSpace($concurSendFlag) -and $concurSendFlag -ne 
 }
 $concurSendEnabled = $false
 
-foreach ($path in @($stage, $zipPath, $zipHashPath)) {
+foreach ($path in @($stage, $zipPath, $zipHashPath, $sbomPath)) {
     if (Test-Path -LiteralPath $path) {
         throw "Refusing to overwrite existing artifact: $path"
     }
@@ -128,18 +133,6 @@ $documents = @{
     "docs\release\PORTABLE-README-FIRST.txt" = "README-FIRST.txt"
     "docs\release\PRIVACY-DRAFT.md" = "PRIVACY-DRAFT.md"
     "docs\release\USER-AGREEMENT-DRAFT.md" = "USER-AGREEMENT-DRAFT.md"
-    "docs\release\RELEASE-NOTES-0.1.0.md" = "RELEASE-NOTES.md"
-    "docs\release\IT-REVIEW.md" = "IT-REVIEW.md"
-    "docs\release\controlled-cleanup.md" = "CONTROLLED-CLEANUP.md"
-    "docs\release\windows-validation-2026-08-19.md" = "VALIDATION-2026-08-19.md"
-    "docs\release\data-version-and-migration-audit-2026-08-20.md" = "DATA-VERSION-AND-MIGRATION-AUDIT-2026-08-20.md"
-    "docs\release\ocr-and-scanned-pdf-validation-2026-08-20.md" = "OCR-VALIDATION-2026-08-20.md"
-    "docs\release\ocr-performance-2026-08-20.md" = "OCR-PERFORMANCE-2026-08-20.md"
-    "docs\release\open-defects.md" = "OPEN-DEFECTS.md"
-    "docs\security\private-fixture-remediation-2026-08-20.md" = "PRIVATE-FIXTURE-REMEDIATION-2026-08-20.md"
-    "docs\testing\fixture-inventory.md" = "FIXTURE-INVENTORY.md"
-    "docs\release\version-manifest-schema.md" = "VERSION-MANIFEST-SCHEMA.md"
-    "docs\release\concur-receipt-email-design-and-validation.md" = "CONCUR-RECEIPT-EMAIL-DESIGN-AND-VALIDATION.md"
 }
 foreach ($entry in $documents.GetEnumerator()) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $entry.Key) -Destination (Join-Path $stage $entry.Value)
@@ -182,7 +175,14 @@ $fontPackages = @(
     }
 )
 foreach ($font in $fontLock.fonts) {
-    Copy-Item -LiteralPath (Join-Path $projectRoot $font.licenseFile) -Destination (Join-Path $stage $font.licenseOutput)
+    $fontLicenseDirectory = Join-Path $stage "LICENSES\FONTS"
+    New-Item -ItemType Directory -Path $fontLicenseDirectory -Force | Out-Null
+    $fontLicenseName = [IO.Path]::GetFileName([string]$font.licenseOutput)
+    if ([string]::IsNullOrWhiteSpace($fontLicenseName)) {
+        throw "Font license output must contain a file name"
+    }
+    Copy-Item -LiteralPath (Join-Path $projectRoot $font.licenseFile) `
+        -Destination (Join-Path $fontLicenseDirectory $fontLicenseName)
 }
 $ocrLock = Get-Content -LiteralPath (Join-Path $projectRoot "third_party\ocr\ocr.lock.json") -Raw | ConvertFrom-Json
 $ocrAssetSource = Join-Path $projectRoot "src-tauri\assets\ocr"
@@ -195,7 +195,6 @@ foreach ($license in $ocrLock.licenses) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $outputPath) -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $projectRoot $license.path) -Destination $outputPath
 }
-Copy-Item -LiteralPath (Join-Path $projectRoot "third_party\ocr\ocr.lock.json") -Destination (Join-Path $stage "LICENSES\OCR\ocr.lock.json")
 $ocrPackages = @(
     [pscustomobject]@{ type="file"; ecosystem="ocr-runtime"; name=$ocrLock.runtime.name; version=$ocrLock.runtime.version; license=$ocrLock.runtime.license }
     [pscustomobject]@{ type="file"; ecosystem="ocr-model"; name=$ocrLock.models.name; version=$ocrLock.models.version; license=$ocrLock.models.license }
@@ -210,7 +209,8 @@ foreach ($component in $components) {
     $noticeLines.Add("$($component.ecosystem) $($component.name) $($component.version) - $($component.license)")
 }
 foreach ($font in $fontLock.fonts) {
-    $noticeLines.Add("font-source $($font.family) - $($font.repository)@$($font.commit) - license file $($font.licenseOutput)")
+    $fontLicenseName = [IO.Path]::GetFileName([string]$font.licenseOutput)
+    $noticeLines.Add("font-source $($font.family) - $($font.repository)@$($font.commit) - license file LICENSES/FONTS/$fontLicenseName")
 }
 $noticeLines.Add("ocr-runtime-source $($ocrLock.runtime.name) - $($ocrLock.runtime.packageUrl) - package SHA-256 $($ocrLock.runtime.packageSha256)")
 foreach ($model in $ocrLock.models.files) {
@@ -243,7 +243,7 @@ $sbom = [ordered]@{
     }
     components = $sbomComponents
 }
-Write-JsonUtf8NoBom -Value $sbom -Depth 8 -Path (Join-Path $stage "SBOM.cdx.json")
+Write-JsonUtf8NoBom -Value $sbom -Depth 8 -Path $sbomPath
 
 $versionMetadata = [ordered]@{
     schemaVersion = 1
@@ -315,3 +315,4 @@ $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
 Write-Output "Portable internal Alpha created:"
 Write-Output $zipPath
 Write-Output "SHA256=$zipHash"
+Write-Output "SBOM=$sbomPath"

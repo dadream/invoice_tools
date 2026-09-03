@@ -5,8 +5,6 @@
     PARSE_LEVEL_HINTS,
     PARSE_LEVEL_SEVERITY,
     TICKET_TYPE_LABELS,
-    VERIFICATION_LABELS,
-    VERIFICATION_COLORS,
     formatAmount,
   } from '../../lib/types'
   import { fileName } from '../../lib/invoice'
@@ -32,9 +30,6 @@
   const isDuplicate = $derived(duplicate?.is_duplicate === true)
   const isExactDuplicate = $derived(duplicate?.match_type === 'exact')
   const isFuzzyDuplicate = $derived(duplicate?.match_type === 'fuzzy')
-  const isInvalidSignature = $derived(parsed.verification_result === 'invalid')
-  const verifyLabel = $derived(parsed.verification_result ? VERIFICATION_LABELS[parsed.verification_result] : '未验证')
-  const verifyColor = $derived(parsed.verification_result ? VERIFICATION_COLORS[parsed.verification_result] : 'gray')
   // exact 重复阻断，fuzzy 重复仅警告允许确认；查重未出结论前也不放行
   const canConfirm = $derived(!checking && !adding && !isExactDuplicate)
 
@@ -91,18 +86,11 @@
     <h3>确认发票信息</h3>
     <div class="badges">
       <span class="level level-{severity}">{parsed.parse_level}</span>
-      <span class="verify verify-{verifyColor}">{verifyLabel}</span>
     </div>
   </header>
   <p class="level-hint level-hint-{severity}">
     {levelHint}（置信度 {(parsed.confidence * 100).toFixed(0)}%）
   </p>
-
-  {#if isInvalidSignature}
-    <p class="banner banner-danger" role="alert">
-      签名验证失败，该发票可能已被篡改或来源不可信
-    </p>
-  {/if}
 
   {#if checking}
     <p class="banner banner-info">正在检查是否重复报销...</p>
@@ -222,12 +210,6 @@
   .level-ok { background: #0a7; }
   .level-warn { background: #d98000; }
   .level-danger { background: #c33; }
-
-  .verify { padding: 0.15rem 0.45rem; border-radius: 4px; color: #fff; font-size: 0.8rem; font-weight: 500; }
-  .verify-green { background: #0a7; }
-  .verify-red { background: #c33; }
-  .verify-amber { background: #9a6700; }
-  .verify-gray { background: #999; color: #fff; }
 
   .level-hint { margin: 0.4rem 0 1rem; font-size: 0.8rem; }
   .level-hint-ok { color: #666; }

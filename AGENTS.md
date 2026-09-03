@@ -122,3 +122,17 @@ user.email = 285083020@qq.com
 - Configure it in the repository-local Git config only; do not overwrite the
   user's global Git identity.
 - Do not invent a different author, committer, or co-author identity.
+
+## Git Submission Policy
+
+This repository does not use preflight receipt commits or any equivalent
+submission-receipt workflow.
+
+- Do not run the `preflight`, `preflight-light`, or `preflight-pro` submission
+  workflow for this repository.
+- Do not create or modify `preflight.md`, and do not add a preflight merge
+  driver or preflight commit footer.
+- After the requested project checks pass, use ordinary non-interactive Git
+  commands to stage, commit, push, and create release tags.
+- Keep the commit identity and release gates defined above; skipping preflight
+  does not waive build, test, privacy, signing, or release validation.

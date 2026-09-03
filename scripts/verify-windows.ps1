@@ -30,6 +30,8 @@ $uiRoot = Join-Path $projectRoot "ui"
 & (Join-Path $PSScriptRoot "test-update-manifest-config.ps1")
 & (Join-Path $PSScriptRoot "test-concur-send-build-gate.ps1")
 & (Join-Path $PSScriptRoot "check-third-party-licenses.ps1")
+& (Join-Path $PSScriptRoot "assert-release-version.ps1") | Out-Host
+& (Join-Path $PSScriptRoot "test-release-version.ps1")
 
 $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -ne $cargoCommand) {

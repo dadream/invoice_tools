@@ -1,0 +1,142 @@
+name: Windows tagged release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-internal-alpha:
+    name: Build unsigned internal Alpha
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release version and clean source
+        shell: pwsh
+        run: .\scripts\assert-release-version.ps1 -Tag "${{ github.ref_name }}" -RequireCleanGit
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install locked UI dependencies
+        run: npm ci --prefix ui
+
+      - name: Install locked Rust toolchain components
+        shell: pwsh
+        run: rustup toolchain install 1.97.1 --component rustfmt --component clippy
+
+      - name: Run Windows quality gate
+        shell: pwsh
+        run: .\scripts\verify-windows.ps1
+
+      - name: Build minimal portable release assets
+        shell: pwsh
+        run: .\scripts\build-portable.ps1 -SkipVerify
+
+      - name: Verify packaged release without GUI automation
+        shell: pwsh
+        run: |
+          $version = (Get-Content .\src-tauri\tauri.conf.json -Raw | ConvertFrom-Json).version
+          $base = "InvoiceAssistant-$version-windows-x64-portable-UNSIGNED-INTERNAL-ALPHA"
+          $zip = Join-Path $PWD "artifacts\$base.zip"
+          .\scripts\verify-portable.ps1 `
+            -ZipPath $zip `
+            -ExpectedSignatureStatus NotSigned `
+            -SkipLaunch `
+            -EvidencePath (Join-Path $PWD "artifacts\portable-release.validation.json")
+
+      - name: Stage release assets for the approval job
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-assistant-${{ github.ref_name }}-release-assets
+          path: |
+            artifacts/InvoiceAssistant-*-windows-x64-portable-UNSIGNED-INTERNAL-ALPHA.zip
+            artifacts/InvoiceAssistant-*-windows-x64-portable-UNSIGNED-INTERNAL-ALPHA.zip.sha256
+            artifacts/InvoiceAssistant-*-SBOM.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Retain internal release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-assistant-${{ github.ref_name }}-release-evidence
+          path: artifacts/*.validation.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-draft:
+    name: Create approved draft prerelease
+    needs: build-internal-alpha
+    runs-on: windows-latest
+    timeout-minutes: 10
+    environment: release-internal-alpha
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes from the tagged source
+        uses: actions/checkout@v4
+
+      - name: Download verified release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: invoice-assistant-${{ github.ref_name }}-release-assets
+          path: artifacts
+
+      - name: Publish immutable version assets as a draft prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.Substring(1)
+          $base = "InvoiceAssistant-$version-windows-x64-portable-UNSIGNED-INTERNAL-ALPHA"
+          $zip = Join-Path $PWD "artifacts\$base.zip"
+          $zipHash = "$zip.sha256"
+          $sbom = Join-Path $PWD "artifacts\InvoiceAssistant-$version-SBOM.cdx.json"
+          $notes = Join-Path $PWD "docs\release\RELEASE-NOTES-$version.md"
+
+          foreach ($required in @($zip, $zipHash, $sbom)) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Verified release asset is missing: $required"
+            }
+          }
+
+          & gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "GitHub Release already exists for $tag; published versions are not overwritten"
+          }
+
+          $arguments = @(
+            "release", "create", $tag,
+            $zip, $zipHash, $sbom,
+            "--verify-tag",
+            "--draft",
+            "--prerelease",
+            "--title", "Invoice Assistant $version - unsigned internal Alpha"
+          )
+          if (Test-Path -LiteralPath $notes -PathType Leaf) {
+            $arguments += @("--notes-file", $notes)
+          }
+          else {
+            $arguments += "--generate-notes"
+          }
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to create GitHub draft prerelease for $tag"
+          }

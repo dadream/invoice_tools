@@ -182,12 +182,6 @@ pub fn transition_batch_status(
                 "仍有 {duplicate_count} 张疑似重复发票未处理"
             )));
         }
-        if invoices
-            .iter()
-            .any(|invoice| invoice.verification_result.as_deref() == Some("invalid"))
-        {
-            return Err(AppError::validation("仍有签章校验失败的发票未处理"));
-        }
         let grouping = db
             .get_batch_grouping(id)
             .map_err(|e| AppError::database(format!("读取归组审核状态失败: {e}")))?;

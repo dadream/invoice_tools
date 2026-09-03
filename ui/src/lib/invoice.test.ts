@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/api/webview', () => ({ getCurrentWebview: vi.fn() }))
 
-const { fileExtension, fileName, isSupportedInvoiceFile, SUPPORTED_EXTENSIONS } =
+const { countUniqueOfdFiles, fileExtension, fileName, isSupportedInvoiceFile, SUPPORTED_EXTENSIONS } =
   await import('./invoice')
 
 describe('invoice file selection', () => {
@@ -39,5 +39,14 @@ describe('invoice file selection', () => {
     expect(fileExtension(windowsPath)).toBe('jpeg')
     expect(fileName('/tmp/INVOICE.PDF')).toBe('INVOICE.PDF')
     expect(fileName(windowsPath)).toBe('六月.扫描.JPEG')
+  })
+
+  it('counts retained OFD originals once across primary and related documents', () => {
+    expect(countUniqueOfdFiles([
+      String.raw`C:\Data\invoice.OFD`,
+      String.raw`c:\data\invoice.ofd`,
+      'C:/Data/other.ofd',
+      'C:/Data/invoice.pdf',
+    ])).toBe(2)
   })
 })

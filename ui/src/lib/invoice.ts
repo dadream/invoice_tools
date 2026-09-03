@@ -33,6 +33,20 @@ export function fileName(path: string): string {
 }
 
 /**
+ * 统计一组文件路径中实际保留的 OFD 原件数量。
+ *
+ * Windows 路径不区分大小写；同一路径可能同时作为主文件和关联材料返回，
+ * 因此展示批次级提示前必须先去重。
+ */
+export function countUniqueOfdFiles(paths: string[]): number {
+  return new Set(
+    paths
+      .filter((path) => fileExtension(path) === 'ofd')
+      .map((path) => path.replaceAll('/', '\\').toLowerCase()),
+  ).size
+}
+
+/**
  * 打开系统文件选择器，返回绝对路径；用户取消返回 null。
  *
  * `multiple: false` 时 `open()` 的返回类型是 `string | null`，

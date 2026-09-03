@@ -22,7 +22,7 @@
       "repository": "https://github.com/IBM/plex",
       "commit": "bf260093582f04622aacc1e9f9ca604d7ccd0c42",
       "licenseFile": "third_party/fonts/ibm-plex/LICENSE.txt",
-      "licenseSha256": "7E6B2818EDBD8F6A01AE80641CC8F16A51080D08FB4E532BE3A0B6F74ADB07DA",
+      "licenseSha256": "D741E57D5F865E294DF801F96B7B5161A88B211DF65887E4358D271C9FC5FB4F",
       "licenseOutput": "FONT-LICENSE-IBM-PLEX.txt",
       "files": [
         { "path": "ui/src/assets/fonts/IBMPlexSans-Regular.woff2", "sha256": "BA711A3085FF9F27440B6B9C4550CFC47C97BF36591D5DA958B975BB3ADD8C1A" },

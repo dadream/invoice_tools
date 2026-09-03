@@ -3,8 +3,6 @@
   import type { Invoice } from '../../lib/types'
   import {
     TICKET_TYPE_LABELS,
-    VERIFICATION_COLORS,
-    VERIFICATION_LABELS,
     formatAmount,
     sumAmounts,
   } from '../../lib/types'
@@ -74,7 +72,6 @@
           <tr>
             <th>发票号</th>
             <th>日期</th>
-            <th>签章校验</th>
             <th>票种</th>
             <th class="num">金额</th>
             <th>销方</th>
@@ -83,7 +80,7 @@
         </thead>
         <tbody>
           {#each invoices as invoice (invoice.id)}
-            <tr class:duplicate-row={invoice.is_duplicate} class:invalid-row={invoice.verification_result === 'invalid'}>
+            <tr class:duplicate-row={invoice.is_duplicate}>
               <td class="number" title={invoice.invoice_number}>
                 {invoice.invoice_number}
                 {#if invoice.is_duplicate}
@@ -91,15 +88,6 @@
                 {/if}
               </td>
               <td>{invoice.issue_date}</td>
-              <td>
-                {#if invoice.verification_result}
-                  <span class="verification" style:color={VERIFICATION_COLORS[invoice.verification_result]}>
-                    {VERIFICATION_LABELS[invoice.verification_result]}
-                  </span>
-                {:else}
-                  <span class="verification unknown">待校验</span>
-                {/if}
-              </td>
               <td>{TICKET_TYPE_LABELS[invoice.ticket_type] ?? invoice.ticket_type}</td>
               <td class="num">{formatAmount(invoice.amount)}</td>
               <td class="seller" title={invoice.seller_name ?? ''}>{invoice.seller_name ?? '—'}</td>
@@ -129,7 +117,7 @@
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="4">合计</td>
+            <td colspan="3">合计</td>
             <td class="num total">{formatAmount(displayTotal)}</td>
             <td colspan={canEdit ? 2 : 1}></td>
           </tr>
@@ -160,13 +148,9 @@
   .invoice-table .num { text-align: right; }
   .duplicate-row { background: #fff0f0; }
   .duplicate-row:hover { background: #ffe8e8 !important; }
-  .invalid-row { background: #fff3e8; }
-  .invalid-row:hover { background: #ffead5 !important; }
   .number { font-family: var(--font-mono); max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .duplicate-icon { margin-left: 0.25rem; font-size: 0.9rem; cursor: help; }
   .seller { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .verification { white-space: nowrap; font-weight: 600; }
-  .verification.unknown { color: #777; font-weight: 400; }
   .actions { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 9rem; }
   tfoot td { font-weight: 600; border-bottom: none; }
   .total { color: var(--pine); }

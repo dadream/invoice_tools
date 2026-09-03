@@ -45,6 +45,7 @@ export async function invokeSafe<T>(
 
 /** 面向用户的中文提示。可恢复的引导重试，不可恢复的引导查日志。 */
 export function describeError(err: AppError): string {
+  if (err.kind === 'validation') return err.message
   return err.recoverable
     ? `${err.message}（可稍后重试）`
     : `${err.message}（请查看日志: ~/.invoice-assistant/logs/）`

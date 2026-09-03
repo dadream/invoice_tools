@@ -35,7 +35,8 @@ pub fn classify_invoice_text(text: &str) -> Option<TicketType> {
     if contains_any(
         &compact,
         &["餐饮服务", "餐饮费", "餐费", "餐饮服务费", "食品餐饮服务"],
-    ) {
+    ) || is_railway_onboard_food(&compact)
+    {
         return Some(TicketType::Meal);
     }
     if contains_any(
@@ -125,6 +126,35 @@ fn contains_any(haystack: &str, needles: &[&str]) -> bool {
     needles.iter().any(|needle| haystack.contains(needle))
 }
 
+/// 铁路列车服务商开具的方便食品/饮料属于旅途中实际餐饮。只有“铁路/列车
+/// 服务商 + 食品项目”两个证据同时出现才命中，普通零食、商超和健身服装仍
+/// 保持未分类。
+fn is_railway_onboard_food(compact: &str) -> bool {
+    let railway_vendor = contains_any(
+        compact,
+        &[
+            "铁路文化旅游有限公司",
+            "京铁列车服务有限公司",
+            "列车服务有限公司",
+            "铁路餐饮",
+            "列车餐饮",
+        ],
+    );
+    let food_item = contains_any(
+        compact,
+        &[
+            "方便食品",
+            "软饮料",
+            "果类加工品",
+            "豆制品",
+            "熟肉制品",
+            "餐食",
+            "盒饭",
+        ],
+    );
+    railway_vendor && food_item
+}
+
 /// 部分滴滴数电票的 PDF 文本层把项目名拆成：
 /// `*交通运输服务*客运服 <金额/数量/税率列> 务费`。普通空白归一化无法
 /// 恢复这个被表格列穿插的词，因此用三组强锚点识别；不接受单独的“客运服务”，
@@ -183,6 +213,26 @@ mod tests {
             None
         );
         assert_eq!(classify_invoice_text("公路旅客运输服务 客运服务"), None);
+    }
+
+    #[test]
+    fn classifies_railway_onboard_food_without_classifying_generic_snacks() {
+        assert_eq!(
+            classify_invoice_text(
+                "销售方：北京京铁列车服务有限公司石家庄分公司 项目：*方便食品*杏鲍菇烧牛肉"
+            ),
+            Some(TicketType::Meal)
+        );
+        assert_eq!(
+            classify_invoice_text(
+                "销售方：山西铁路文化旅游有限公司唐盛源分公司 *方便食品*方便食品"
+            ),
+            Some(TicketType::Meal)
+        );
+        assert_eq!(
+            classify_invoice_text("销售方：某商贸有限公司 *方便食品*薯片"),
+            None
+        );
     }
 
     #[test]

@@ -92,10 +92,58 @@ try {
     $checksumsPath = Join-Path $extractRoot "SHA256SUMS.txt"
     $exe = Join-Path $extractRoot "InvoiceAssistant.exe"
     $workerExe = Join-Path $extractRoot "invoice-ocr-worker.exe"
-    foreach ($required in @($manifestPath, $versionPath, $checksumsPath, $exe, $workerExe)) {
+    $requiredRelativePaths = @(
+        "InvoiceAssistant.exe",
+        "invoice-ocr-worker.exe",
+        "README-FIRST.txt",
+        "PRIVACY-DRAFT.md",
+        "USER-AGREEMENT-DRAFT.md",
+        "THIRD-PARTY-NOTICES.txt",
+        "version.json",
+        "manifest.json",
+        "SHA256SUMS.txt",
+        "LICENSES/FONTS/FONT-LICENSE-IBM-PLEX.txt",
+        "LICENSES/FONTS/FONT-LICENSE-SOURCE-HAN-SANS.txt",
+        "LICENSES/OCR/ONNXRuntime-LICENSE.txt",
+        "LICENSES/OCR/ONNXRuntime-ThirdPartyNotices.txt",
+        "LICENSES/OCR/RapidOCR-LICENSE.txt"
+    )
+    foreach ($relative in $requiredRelativePaths) {
+        $required = Resolve-PortableRelativePath -Root $extractRoot -RelativePath $relative
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-            throw "Portable package is missing required file: $required"
+            throw "Portable package is missing required file: $relative"
         }
+    }
+
+    $allowedRootFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in @(
+        "InvoiceAssistant.exe",
+        "invoice-ocr-worker.exe",
+        "README-FIRST.txt",
+        "PRIVACY-DRAFT.md",
+        "USER-AGREEMENT-DRAFT.md",
+        "THIRD-PARTY-NOTICES.txt",
+        "version.json",
+        "manifest.json",
+        "SHA256SUMS.txt"
+    )) {
+        [void]$allowedRootFiles.Add($name)
+    }
+    $unexpectedFiles = @(
+        $files | Where-Object {
+            $relative = (Get-ContainedRelativePath -BasePath $extractRoot -ChildPath $_.FullName).Replace('\', '/')
+            -not $allowedRootFiles.Contains($relative) -and
+                -not $relative.StartsWith("ocr/", [StringComparison]::OrdinalIgnoreCase) -and
+                -not $relative.StartsWith("LICENSES/", [StringComparison]::OrdinalIgnoreCase)
+        }
+    )
+    if ($unexpectedFiles.Count -ne 0) {
+        $unexpectedNames = @(
+            $unexpectedFiles | ForEach-Object {
+                (Get-ContainedRelativePath -BasePath $extractRoot -ChildPath $_.FullName).Replace('\', '/')
+            }
+        ) -join ", "
+        throw "Portable package contains files outside the distribution allowlist: $unexpectedNames"
     }
 
     $dllHardening = @(& (Join-Path $PSScriptRoot "test-dll-search-hardening.ps1") -ExecutablePath @($exe, $workerExe))
@@ -221,16 +269,15 @@ try {
     $windowTitle = $null
     $programDirectoryUnchanged = $null
     $dataFiles = @()
-    $ocrWorkerEvidence = $null
+    $ocrWorkerEvidence = & (Join-Path $PSScriptRoot "verify-ocr-worker.ps1") `
+        -WorkerPath $workerExe `
+        -AssetDir (Join-Path $extractRoot "ocr")
     if (-not $SkipLaunch) {
         $before = @{}
         Get-ChildItem -LiteralPath $extractRoot -Recurse -File | ForEach-Object {
             $relative = (Get-ContainedRelativePath -BasePath $extractRoot -ChildPath $_.FullName).Replace('\', '/')
             $before[$relative] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
         }
-        $ocrWorkerEvidence = & (Join-Path $PSScriptRoot "verify-ocr-worker.ps1") `
-            -WorkerPath $workerExe `
-            -AssetDir (Join-Path $extractRoot "ocr")
         $launchInfo = New-Object Diagnostics.ProcessStartInfo
         $launchInfo.FileName = $exe
         $launchInfo.WorkingDirectory = $extractRoot
@@ -290,6 +337,7 @@ try {
         manifestEntries = @($manifest.files).Count
         checksumEntries = $checksumLines.Count
         forbiddenFiles = $forbidden.Count
+        unexpectedDistributionFiles = $unexpectedFiles.Count
         authenticodeStatus = [string]$authenticodeStatuses["InvoiceAssistant.exe"]
         authenticodeStatuses = $authenticodeStatuses
         updateManifestConfigured = [bool]$versionMetadata.updateManifestConfigured

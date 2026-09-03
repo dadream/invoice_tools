@@ -339,7 +339,7 @@
         <span>原件仍保留并进入原始文件 ZIP；请依据右侧字段和解析证据审核。</span>
       </div>
     {:else if metadata?.preview_kind === 'image' && objectUrl}
-      <div class="image-stage">
+      <div class:zoomed={zoom > 1} class="image-stage">
         <img
           src={objectUrl}
           alt={'发票原件：' + metadata.file_name}
@@ -347,11 +347,11 @@
         />
       </div>
     {:else if metadata?.preview_kind === 'pdf' && objectUrl}
-      <div class="image-stage pdf-stage">
+      <div class:zoomed={zoom > 1} class:rotated={pdfRotation !== 0} class="image-stage pdf-stage">
         <img src={objectUrl} alt={`PDF 原件第 ${pdfPage} 页：${metadata.file_name}`} style:transform={`rotate(${pdfRotation}deg) scale(${zoom})`} />
       </div>
     {:else if (metadata?.preview_kind === 'ofd' || layoutKind === 'pdf-fallback') && layoutPreview}
-      <div class="image-stage pdf-stage layout-stage">
+      <div class:zoomed={zoom > 1} class:rotated={pdfRotation !== 0} class="image-stage pdf-stage layout-stage">
         <div class="layout-notice">{layoutKind === 'ofd' ? 'OFD 应用内只读版式预览' : 'Windows PDF 渲染不可用，正在显示兼容文本版式'}</div>
         <canvas bind:this={layoutCanvas} aria-label={`${metadata?.file_name ?? '原件'} 第 ${pdfPage} 页版式预览`} style:transform={`rotate(${pdfRotation}deg) scale(${zoom})`}></canvas>
       </div>
@@ -438,6 +438,9 @@
     place-items: start center;
     overflow: visible;
   }
+  /* 放大后从可滚动区域的左上角展开，避免居中 transform 把左侧内容推到
+     scrollLeft=0 之外。旋转预览维持中心原点，防止 90° 旋转产生负坐标。 */
+  .image-stage.zoomed { place-items: start; }
   img {
     max-width: 100%;
     height: auto;
@@ -456,6 +459,7 @@
     box-shadow: 0 8px 24px rgb(23 33 28 / 14%);
     transition: transform 120ms ease;
   }
+  .image-stage.zoomed:not(.rotated) :is(img, canvas) { transform-origin: top left; }
   .pdf-stage { padding-bottom: 2rem; }
   .layout-stage { position: relative; gap: .55rem; }
   .layout-notice { position: sticky; top: 0; z-index: 2; padding: .35rem .55rem; border-left: 3px solid var(--amber,#a65d00); background: #fff7e6; color: #76501a; font-size: .7rem; }
