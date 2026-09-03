@@ -86,7 +86,7 @@ jobs:
 
       - name: Run Rust Clippy
         shell: pwsh
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: .\scripts\run-ci-clippy.ps1
 
       - name: Check Rust workspace
         shell: pwsh
