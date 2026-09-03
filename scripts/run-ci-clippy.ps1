@@ -8,8 +8,9 @@ if (Test-Path -LiteralPath $logPath) {
     Remove-Item -LiteralPath $logPath -Force
 }
 
-& cargo clippy --workspace --all-targets --locked -- -D warnings 2>&1 |
-    Tee-Object -FilePath $logPath
+Write-Output "Running workspace Clippy with structured diagnostics..."
+& cargo clippy --workspace --all-targets --locked --message-format=json -- -D warnings 2>&1 |
+    Set-Content -LiteralPath $logPath -Encoding utf8
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -eq 0) {
@@ -42,7 +43,48 @@ $failureClasses = @(
     if ($logText -match "(?i)could not compile") { "compiler" }
     if ($logText -match "(?i)failed to download") { "download" }
 ) -join ","
-$message = "cargo clippy exited with code $exitCode; workspace drive free: $freeGiB GiB; diskFull=$diskFull; memoryFailure=$memoryFailure; compilerDiagnostics=$diagnosticCount; rustErrorCodes=$rustErrorCodes; lintCodes=$lintCodes; failureClasses=$failureClasses"
+
+function Get-DiagnosticClass {
+    param([string]$DiagnosticMessage)
+
+    switch -Regex ($DiagnosticMessage) {
+        "(?i)(couldn't read|could not read|no such file|cannot find the (file|path))" { return "missing-input" }
+        "(?i)environment variable .* not defined" { return "missing-environment" }
+        "(?i)access is denied" { return "permission" }
+        "(?i)unresolved import" { return "unresolved-import" }
+        "(?i)cannot find .* in this scope" { return "missing-symbol" }
+        "(?i)no method named" { return "missing-method" }
+        "(?i)mismatched types" { return "type-mismatch" }
+        "(?i)trait bound .* is not satisfied" { return "trait-bound" }
+        "(?i)deprecated" { return "deprecated" }
+        "(?i)unused" { return "unused" }
+        "(?i)proc macro panicked" { return "proc-macro" }
+        "(?i)linking with .* failed" { return "linker" }
+        "(?i)failed to run custom build command" { return "build-script" }
+        default { return "other" }
+    }
+}
+
+$structuredDiagnostics = @(
+    foreach ($line in Get-Content -LiteralPath $logPath) {
+        try {
+            $event = $line | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            continue
+        }
+        if ($event.reason -ne "compiler-message" -or $event.message.level -notin @("error", "warning")) {
+            continue
+        }
+        $targetName = if ($event.target.name) { $event.target.name } else { "unknown-target" }
+        $diagnosticCode = if ($event.message.code.code) { $event.message.code.code } else { "no-code" }
+        $diagnosticClass = Get-DiagnosticClass -DiagnosticMessage $event.message.message
+        "$targetName`:$($event.message.level)`:$diagnosticCode`:$diagnosticClass"
+    }
+) | Sort-Object -Unique
+$structuredSummary = $structuredDiagnostics -join ","
+
+$message = "cargo clippy exited with code $exitCode; workspace drive free: $freeGiB GiB; diskFull=$diskFull; memoryFailure=$memoryFailure; compilerDiagnostics=$diagnosticCount; rustErrorCodes=$rustErrorCodes; lintCodes=$lintCodes; failureClasses=$failureClasses; structured=$structuredSummary"
 $message = $message.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
 
 # Surface only classified, non-sensitive failure metrics through the Checks
