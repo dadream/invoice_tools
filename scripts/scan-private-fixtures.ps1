@@ -31,6 +31,25 @@ function Test-SyntheticMarker {
     )
 }
 
+function Get-NormalizedTextFixture {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $utf8 = New-Object System.Text.UTF8Encoding($false, $true)
+    $text = $utf8.GetString([IO.File]::ReadAllBytes($Path)).Replace("`r`n", "`n").Replace("`r", "`n")
+    $bytes = $utf8.GetBytes($text)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return [pscustomobject]@{
+            text = $text
+            bytes = $bytes.Length
+            sha256 = ([BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace('-', '')
+        }
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 if ($SelfTest) {
     if (-not (Test-SyntheticMarker 'synthetic fixture using example.invalid')) {
         throw "Fixture privacy scanner self-test failed to accept synthetic data"
@@ -38,6 +57,35 @@ if ($SelfTest) {
     $unmarked = ('ordinary invoice content ' + ('1' * 20))
     if (Test-SyntheticMarker $unmarked) {
         throw "Fixture privacy scanner self-test failed to reject unmarked data"
+    }
+    $selfTestBase = [IO.Path]::GetFullPath((Join-Path $projectRoot ".tmp"))
+    $selfTestPrefix = $selfTestBase.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $selfTestRoot = [IO.Path]::GetFullPath((Join-Path $selfTestBase ("fixture-line-ending-test-" + [guid]::NewGuid().ToString("N"))))
+    if (-not $selfTestRoot.StartsWith($selfTestPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unsafe fixture line-ending self-test path"
+    }
+    try {
+        New-Item -ItemType Directory -Path $selfTestRoot | Out-Null
+        $lfPath = Join-Path $selfTestRoot "lf.txt"
+        $crlfPath = Join-Path $selfTestRoot "crlf.txt"
+        [IO.File]::WriteAllText($lfPath, "synthetic`nfixture`n", [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($crlfPath, "synthetic`r`nfixture`r`n", [Text.UTF8Encoding]::new($false))
+        $lf = Get-NormalizedTextFixture -Path $lfPath
+        $crlf = Get-NormalizedTextFixture -Path $crlfPath
+        if ($lf.bytes -ne $crlf.bytes -or $lf.sha256 -ne $crlf.sha256) {
+            throw "Fixture privacy scanner self-test failed to normalize line endings"
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $selfTestRoot) {
+            $resolvedSelfTestRoot = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $selfTestRoot))
+            $selfTestItem = Get-Item -LiteralPath $resolvedSelfTestRoot -Force
+            if (-not $resolvedSelfTestRoot.StartsWith($selfTestPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+                ($selfTestItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Refusing to remove unsafe fixture line-ending self-test directory"
+            }
+            Remove-Item -LiteralPath $resolvedSelfTestRoot -Recurse -Force
+        }
     }
     try {
         Resolve-ProjectFixturePath '..\outside-private-data.bin' | Out-Null
@@ -83,14 +131,19 @@ foreach ($entry in @($inventory.fixtures)) {
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Fixture file cannot be a reparse point"
     }
-    if ($item.Length -ne [long]$entry.bytes) { throw "Fixture byte count mismatch" }
-    if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ne $entry.sha256) {
-        throw "Fixture hash mismatch"
-    }
     if ($item.Extension -in @('.json', '.toml', '.xml', '.eml', '.txt', '.md')) {
-        $content = [IO.File]::ReadAllText($full)
+        $normalized = Get-NormalizedTextFixture -Path $full
+        if ($normalized.bytes -ne [long]$entry.bytes) { throw "Fixture byte count mismatch" }
+        if ($normalized.sha256 -ne $entry.sha256) { throw "Fixture hash mismatch" }
+        $content = $normalized.text
         if (-not (Test-SyntheticMarker $content)) {
             throw "Text fixture lacks an explicit synthetic marker"
+        }
+    }
+    else {
+        if ($item.Length -ne [long]$entry.bytes) { throw "Fixture byte count mismatch" }
+        if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash -ne $entry.sha256) {
+            throw "Fixture hash mismatch"
         }
     }
 }
