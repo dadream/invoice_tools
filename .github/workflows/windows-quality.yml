@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   verify:
-    runs-on: windows-latest
+    # windows-2025 can start below the repository's 20 GiB free-space gate.
+    # Pin the release baseline to Windows Server 2022 instead of weakening it.
+    runs-on: windows-2022
     timeout-minutes: 45
     steps:
       - name: Checkout

@@ -15,7 +15,8 @@ concurrency:
 jobs:
   build-internal-alpha:
     name: Build unsigned internal Alpha
-    runs-on: windows-latest
+    # Keep enough workspace capacity for the debug quality gate plus release build.
+    runs-on: windows-2022
     timeout-minutes: 75
     steps:
       - name: Checkout tagged source
@@ -83,7 +84,7 @@ jobs:
   publish-draft:
     name: Create approved draft prerelease
     needs: build-internal-alpha
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 10
     environment: release-internal-alpha
     permissions:
