@@ -1,172 +1,91 @@
 # Invoice Assistant
 
-Windows 免安装、本地优先的发票收集、审核与报销整理工具。
+Invoice Assistant 是面向 Windows 的免安装、本地优先发票报销整理工具。它用于收集和整理发票材料、生成可审核费用、完成差旅归组，并在审核后导出 Excel 或打印 PDF；企业 Concur 权限满足要求时，还可创建未提交的报销单和费用草稿。
 
-> 当前状态：开发验证阶段，尚不是公开可发布版本。
-> 唯一发布规格：`specs/mvp-release-baseline/` 1.0（已确认、实施中）。
-> 历史文档不能作为当前完成度、安全或发布结论，见 `docs/HISTORICAL-DOCUMENTS.md`。
+当前版本用于内部 Alpha 验证，不代表已满足公开发布条件。发布范围和验收标准以 [MVP 发布基线](specs/mvp-release-baseline/) 为准。
 
-MVP 不调用外部大模型，不要求产品账号，不持久化邮箱授权码。用户数据默认保存在
-`%LOCALAPPDATA%\InvoiceAssistant\Data`；跨电脑备份为用户主动操作的未加密包。
+## 主要流程
 
-## 项目结构
+1. 创建邮件收集任务，通过 IMAP 只读搜索邮件、分类并保存附件；或在报销批次中导入本地发票和配套材料。
+2. 审核邮件来源，补充需要人工下载的文件，并排除无关邮件或无效附件。
+3. 创建报销批次，全量导入已确认材料，执行解析、去重和费用生成。
+4. 在费用清单中核对日期、费用类型、金额、交易方和材料。
+5. 在归组视图中核对差旅行程、市内消费、快递物流及其关联材料。
+6. 完成审核后导出 Excel、生成打印 PDF，或进入 Concur 草稿交付。
 
-```
+本地导入面向 PDF、OFD 和图片等发票或报销材料，不导入 `.eml` 邮件文件。Concur 功能依赖企业批准的 OAuth 应用、账号权限和字段映射；软件只创建未提交草稿，不自动提交报销单。
+
+## 仓库结构
+
+```text
 .
-├── crates/              # Rust 核心库
-│   ├── invoice-parse    # 多格式发票解析
-│   ├── invoice-collect  # IMAP 邮箱采集
-│   ├── invoice-grouping # 行程归组引擎
-│   └── invoice-store    # 本地台账与旧版凭据兼容
-├── src-tauri/          # Tauri 后端
-│   └── src/            # Rust 应用代码
-└── ui/                 # Svelte 前端
-    └── src/            # UI 代码
+├── crates/              # 采集、解析、归组和本地存储等 Rust 核心模块
+├── src-tauri/           # Windows 桌面应用后端
+├── ui/                  # Svelte 前端
+├── scripts/             # Windows 验证、构建和发布脚本
+├── specs/               # 当前产品规格与验收基线
+└── docs/                # 产品、测试、安全和发布设计文档
 ```
 
-## 开发环境要求
+## 开发环境
 
 - Windows 11 x64
-- Rust 1.97.1（由 `rust-toolchain.toml` 精确固定）
-- Node.js 24.14.0、npm 11.9.0
-- WebView2 Evergreen Runtime 与 Windows C++ 构建工具
+- Rust 1.97.1（由 `rust-toolchain.toml` 固定）
+- Node.js 24.14.0（由 `.nvmrc` 固定）
+- npm 11.9.0（本仓库前端唯一包管理器）
+- Microsoft Edge WebView2 Runtime
+- Microsoft C++ Build Tools
 
-## 快速开始
+安装前端锁定依赖：
 
-### 安装依赖
-
-```bash
-# 使用锁文件安装前端依赖
-cd ui
-npm ci
-cd ..
+```powershell
+npm --prefix ui ci
 ```
 
-### 开发模式
+## 本地运行
 
-```bash
-cd ui
-npm run tauri dev
+```powershell
+npm --prefix ui run tauri -- dev
 ```
 
-这将启动：
-- Vite 开发服务器（http://localhost:5173）
-- Tauri 应用窗口（热重载）
+开发模式支持前端热重载；Rust 后端发生变化时，Tauri 会重新编译并重启应用。
 
-### 构建发布版
+## 验证
 
-```bash
-cd ui
-npm run tauri build -- --no-bundle
-```
+运行 Windows 完整验证入口：
 
-Windows 可执行文件位于根目录 `target/release/invoice-assistant.exe`。标准 portable ZIP
-和签名流水线仍属于发布任务，不能直接分发裸 EXE。
-
-## 测试
-
-```bash
+```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows.ps1
 ```
 
-## 日志
+该脚本统一执行磁盘空间门禁、敏感信息扫描、依赖与版本检查、Rust 格式和静态检查、Rust/前端测试及前端构建。真实邮箱和 Concur 验证只在明确授权的受控环境中执行，不属于默认自动化测试。
 
-Windows 默认日志目录：
+## 构建免安装包
 
-`%LOCALAPPDATA%\InvoiceAssistant\Data\logs`
-
-日志仅允许记录版本、阶段、错误码、计数和脱敏路径，不记录授权码、邮件正文、
-完整票号、税号或金额明细。开发模式下同时输出到终端。
-
-## IPC 通道约定
-
-前端通过 Tauri 的 `invoke` 调用后端命令：
-
-```typescript
-import { invoke } from '@tauri-apps/api/core'
-
-// 成功调用
-const result = await invoke('command_name', { arg1: value1 })
-
-// 错误处理
-try {
-  const result = await invoke('command_name', { arg1: value1 })
-} catch (error) {
-  // error 格式: { type: 'ErrorType', message: 'error message' }
-  console.error('Command failed:', error)
-}
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-portable.ps1
 ```
 
-### 可用命令
+脚本先执行完整验证，再构建 Windows x64 免安装包、校验文件和 SBOM，产物写入 `artifacts/`。同名产物已存在时脚本会停止，不会覆盖已有发布文件。
 
-#### 基础命令
-- `greet(name: string) -> string` - 测试命令
-- `get_version() -> VersionInfo` - 获取应用版本
-- `health_check() -> HealthInfo` - 健康检查
+版本发布和 GitHub Actions 约定见 [分发包与 GitHub Release 策略](docs/release/distribution-package-and-github-release-strategy.md)。
 
-#### 批次管理
-- `list_batches() -> Vec<BatchDto>` - 列出所有批次
-- `get_batch(id: i64) -> BatchDto` - 获取批次详情
-- `create_batch(name: string, month: string) -> i64` - 创建新批次
-- `transition_batch_status(id: i64, new_status: string) -> ()` - 转换批次状态
-- `delete_batch(id: i64) -> ()` - 删除草稿批次
+## 数据与安全边界
 
-## 架构说明
+- 用户数据默认保存在 `%LOCALAPPDATA%\InvoiceAssistant\Data`。
+- 邮件收集只读访问邮箱，不应改变邮件 FLAGS。
+- 仓库、日志、测试夹具和发布包不得包含真实邮箱授权码、OAuth 密钥、访问令牌或真实用户材料。
+- Concur 测试凭据和令牌不写入数据库、备份或日志。
+- 跨电脑迁移由用户主动导出和导入备份完成。
 
-### 错误处理
+## 相关文档
 
-所有后端错误通过 `AppError` 枚举统一处理，自动序列化为 JSON 传递给前端：
+- [产品设计一致性规范](docs/product-design-consistency-standards.md)
+- [Concur 字段映射设计](docs/concur-field-mapping-design.md)
+- [发布缺陷与门禁](docs/release/defect-and-release-gates.md)
+- [历史文档使用说明](docs/HISTORICAL-DOCUMENTS.md)
+- [仓库协作与构建规则](AGENTS.md)
 
-```rust
-pub enum AppError {
-    Database(String),
-    Parse(String),
-    Network(String),
-    Io(String),
-    Validation(String),
-    Internal(String),
-}
-```
+## 许可证与发布状态
 
-前端接收到的错误格式：
-
-```json
-{
-  "type": "Database",
-  "message": "数据库错误: connection failed"
-}
-```
-
-### 日志系统
-
-使用 `tracing` 框架，支持：
-- 多目标输出（文件 + 控制台）
-- 环境变量配置日志级别（`RUST_LOG=debug`）
-- 结构化日志
-
-## 历史开发进度（已失效）
-
-- [x] S0.1 技术验证（invoice-parse）
-- [x] S0.2 Tauri 骨架
-- [x] S0.3 核心数据模型
-- [x] S0.4 加密存储（invoice-store）
-- [x] S0.5 批次状态机
-- [x] **S0.6 批次 CRUD UI** ← 当前
-- [x] A 采集模块（invoice-collect）
-- [x] B 解析模块（invoice-parse）
-- [x] C 归组引擎（invoice-grouping）
-- [ ] S0.7 发票添加流程
-- [ ] G1 校验去重
-- [ ] G2 审核界面
-- [ ] H1 流水线集成
-
-以上列表仅用于历史追溯。当前状态和阻断项见：
-
-- `specs/mvp-release-baseline/tasks.md`
-- `docs/release/mvp-gap-audit-2026-08-19.md`
-- `docs/release/defect-and-release-gates.md`
-
-## 许可证与发布
-
-当前仓库未确认对外软件许可证；不得沿用旧文档中的 MIT 声明对外发布。
-公开 Beta 和正式版还需要产品负责人提供签名主体、发布主体、版权与支持信息。
+仓库尚未确认对外软件许可证。内部 Alpha 产物不得视为公开正式版，公开发布前必须完成签名主体、许可证、隐私条款和支持信息确认。

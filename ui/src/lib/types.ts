@@ -390,6 +390,47 @@ export interface ConcurDraftCapability {
   required_confirmations: string[]
 }
 
+export interface ConcurConnectionStatus {
+  configured: boolean
+  base_url: string | null
+  read_verified: boolean
+  draft_workflow_verified: boolean
+  verified_at: string | null
+  authorization_method: 'browser_oauth' | 'manual_access_token' | string | null
+  granted_scopes: string[]
+  connected_account: ConcurConnectedAccount | null
+  capability_checks: ConcurCapabilityTestStep[]
+  reason: string
+}
+
+export interface ConcurConnectedAccount {
+  login_id: string | null
+  display_name: string | null
+}
+
+export interface ConcurBrowserOauthConfig {
+  redirect_uri: string
+  scopes: string
+  timeout_seconds: number
+}
+
+export interface ConcurCapabilityTestStep {
+  key: string
+  label: string
+  status: 'passed' | 'failed' | 'not_tested' | string
+  message: string
+}
+
+export interface ConcurCapabilityTestResult {
+  success: boolean
+  checked_at: string
+  draft_report_id: string | null
+  draft_report_name: string | null
+  connected_account: ConcurConnectedAccount | null
+  steps: ConcurCapabilityTestStep[]
+  next_action: string
+}
+
 
 export interface CreateBatchInput {
   name: string

@@ -368,6 +368,14 @@ fn build_print_pdf_bytes_with_progress(
     invoices: &[ReportedInvoice],
     mut on_progress: impl FnMut(usize, usize, String),
 ) -> AppResult<PrintPdfBuild> {
+    build_materials_pdf_bytes_with_progress(expenses, invoices, &mut on_progress)
+}
+
+fn build_materials_pdf_bytes_with_progress(
+    expenses: &[ExpenseItem],
+    invoices: &[ReportedInvoice],
+    mut on_progress: impl FnMut(usize, usize, String),
+) -> AppResult<PrintPdfBuild> {
     // printpdf 必须先创建一个页面。该初始化页在写出前删除，最终文件第一页直接是材料。
     let (document, _, _) = PdfDocument::new(
         "Invoice Assistant Expense Materials",
@@ -503,6 +511,34 @@ fn build_print_pdf_bytes_with_progress(
         page_count,
         warnings,
     })
+}
+
+/// Concur Image v1 每条费用只能上传一个图片对象，因此把同一费用的主发票、行程单、
+/// 明细和水单按既有打印顺序合成一个 PDF。任何材料无法渲染时都停止上传，避免静默漏件。
+pub(crate) fn build_concur_attachment_pdf_bytes(
+    expense: &ExpenseItem,
+    invoices: &[ReportedInvoice],
+) -> AppResult<Vec<u8>> {
+    let build = build_materials_pdf_bytes_with_progress(
+        std::slice::from_ref(expense),
+        invoices,
+        |_, _, _| {},
+    )?;
+    if build.material_count == 0 || build.page_count == 0 {
+        return Err(AppError::validation("该费用没有可上传的电子材料"));
+    }
+    if build.rendered_material_count != build.material_count || !build.warnings.is_empty() {
+        return Err(AppError::validation(format!(
+            "该费用有材料无法完整转换：{}",
+            build.warnings.join("；")
+        )));
+    }
+    if build.bytes.len() > 10 * 1024 * 1024 {
+        return Err(AppError::validation(
+            "该费用的材料合订 PDF 超过 Concur 10 MB 限制，请减少或压缩材料后重试",
+        ));
+    }
+    Ok(build.bytes)
 }
 
 #[allow(clippy::too_many_arguments)]

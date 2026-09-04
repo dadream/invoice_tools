@@ -29,7 +29,7 @@ use invoice_store::{LedgerDb, StoreError};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::{ipc::Response, State};
+use tauri::{ipc::Response, AppHandle, Manager, State};
 
 use super::invoice::InvoiceDto;
 use crate::error::{AppError, AppResult};
@@ -1260,18 +1260,36 @@ pub fn get_concur_upload_status(
 /// The upload workflow is intentionally capability-gated. A real adapter may only be enabled
 /// after its tenant, auth scope, field semantics, and draft-only behavior have been validated.
 #[tauri::command]
-pub fn get_concur_draft_capability() -> ConcurDraftCapability {
-    ConcurDraftCapability {
-        enabled: false,
-        adapter_status: "not_configured".to_string(),
-        reason: "尚未配置并验证指定 Concur 测试租户适配器；当前只生成冻结映射和可恢复上传计划，不会伪造外部写入成功".to_string(),
+pub fn get_concur_draft_capability(
+    state: State<Mutex<AppState>>,
+) -> AppResult<ConcurDraftCapability> {
+    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+    let session = app_state.concur_session();
+    let enabled = session.is_some_and(|value| value.draft_workflow_verified);
+    Ok(ConcurDraftCapability {
+        enabled,
+        adapter_status: if enabled {
+            "verified"
+        } else if session.is_some_and(|value| value.read_verified) {
+            "read_only_verified"
+        } else {
+            "not_configured"
+        }
+        .to_string(),
+        reason: if enabled {
+            "当前程序会话已完成 Concur 草稿、费用和附件闭环测试；只会创建未提交草稿".to_string()
+        } else if session.is_some_and(|value| value.read_verified) {
+            "Concur 只读连接已通过，请到“设置 → Concur 能力”完成草稿闭环测试".to_string()
+        } else {
+            "请先到“设置 → Concur 能力”输入本次 OAuth 访问令牌并执行能力测试".to_string()
+        },
         required_confirmations: vec![
-            "测试租户与登录/授权方式".to_string(),
-            "报销单、费用、地点、VAT 与企业自定义字段的稳定 ID/语义".to_string(),
-            "附件上传接口或页面定位方式".to_string(),
-            "只创建草稿且绝不执行最终提交的边界验证".to_string(),
+            "OAuth 令牌具有 EXPRPT 与 IMAGE 权限".to_string(),
+            "目标费用类型代码和付款类型 ID 可创建费用".to_string(),
+            "附件能够关联到指定费用并回读".to_string(),
+            "报销单始终保持未提交草稿".to_string(),
         ],
-    }
+    })
 }
 
 #[tauri::command]
@@ -2441,19 +2459,324 @@ pub fn list_delivery_tasks(
 
 /// Concur 交付适配器调用前登记幂等任务。Excel 由导出命令内部登记。
 #[tauri::command]
-pub fn start_concur_delivery(
-    batch_id: i64,
-    state: State<Mutex<AppState>>,
-) -> AppResult<DeliveryTask> {
+pub async fn start_concur_delivery(batch_id: i64, app: AppHandle) -> AppResult<DeliveryTask> {
+    let (task, upload_session_id) = {
+        let state = app.state::<Mutex<AppState>>();
+        let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+        let concur = app_state
+            .concur_session()
+            .filter(|session| session.draft_workflow_verified)
+            .ok_or_else(|| AppError::validation("请先到“设置 → Concur 能力”完成草稿闭环测试"))?;
+        let _ = concur;
+        let db = app_state.ledger_db()?;
+        let upload_session = db
+            .list_concur_upload_sessions(batch_id)
+            .map_err(|error| map_store_error("读取 Concur 上传会话", error))?
+            .into_iter()
+            .find(|session| {
+                matches!(
+                    session.status.as_str(),
+                    "ready" | "failed" | "partial" | "draft_created"
+                )
+            })
+            .ok_or_else(|| {
+                AppError::validation(
+                    "没有可执行的 Concur 上传会话；请先完成映射预检，未知状态需先人工核对",
+                )
+            })?;
+        let task = db
+            .start_delivery_task(batch_id, "concur")
+            .map_err(|error| map_store_error("准备 Concur 交付", error))?;
+        (task, upload_session.id)
+    };
+    if task.status == "succeeded" {
+        return Ok(task);
+    }
+
+    let worker_app = app.clone();
+    let upload_result = tauri::async_runtime::spawn_blocking(move || {
+        execute_concur_upload(&worker_app, upload_session_id)
+    })
+    .await
+    .map_err(|_| AppError::internal("Concur 草稿交付线程异常"))?;
+
+    let state = app.state::<Mutex<AppState>>();
     let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
     let db = app_state.ledger_db()?;
-    let task = db
-        .start_delivery_task(batch_id, "concur")
-        .map_err(|error| map_store_error("准备 Concur 交付", error))?;
-    // 未配置租户适配器时明确失败，不能让任务永久停在 running，
-    // 也不能把本地计划伪装成外部 Concur 写入成功。
-    db.finish_delivery_task(task.id, None, Some("concur_draft_adapter_not_configured"))
-        .map_err(|error| map_store_error("记录 Concur 交付状态", error))
+    match upload_result {
+        Ok(report_id) => db
+            .finish_delivery_task(task.id, Some(&format!("concur:{report_id}")), None)
+            .map_err(|error| map_store_error("记录 Concur 交付结果", error)),
+        Err(error) => {
+            let message = error.message().chars().take(1_900).collect::<String>();
+            db.finish_delivery_task(task.id, None, Some(&message))
+                .map_err(|store_error| map_store_error("记录 Concur 交付失败", store_error))?;
+            Err(error)
+        }
+    }
+}
+
+fn execute_concur_upload(app: &AppHandle, upload_session_id: i64) -> AppResult<String> {
+    let (api_session, mut upload_status, expenses, invoices) = {
+        let state = app.state::<Mutex<AppState>>();
+        let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+        let api_session = app_state
+            .concur_session_copy()
+            .filter(|session| session.draft_workflow_verified)
+            .ok_or_else(|| AppError::validation("Concur 能力验证已失效，请重新连接"))?;
+        let db = app_state.ledger_db()?;
+        let upload_status = db
+            .get_concur_upload_status(upload_session_id)
+            .map_err(|error| map_store_error("读取 Concur 上传计划", error))?
+            .ok_or_else(|| AppError::validation("Concur 上传会话不存在"))?;
+        let mapped_session =
+            serde_json::from_str::<serde_json::Value>(&upload_status.session.mapped_payload_json)
+                .map_err(|_| AppError::internal("冻结报销单投影已损坏"))?;
+        if mapped_session
+            .pointer("/mapping_profile/adapter_kind")
+            .and_then(serde_json::Value::as_str)
+            != Some("api")
+        {
+            return Err(AppError::validation(
+                "当前预检使用的不是企业 API 映射配置；请选择企业 API 并重新预检",
+            ));
+        }
+        if upload_status.session.status == "needs_verification" {
+            return Err(AppError::validation(
+                "上次外部写入结果不确定，请先在会话进度中完成 Concur 人工核对",
+            ));
+        }
+        let (snapshot, expenses) = db
+            .get_active_snapshot_expenses(upload_status.session.batch_id)
+            .map_err(|error| map_store_error("读取冻结费用版本", error))?;
+        if snapshot.id != upload_status.session.review_snapshot_id {
+            return Err(AppError::validation(
+                "上传预检引用的审核版本已失效，请重新执行 Concur 预检",
+            ));
+        }
+        let (_, invoices) = db
+            .get_active_snapshot_invoices(upload_status.session.batch_id)
+            .map_err(|error| map_store_error("读取冻结发票版本", error))?;
+        (api_session, upload_status, expenses, invoices)
+    };
+    let api = crate::concur_api::ConcurApiClient::from_session(&api_session)?;
+
+    let report_id = if let Some(report_id) = upload_status.session.external_report_id.clone() {
+        report_id
+    } else {
+        {
+            let state = app.state::<Mutex<AppState>>();
+            let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+            app_state
+                .ledger_db()?
+                .reserve_concur_report_creation(upload_session_id)
+                .map_err(|error| map_store_error("锁定报销单创建步骤", error))?;
+        }
+        let mapped_session =
+            serde_json::from_str::<serde_json::Value>(&upload_status.session.mapped_payload_json)
+                .map_err(|_| AppError::internal("冻结报销单投影已损坏"))?;
+        match api.create_report(
+            &upload_status.session.report_name,
+            &upload_status
+                .session
+                .report_date
+                .format(DATE_FMT)
+                .to_string(),
+            mapped_session.get("report"),
+        ) {
+            Ok(report_id) => {
+                let state = app.state::<Mutex<AppState>>();
+                let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                app_state
+                    .ledger_db()?
+                    .mark_concur_report_created(upload_session_id, &report_id)
+                    .map_err(|error| map_store_error("保存 Concur 报销单 ID", error))?;
+                report_id
+            }
+            Err(error) => {
+                let state = app.state::<Mutex<AppState>>();
+                let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                app_state
+                    .ledger_db()?
+                    .mark_concur_report_attempt_failed(
+                        upload_session_id,
+                        &error.message,
+                        error.result_unknown,
+                    )
+                    .map_err(|store_error| map_store_error("记录报销单创建失败", store_error))?;
+                return Err(concur_call_error(error));
+            }
+        }
+    };
+    let report = api.get_report(&report_id).map_err(concur_call_error)?;
+    if report
+        .get("ApprovalStatusCode")
+        .and_then(serde_json::Value::as_str)
+        != Some("A_NOTF")
+    {
+        return Err(AppError::validation(
+            "Concur 报销单不是未提交状态，已停止写入；请在 Concur 人工核对",
+        ));
+    }
+
+    upload_status = current_concur_upload_status(app, upload_session_id)?;
+    let expenses_by_id = expenses
+        .iter()
+        .map(|expense| (expense.id, expense))
+        .collect::<HashMap<_, _>>();
+    for item in upload_status.items.clone() {
+        let expense = expenses_by_id
+            .get(&item.expense_item_id)
+            .copied()
+            .ok_or_else(|| {
+                AppError::validation(format!(
+                    "冻结审核版本中找不到费用 #{}，请重新执行预检",
+                    item.expense_item_id
+                ))
+            })?;
+        let external_expense_id = if let Some(expense_id) = item.external_expense_id.clone() {
+            expense_id
+        } else {
+            {
+                let state = app.state::<Mutex<AppState>>();
+                let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                app_state
+                    .ledger_db()?
+                    .reserve_concur_expense_creation(item.id)
+                    .map_err(|error| map_store_error("锁定费用创建步骤", error))?;
+            }
+            let target_fields =
+                serde_json::from_str::<serde_json::Value>(&item.mapped_payload_json)
+                    .map_err(|_| AppError::internal("冻结费用投影已损坏"))?;
+            match api.create_expense(&report_id, &target_fields) {
+                Ok(expense_id) => {
+                    let state = app.state::<Mutex<AppState>>();
+                    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                    app_state
+                        .ledger_db()?
+                        .mark_concur_expense_created(item.id, &expense_id)
+                        .map_err(|error| map_store_error("保存 Concur 费用 ID", error))?;
+                    expense_id
+                }
+                Err(error) => {
+                    let state = app.state::<Mutex<AppState>>();
+                    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                    app_state
+                        .ledger_db()?
+                        .mark_concur_expense_attempt_failed(
+                            item.id,
+                            &error.message,
+                            error.result_unknown,
+                        )
+                        .map_err(|store_error| map_store_error("记录费用创建失败", store_error))?;
+                    return Err(concur_call_error(error));
+                }
+            }
+        };
+        api.get_expense(&external_expense_id)
+            .map_err(concur_call_error)?;
+
+        let has_pending_attachments = item
+            .attachments
+            .iter()
+            .any(|attachment| attachment.status != "uploaded");
+        if has_pending_attachments {
+            let attachment_pdf = crate::commands::print_export::build_concur_attachment_pdf_bytes(
+                expense, &invoices,
+            )?;
+            let reserved_ids = {
+                let state = app.state::<Mutex<AppState>>();
+                let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                app_state
+                    .ledger_db()?
+                    .reserve_concur_attachment_bundle(item.id)
+                    .map_err(|error| map_store_error("锁定费用材料上传步骤", error))?
+            };
+            if !reserved_ids.is_empty() {
+                match api.upload_expense_pdf(&external_expense_id, attachment_pdf) {
+                    Ok(external_attachment_id) => {
+                        if let Err(error) = api.verify_expense_image(&external_expense_id) {
+                            let state = app.state::<Mutex<AppState>>();
+                            let app_state =
+                                state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                            app_state
+                                .ledger_db()?
+                                .mark_concur_attachment_bundle_attempt_failed(
+                                    item.id,
+                                    &format!(
+                                        "附件已返回 ID {external_attachment_id}，但回读失败：{}",
+                                        error.message
+                                    ),
+                                    true,
+                                )
+                                .map_err(|store_error| {
+                                    map_store_error("记录附件回读失败", store_error)
+                                })?;
+                            return Err(concur_call_error(error));
+                        }
+                        let state = app.state::<Mutex<AppState>>();
+                        let app_state =
+                            state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                        app_state
+                            .ledger_db()?
+                            .mark_concur_attachment_bundle_uploaded(
+                                item.id,
+                                &external_attachment_id,
+                            )
+                            .map_err(|error| map_store_error("保存 Concur 附件 ID", error))?;
+                    }
+                    Err(error) => {
+                        let state = app.state::<Mutex<AppState>>();
+                        let app_state =
+                            state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+                        app_state
+                            .ledger_db()?
+                            .mark_concur_attachment_bundle_attempt_failed(
+                                item.id,
+                                &error.message,
+                                error.result_unknown,
+                            )
+                            .map_err(|store_error| {
+                                map_store_error("记录附件上传失败", store_error)
+                            })?;
+                        return Err(concur_call_error(error));
+                    }
+                }
+            }
+        }
+    }
+
+    let final_status = current_concur_upload_status(app, upload_session_id)?;
+    if final_status.session.status != "draft_created" {
+        return Err(AppError::validation(
+            "Concur 草稿只完成了部分步骤，请查看本批次上传会话后继续",
+        ));
+    }
+    Ok(report_id)
+}
+
+fn current_concur_upload_status(
+    app: &AppHandle,
+    upload_session_id: i64,
+) -> AppResult<ConcurUploadStatus> {
+    let state = app.state::<Mutex<AppState>>();
+    let app_state = state.lock().map_err(|_| AppError::internal("状态锁错误"))?;
+    app_state
+        .ledger_db()?
+        .get_concur_upload_status(upload_session_id)
+        .map_err(|error| map_store_error("刷新 Concur 上传进度", error))?
+        .ok_or_else(|| AppError::validation("Concur 上传会话不存在"))
+}
+
+fn concur_call_error(error: crate::concur_api::ConcurApiCallError) -> AppError {
+    if error.result_unknown {
+        AppError::network(format!(
+            "{}；外部结果不确定，请先在 Concur 核对后再处理",
+            error.message
+        ))
+    } else {
+        AppError::network(error.message)
+    }
 }
 
 #[cfg(test)]

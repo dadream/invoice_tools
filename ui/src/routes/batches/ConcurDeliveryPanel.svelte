@@ -33,6 +33,8 @@
     vat_rate: { source: 'ExpenseItem.tax_details[].rate', transform: 'vat_option_lookup' },
     attachments: { source: 'ExpenseItem.documents[]', transform: 'attach_to_same_expense' },
   }
+  const REPORT_CUSTOM_PLACEHOLDER = '{"Custom1":{"Type":"Text","Value":"CN-SALES"}}'
+  const EXPENSE_CUSTOM_PLACEHOLDER = '{"Custom1":{"Type":"Text","Value":"PROJECT-A"}}'
 
   let profiles = $state<ConcurMappingProfile[]>([])
   let expenses = $state<ExpenseItem[]>([])
@@ -252,7 +254,11 @@
       saving = false; error = '报销单级和费用级自定义字段都必须是 JSON 对象'; return
     }
     const extraRequired = extraRequiredFields.split(/[，,\n]/).map((field) => field.trim()).filter(Boolean)
-    const requiredFields = Array.from(new Set([...CORE_REQUIRED, ...(paymentRequired ? ['payment_type'] : []), ...extraRequired]))
+    const requiredFields = Array.from(new Set([
+      ...CORE_REQUIRED,
+      ...(paymentRequired || adapterKind === 'api' ? ['payment_type'] : []),
+      ...extraRequired,
+    ]))
     const result = await invokeSafe<ConcurMappingProfile>('save_concur_mapping_profile', {
       input: {
         profile_id: profileId,
@@ -302,13 +308,13 @@
   }
 
   async function startDelivery() {
-    if (!preflight?.ready || !capability?.enabled || startingDelivery) return
+    if (!preflight?.ready || !capability?.enabled || selectedProfile?.adapter_kind !== 'api' || startingDelivery) return
     startingDelivery = true
     error = null
     const result = await invokeSafe('start_concur_delivery', { batchId })
     startingDelivery = false
     if (!result.ok) { error = describeError(result.error); return }
-    notice = 'Concur 草稿交付已启动；可以关闭页面，稍后从本批次会话继续查看。'
+    notice = 'Concur 未提交草稿已创建并完成逐项回读；请进入 Concur 检查，并处理企业规则或 API 暂不支持的字段。'
     await refreshSessions()
   }
 
@@ -336,8 +342,8 @@
         <label><span>适配方式</span><select bind:value={adapterKind}><option value="ui_assisted">浏览器辅助填报</option><option value="api">企业 API</option></select></label>
         <details open><summary>费用分类 → Concur 费用类型 ID</summary><div class="mapping-grid">{#each EXPENSE_CATEGORIES as type}<label><span>{EXPENSE_CATEGORY_LABELS[type]}</span><input bind:value={categoryMap[type]} placeholder="目标选项稳定 ID" /></label>{/each}</div></details>
         <details open={cities.length > 0}><summary>本批次城市 → Concur 地点选项 ID</summary>{#if cities.length === 0}<p>本批次尚无结构化城市。</p>{:else}<div class="mapping-grid">{#each cities as city}<label><span>{city}</span><input bind:value={locationMap[city]} placeholder="目标地点稳定 ID" /></label>{/each}</div>{/if}</details>
-        <details><summary>付款方式、VAT 与额外必填项</summary><div class="mapping-grid">{#each Object.entries(PAYMENT_LABELS) as [key, label]}<label><span>{label}</span><input bind:value={paymentMap[key]} placeholder="付款选项 ID" /></label>{/each}{#each vatRates as rate}<label><span>税率 {rate}</span><input bind:value={vatRateMap[rate]} placeholder="VAT 选项 ID" /></label>{/each}</div><label class="check"><input type="checkbox" bind:checked={paymentRequired} /><span>目标租户要求付款类型必填</span></label><label><span>其他目标必填字段</span><input bind:value={extraRequiredFields} placeholder="例如 cost_center；报销单级使用 report.cost_center" /><small>多个字段用逗号分隔；预检会逐项阻止缺失值进入上传。</small></label></details>
-        <details><summary>企业自定义字段（高级）</summary><p>填写目标字段 ID 与固定值，只作用于本配置版本；不会写回本地费用事实。</p><div class="two"><label><span>报销单级字段 JSON</span><textarea bind:value={reportCustomFieldsJson} placeholder="例如：costCenter 对应 CN-SALES"></textarea></label><label><span>费用级字段 JSON</span><textarea bind:value={expenseCustomFieldsJson} placeholder="例如：receiptStatus 对应 RECEIPT"></textarea></label></div></details>
+        <details><summary>付款方式、VAT 与额外必填项</summary><div class="mapping-grid">{#each Object.entries(PAYMENT_LABELS) as [key, label]}<label><span>{label}</span><input bind:value={paymentMap[key]} placeholder="付款选项 ID" /></label>{/each}{#each vatRates as rate}<label><span>税率 {rate}</span><input bind:value={vatRateMap[rate]} placeholder="VAT 选项 ID" /></label>{/each}</div><label class="check"><input type="checkbox" bind:checked={paymentRequired} disabled={adapterKind === 'api'} /><span>{adapterKind === 'api' ? '企业 API 创建费用要求付款类型必填' : '目标租户要求付款类型必填'}</span></label><label><span>其他目标必填字段</span><input bind:value={extraRequiredFields} placeholder="例如 custom_project；报销单级使用 report.Custom1" /><small>多个字段用逗号分隔；预检会逐项阻止缺失值进入上传。</small></label></details>
+        <details><summary>企业自定义字段（高级）</summary><p>填写目标 API 字段名与 Concur CustomField 对象，只作用于本配置版本；不会写回本地费用事实。报销单支持 Custom1…Custom20，费用支持 Custom1…Custom40，二者都支持 OrgUnit1…OrgUnit6。</p><div class="two"><label><span>报销单级字段 JSON</span><textarea bind:value={reportCustomFieldsJson} placeholder={REPORT_CUSTOM_PLACEHOLDER}></textarea></label><label><span>费用级字段 JSON</span><textarea bind:value={expenseCustomFieldsJson} placeholder={EXPENSE_CUSTOM_PLACEHOLDER}></textarea></label></div></details>
         <button class="primary" type="button" onclick={saveProfile} disabled={saving || !profileName.trim() || !companyLabel.trim()}>{saving ? '正在保存…' : '保存映射版本'}</button>
       </section>
     {/if}
@@ -354,7 +360,7 @@
         <header><div><span>预检结果</span><h3>{preflight.ready ? '所有当前必填检查已通过' : `${preflight.gaps.length} 个缺口待处理`}</h3></div><div class="counts"><b>{preflight.expenses.length}</b><small>费用</small><b>{preflight.expenses.reduce((sum, item) => sum + item.attachment_document_ids.length, 0)}</b><small>材料</small></div></header>
         {#if preflight.gaps.length > 0}<div class="gap-summary"><span>本地事实 {factGapCount}</span><span>映射配置 {mappingGapCount}</span><span>其他 {preflight.gaps.length - factGapCount - mappingGapCount}</span></div><ul class="gaps">{#each preflight.gaps as gap}<li><span class:fact={gap.scope === 'expense_fact'}>{gap.scope === 'expense_fact' ? '本地事实' : gap.scope === 'mapping_profile' ? '映射配置' : gap.scope === 'attachment' ? '材料' : '上传补充'}</span><div><strong>{gap.message}</strong><small>{gap.expense_item_id ? `费用 #${gap.expense_item_id} · ` : ''}{gap.field_key}</small>{#if gap.expense_item_id && (gap.scope === 'mapping_profile' || gap.scope === 'target_override')}<input class="override" value={uploadOverrides[String(gap.expense_item_id)]?.[overrideFieldKey(gap.field_key)] ?? ''} oninput={(event) => updateOverride(Number(gap.expense_item_id), gap.field_key, event.currentTarget.value)} placeholder={gap.field_key === 'vat_rate' ? '本次目标选项 ID，多个用逗号分隔' : '仅本次上传的最终目标值'} />{/if}</div>{#if gap.resolution === 'return_to_expense_review'}<button type="button" onclick={onBackToReview}>返回审核</button>{:else if gap.resolution === 'configure_profile'}<button type="button" onclick={() => selectedProfile && editProfile(selectedProfile)}>修改映射</button>{/if}</li>{/each}</ul><button class="primary rerun" type="button" onclick={runPreflight} disabled={checking}>应用本次补充值并重新预检</button>{/if}
         <details class="projection" open={preflight.ready}><summary>查看内部来源 → Concur 冻结投影（{preflight.expenses.length}）</summary><div>{#each preflight.expenses as payload}{@const sourceExpense = expenseForId(payload.expense_item_id)}<article><header><strong>费用 #{payload.expense_item_id}</strong><span>{sourceExpense?.counterparty_name || '交易对方待补充'} · {sourceExpense?.gross_amount ?? ''} {sourceExpense?.currency_code ?? ''}</span><b>{payload.attachment_document_ids.length} 份材料</b></header><div class="projection-flow"><pre>{sourceExpense ? JSON.stringify({ category_code: sourceExpense.category_code, transaction_date: sourceExpense.transaction_date, description: sourceExpense.description, counterparty_name: sourceExpense.counterparty_name, location: sourceExpense.location, payment_method: sourceExpense.payment_method, gross_amount: sourceExpense.gross_amount, currency_code: sourceExpense.currency_code, tax_details: sourceExpense.tax_details }, null, 2) : '{}'}</pre><span>经配置 V{selectedProfile?.version ?? ''} →</span><pre>{JSON.stringify(JSON.parse(payload.target_fields_json), null, 2)}</pre></div></article>{/each}</div></details>
-        {#if preflight.ready}<div class="adapter-gate"><strong>{capability?.enabled ? '可以创建 Concur 草稿' : '外部写入尚未解锁'}</strong><p>{capability?.reason ?? '正在读取适配器能力…'}</p>{#if capability && !capability.enabled}<ul>{#each capability.required_confirmations as confirmation}<li>{confirmation}</li>{/each}</ul>{/if}<button type="button" onclick={startDelivery} disabled={!capability?.enabled || startingDelivery}>{startingDelivery ? '正在启动…' : capability?.enabled ? '创建 Concur 草稿' : '创建 Concur 草稿（等待适配器验证）'}</button></div>{/if}
+        {#if preflight.ready}<div class="adapter-gate"><strong>{capability?.enabled && selectedProfile?.adapter_kind === 'api' ? '可以创建 Concur 草稿' : '外部写入尚未解锁'}</strong><p>{selectedProfile?.adapter_kind !== 'api' ? '当前配置是浏览器辅助填报；真实草稿交付需要选择企业 API 配置并重新预检。' : capability?.reason ?? '正在读取适配器能力…'}</p>{#if capability && !capability.enabled}<ul>{#each capability.required_confirmations as confirmation}<li>{confirmation}</li>{/each}</ul>{/if}{#if capability?.enabled && selectedProfile?.adapter_kind === 'api'}<p>当前适配器自动创建报销单、基础费用、地点和合订 PDF；供应商、VAT 及租户动态字段仍需在 Concur 草稿中复核或补充。</p>{/if}<button type="button" onclick={startDelivery} disabled={!capability?.enabled || selectedProfile?.adapter_kind !== 'api' || startingDelivery}>{startingDelivery ? '正在创建并回读…' : capability?.enabled && selectedProfile?.adapter_kind === 'api' ? '创建 Concur 草稿' : '创建 Concur 草稿（等待企业 API 验证）'}</button></div>{/if}
       </section>
     {/if}
     {#if sessions.length > 0}<details class="session-history" open={sessions.some((session) => session.status === 'needs_verification')}><summary>本批次 Concur 会话（{sessions.length}）</summary><ul>{#each sessions as session}<li class:attention={session.status === 'needs_verification'}><span>#{session.id} · 审核版本 #{session.review_snapshot_id} · 映射 V{session.mapping_profile_version}</span><strong>{uploadStatusLabel(session.status)}</strong><code>{session.idempotency_key.slice(-12)}</code><button type="button" onclick={() => viewSession(session.id)}>查看进度</button></li>{/each}</ul></details>{/if}

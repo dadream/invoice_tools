@@ -1,20 +1,22 @@
 <script lang="ts">
   import AboutSettings from './AboutSettings.svelte'
   import AccountsSettings from './AccountsSettings.svelte'
+  import ConcurCapabilitySettings from './ConcurCapabilitySettings.svelte'
   import DataSettings from './DataSettings.svelte'
   import GeneralSettings from './GeneralSettings.svelte'
   import GroupingSettings from './GroupingSettings.svelte'
   import StationSettings from './StationSettings.svelte'
 
-  let activeTab = $state<'accounts' | 'general' | 'stations' | 'grouping' | 'data' | 'about'>('accounts')
+  let activeTab = $state<'accounts' | 'concur' | 'general' | 'stations' | 'grouping' | 'data' | 'about'>('accounts')
 
   const tabs = [
     { id: 'accounts' as const, label: '邮箱账号', icon: '01' },
-    { id: 'general' as const, label: '通用设置', icon: '02' },
-    { id: 'stations' as const, label: '常驻车站', icon: '03' },
-    { id: 'grouping' as const, label: '归组规则', icon: '04' },
-    { id: 'data' as const, label: '数据与备份', icon: '05' },
-    { id: 'about' as const, label: '版本与支持', icon: '06' },
+    { id: 'concur' as const, label: 'Concur 能力', icon: '02' },
+    { id: 'general' as const, label: '通用设置', icon: '03' },
+    { id: 'stations' as const, label: '常驻车站', icon: '04' },
+    { id: 'grouping' as const, label: '归组规则', icon: '05' },
+    { id: 'data' as const, label: '数据与备份', icon: '06' },
+    { id: 'about' as const, label: '版本与支持', icon: '07' },
   ]
 </script>
 
@@ -42,6 +44,8 @@
     <main class="content-area">
       {#if activeTab === 'accounts'}
         <AccountsSettings />
+      {:else if activeTab === 'concur'}
+        <ConcurCapabilitySettings />
       {:else if activeTab === 'general'}
         <GeneralSettings />
       {:else if activeTab === 'stations'}

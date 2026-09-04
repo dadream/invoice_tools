@@ -6,6 +6,7 @@ use std::sync::Mutex;
 mod backup;
 mod cleanup;
 mod commands;
+mod concur_api;
 mod concur_smtp;
 mod error;
 mod local_source;
@@ -30,6 +31,7 @@ pub struct AppState {
     ledger_db: Option<LedgerDb>,
     accounts_db: Option<AccountsDb>,
     session_credential: Option<SessionCredential>,
+    concur_session: Option<concur_api::ConcurApiSession>,
 }
 
 impl Default for AppState {
@@ -44,6 +46,7 @@ impl AppState {
             ledger_db: None,
             accounts_db: None,
             session_credential: None,
+            concur_session: None,
         }
     }
 
@@ -121,6 +124,26 @@ impl AppState {
 
     pub fn clear_session_credential(&mut self) {
         self.session_credential = None;
+    }
+
+    pub fn concur_session(&self) -> Option<&concur_api::ConcurApiSession> {
+        self.concur_session.as_ref()
+    }
+
+    pub fn concur_session_mut(&mut self) -> Option<&mut concur_api::ConcurApiSession> {
+        self.concur_session.as_mut()
+    }
+
+    pub fn concur_session_copy(&self) -> Option<concur_api::ConcurApiSession> {
+        self.concur_session.clone()
+    }
+
+    pub fn set_concur_session(&mut self, session: concur_api::ConcurApiSession) {
+        self.concur_session = Some(session);
+    }
+
+    pub fn clear_concur_session(&mut self) {
+        self.concur_session = None;
     }
 }
 
@@ -220,6 +243,12 @@ fn main() {
             commands::concur::confirm_concur_trial,
             commands::concur::send_concur_remaining,
             commands::concur::resolve_concur_unknown,
+            commands::concur_integration::get_concur_connection_status,
+            commands::concur_integration::get_concur_browser_oauth_config,
+            commands::concur_integration::test_concur_browser_oauth,
+            commands::concur_integration::test_concur_read_access,
+            commands::concur_integration::test_concur_draft_workflow,
+            commands::concur_integration::clear_concur_session,
             commands::invoice::parse_invoice,
             commands::invoice::check_duplicate,
             commands::invoice::add_invoice_to_batch,

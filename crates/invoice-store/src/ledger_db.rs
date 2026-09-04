@@ -8789,6 +8789,156 @@ impl LedgerDb {
         Ok(())
     }
 
+    /// Image v1 permits only one receipt image per expense entry. Reserve every document row for
+    /// an expense as one atomic bundle so the adapter can merge invoice, itinerary and supporting
+    /// evidence into a single PDF before the only allowed upload.
+    pub fn reserve_concur_attachment_bundle(&self, upload_item_id: i64) -> StoreResult<Vec<i64>> {
+        let transaction = self.conn.unchecked_transaction()?;
+        let (session_id, external_expense_id): (i64, Option<String>) = transaction
+            .query_row(
+                "SELECT session_id, external_expense_id FROM concur_upload_items WHERE id = ?1",
+                params![upload_item_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(format!("ConcurUploadItem {upload_item_id}")))?;
+        if external_expense_id.is_none() {
+            return Err(StoreError::Validation(
+                "Concur expense must exist before uploading attachment bundle".to_string(),
+            ));
+        }
+        let rows = {
+            let mut statement = transaction.prepare(
+                "SELECT id, status, external_attachment_id
+                 FROM concur_upload_attachments WHERE upload_item_id = ?1 ORDER BY id",
+            )?;
+            let collected = statement
+                .query_map(params![upload_item_id], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            collected
+        };
+        if rows.is_empty() {
+            return Err(StoreError::Validation(
+                "Concur expense has no attachment documents".to_string(),
+            ));
+        }
+        if rows
+            .iter()
+            .all(|(_, status, external_id)| status == "uploaded" && external_id.is_some())
+        {
+            return Ok(Vec::new());
+        }
+        if rows.iter().any(|(_, status, _)| {
+            matches!(
+                status.as_str(),
+                "running" | "needs_verification" | "uploaded"
+            )
+        }) {
+            return Err(StoreError::Validation(
+                "Concur attachment bundle is partial or requires verification".to_string(),
+            ));
+        }
+        let ids = rows.iter().map(|row| row.0).collect::<Vec<_>>();
+        let changed = transaction.execute(
+            "UPDATE concur_upload_attachments
+             SET status = 'running', attempt_count = attempt_count + 1,
+                 last_error = NULL, updated_at = ?2
+             WHERE upload_item_id = ?1 AND status IN ('pending', 'failed')",
+            params![upload_item_id, Self::now_text()],
+        )?;
+        if changed != ids.len() {
+            return Err(StoreError::Validation(
+                "Concur attachment bundle changed concurrently".to_string(),
+            ));
+        }
+        Self::refresh_concur_upload_session_status(&transaction, session_id)?;
+        transaction.commit()?;
+        Ok(ids)
+    }
+
+    pub fn mark_concur_attachment_bundle_uploaded(
+        &self,
+        upload_item_id: i64,
+        external_attachment_id: &str,
+    ) -> StoreResult<()> {
+        let external_attachment_id =
+            Self::validate_external_concur_id(external_attachment_id, "attachment bundle")?;
+        let transaction = self.conn.unchecked_transaction()?;
+        let session_id: i64 = transaction
+            .query_row(
+                "SELECT session_id FROM concur_upload_items WHERE id = ?1",
+                params![upload_item_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(format!("ConcurUploadItem {upload_item_id}")))?;
+        let running_count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM concur_upload_attachments
+             WHERE upload_item_id = ?1 AND status = 'running'",
+            params![upload_item_id],
+            |row| row.get(0),
+        )?;
+        if running_count == 0 {
+            return Err(StoreError::Validation(
+                "Concur attachment bundle was not reserved for upload".to_string(),
+            ));
+        }
+        let now = Self::now_text();
+        transaction.execute(
+            "UPDATE concur_upload_attachments
+             SET status = 'uploaded', external_attachment_id = ?2, last_error = NULL,
+                 last_verified_at = ?3, updated_at = ?3
+             WHERE upload_item_id = ?1 AND status = 'running'",
+            params![upload_item_id, external_attachment_id, now],
+        )?;
+        Self::refresh_concur_upload_session_status(&transaction, session_id)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn mark_concur_attachment_bundle_attempt_failed(
+        &self,
+        upload_item_id: i64,
+        error: &str,
+        result_unknown: bool,
+    ) -> StoreResult<()> {
+        let error = Self::validate_concur_attempt_error(error)?;
+        let transaction = self.conn.unchecked_transaction()?;
+        let session_id: i64 = transaction
+            .query_row(
+                "SELECT session_id FROM concur_upload_items WHERE id = ?1",
+                params![upload_item_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| StoreError::NotFound(format!("ConcurUploadItem {upload_item_id}")))?;
+        let status = if result_unknown {
+            "needs_verification"
+        } else {
+            "failed"
+        };
+        let changed = transaction.execute(
+            "UPDATE concur_upload_attachments
+             SET status = ?2, last_error = ?3, updated_at = ?4
+             WHERE upload_item_id = ?1 AND status = 'running'",
+            params![upload_item_id, status, error, Self::now_text()],
+        )?;
+        if changed == 0 {
+            return Err(StoreError::Validation(
+                "Concur attachment bundle was not reserved for upload".to_string(),
+            ));
+        }
+        Self::refresh_concur_upload_session_status(&transaction, session_id)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     /// Resolve an ambiguous external result only after the user has checked Concur. Supplying an
     /// external id confirms that the object exists; omitting it confirms that creation did not
     /// happen and makes the row safely retryable.
@@ -9071,6 +9221,12 @@ impl LedgerDb {
         .into_iter()
         .map(str::to_string)
         .collect();
+        // Expense Entries v3 requires PaymentTypeID for every created expense. Keep the
+        // browser-assisted profile flexible, but never let an API profile pass preflight
+        // without a concrete payment mapping or one-time override.
+        if profile.adapter_kind == "api" {
+            required_fields.insert("payment_type".to_string());
+        }
         let mut required_report_fields = Vec::new();
         for field in configured_required {
             if let Some(field) = field.strip_prefix("report.") {
@@ -9098,6 +9254,47 @@ impl LedgerDb {
             report_date.format("%Y-%m-%d").to_string().into(),
         );
         report_fields.insert("comment".into(), comment.into());
+        if profile.adapter_kind == "api" && !comment.trim().is_empty() {
+            gaps.push(ConcurMappingGap {
+                scope: "target_override".into(),
+                expense_item_id: None,
+                field_key: "report.comment".into(),
+                message:
+                    "当前 Concur API 不能安全写入报销单 Comment；请清空，稍后在 Concur 草稿中补充"
+                        .into(),
+                resolution: "configure_profile_or_override".into(),
+            });
+        }
+        if profile.adapter_kind == "api" {
+            for (field, value) in &report_fields {
+                let indexed = |prefix: &str, maximum: u8| {
+                    field
+                        .strip_prefix(prefix)
+                        .and_then(|suffix| suffix.parse::<u8>().ok())
+                        .is_some_and(|index| (1..=maximum).contains(&index))
+                };
+                let supported = matches!(
+                    field.as_str(),
+                    "name"
+                        | "date"
+                        | "comment"
+                        | "Country"
+                        | "CountrySubdivision"
+                        | "CurrencyCode"
+                        | "LedgerName"
+                ) || indexed("Custom", 20)
+                    || indexed("OrgUnit", 6);
+                if !supported && Self::concur_target_value_present(value) {
+                    gaps.push(ConcurMappingGap {
+                        scope: "mapping_profile".into(),
+                        expense_item_id: None,
+                        field_key: format!("report.{field}"),
+                        message: format!("报销单字段 {field} 不能由当前 Concur API 安全写入"),
+                        resolution: "configure_profile".into(),
+                    });
+                }
+            }
+        }
         for field in required_report_fields {
             let present = report_fields
                 .get(&field)
@@ -9281,6 +9478,39 @@ impl LedgerDb {
             if let Some(overrides) = override_fields {
                 for (key, value) in overrides {
                     fields.insert(key.clone(), value.clone());
+                }
+            }
+            if profile.adapter_kind == "api" {
+                for (field, value) in &fields {
+                    let indexed = |prefix: &str, maximum: u8| {
+                        field
+                            .strip_prefix(prefix)
+                            .and_then(|suffix| suffix.parse::<u8>().ok())
+                            .is_some_and(|index| (1..=maximum).contains(&index))
+                    };
+                    let supported = matches!(
+                        field.as_str(),
+                        "expense_type_id"
+                            | "payment_type_id"
+                            | "transaction_date"
+                            | "amount"
+                            | "currency"
+                            | "purchase_city_id"
+                            | "business_purpose"
+                            | "vendor_name"
+                            | "vat_amount"
+                            | "vat_rate_ids"
+                    ) || indexed("Custom", 40)
+                        || indexed("OrgUnit", 6);
+                    if !supported && Self::concur_target_value_present(value) {
+                        gaps.push(ConcurMappingGap {
+                            scope: "mapping_profile".into(),
+                            expense_item_id: Some(expense.id),
+                            field_key: field.clone(),
+                            message: format!("费用字段 {field} 不能由当前 Concur API 安全写入"),
+                            resolution: "configure_profile".into(),
+                        });
+                    }
                 }
             }
             for required_field in &required_fields {
@@ -13176,5 +13406,76 @@ mod tests {
             db.list_batch_collection_imports(first_batch).unwrap()[0].status,
             "completed"
         );
+    }
+
+    #[test]
+    fn concur_attachment_documents_are_reserved_and_completed_as_one_bundle() {
+        let db = LedgerDb::new(":memory:").unwrap();
+        db.conn
+            .execute_batch(
+                "PRAGMA foreign_keys = OFF;
+                 INSERT INTO concur_upload_sessions (
+                    id, batch_id, review_snapshot_id, mapping_profile_id,
+                    mapping_profile_version, report_name, report_date, comment,
+                    status, idempotency_key, external_report_id,
+                    upload_overrides_json, mapped_payload_json, gaps_json,
+                    created_at, updated_at
+                 ) VALUES (
+                    101, 1, 1, 1, 1, 'bundle test', '2026-09-04', '',
+                    'partial', 'session-bundle-test', 'report-1', '{}', '{}', '[]',
+                    '2026-09-04 00:00:00', '2026-09-04 00:00:00'
+                 );
+                 INSERT INTO concur_upload_items (
+                    id, session_id, expense_item_id, status, idempotency_key,
+                    mapped_payload_json, external_expense_id, updated_at
+                 ) VALUES (
+                    201, 101, 1, 'created', 'item-bundle-test', '{}', 'expense-1',
+                    '2026-09-04 00:00:00'
+                 );
+                 INSERT INTO concur_upload_attachments (
+                    id, upload_item_id, document_id, status, idempotency_key, updated_at
+                 ) VALUES
+                    (301, 201, 1, 'pending', 'attachment-bundle-test-1', '2026-09-04 00:00:00'),
+                    (302, 201, 2, 'failed', 'attachment-bundle-test-2', '2026-09-04 00:00:00');",
+            )
+            .unwrap();
+
+        assert_eq!(
+            db.reserve_concur_attachment_bundle(201).unwrap(),
+            vec![301, 302]
+        );
+        let running: (i64, i64) = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*), SUM(attempt_count) FROM concur_upload_attachments
+                 WHERE upload_item_id = 201 AND status = 'running'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(running, (2, 2));
+
+        db.mark_concur_attachment_bundle_uploaded(201, "image-1")
+            .unwrap();
+        let uploaded: (i64, i64) = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(DISTINCT external_attachment_id)
+                 FROM concur_upload_attachments
+                 WHERE upload_item_id = 201 AND status = 'uploaded'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(uploaded, (2, 1));
+        assert_eq!(
+            db.get_concur_upload_status(101)
+                .unwrap()
+                .unwrap()
+                .session
+                .status,
+            "draft_created"
+        );
+        assert!(db.reserve_concur_attachment_bundle(201).unwrap().is_empty());
     }
 }

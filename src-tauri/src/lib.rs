@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod cleanup;
 pub mod commands;
+pub mod concur_api;
 pub mod concur_smtp;
 pub mod error;
 pub mod local_source;
@@ -27,6 +28,7 @@ pub struct AppState {
     ledger_db: Option<LedgerDb>,
     accounts_db: Option<AccountsDb>,
     session_credential: Option<SessionCredential>,
+    concur_session: Option<concur_api::ConcurApiSession>,
 }
 
 impl Default for AppState {
@@ -41,6 +43,7 @@ impl AppState {
             ledger_db: None,
             accounts_db: None,
             session_credential: None,
+            concur_session: None,
         }
     }
 
@@ -117,5 +120,25 @@ impl AppState {
 
     pub fn clear_session_credential(&mut self) {
         self.session_credential = None;
+    }
+
+    pub fn concur_session(&self) -> Option<&concur_api::ConcurApiSession> {
+        self.concur_session.as_ref()
+    }
+
+    pub fn concur_session_mut(&mut self) -> Option<&mut concur_api::ConcurApiSession> {
+        self.concur_session.as_mut()
+    }
+
+    pub fn concur_session_copy(&self) -> Option<concur_api::ConcurApiSession> {
+        self.concur_session.clone()
+    }
+
+    pub fn set_concur_session(&mut self, session: concur_api::ConcurApiSession) {
+        self.concur_session = Some(session);
+    }
+
+    pub fn clear_concur_session(&mut self) {
+        self.concur_session = None;
     }
 }

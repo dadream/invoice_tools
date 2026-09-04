@@ -1,6 +1,7 @@
 pub mod base;
 pub mod batch;
 pub mod concur;
+pub mod concur_integration;
 pub mod email_collection;
 pub mod email_ledger;
 pub mod export;
