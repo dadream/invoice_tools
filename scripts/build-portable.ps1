@@ -132,6 +132,7 @@ foreach ($requiredExe in @($exeSource, $workerSource)) {
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Copy-Item -LiteralPath $exeSource -Destination (Join-Path $stage "InvoiceAssistant.exe")
 Copy-Item -LiteralPath $workerSource -Destination (Join-Path $stage "invoice-ocr-worker.exe")
+& (Join-Path $PSScriptRoot "stage-concur-browser.ps1") -Destination (Join-Path $stage "concur-browser")
 $documents = @{
     "docs\release\PORTABLE-README-FIRST.txt" = "README-FIRST.txt"
     "docs\release\PRIVACY-DRAFT.md" = "PRIVACY-DRAFT.md"
@@ -202,7 +203,13 @@ $ocrPackages = @(
     [pscustomobject]@{ type="file"; ecosystem="ocr-runtime"; name=$ocrLock.runtime.name; version=$ocrLock.runtime.version; license=$ocrLock.runtime.license }
     [pscustomobject]@{ type="file"; ecosystem="ocr-model"; name=$ocrLock.models.name; version=$ocrLock.models.version; license=$ocrLock.models.license }
 )
-$components = @($cargoPackages) + @($npmPackages) + @($fontPackages) + @($ocrPackages)
+$browserPackage = Get-Content (Join-Path $projectRoot 'sidecars/concur-browser/node_modules/playwright-core/package.json') -Raw | ConvertFrom-Json
+$nodeVersion = (& node --version).Trim().TrimStart('v')
+$browserPackages = @(
+    [pscustomobject]@{ type='library'; ecosystem='npm'; name='playwright-core'; version=$browserPackage.version; license=$browserPackage.license },
+    [pscustomobject]@{ type='application'; ecosystem='runtime'; name='Node.js'; version=$nodeVersion; license='MIT' }
+)
+$components = @($cargoPackages) + @($npmPackages) + @($fontPackages) + @($ocrPackages) + @($browserPackages)
 
 $noticeLines = [System.Collections.Generic.List[string]]::new()
 $noticeLines.Add("Third-party dependency inventory for Invoice Assistant $version")

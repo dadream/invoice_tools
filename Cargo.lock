@@ -2361,7 +2361,7 @@ dependencies = [
 
 [[package]]
 name = "invoice-assistant"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "calamine",
@@ -2369,6 +2369,8 @@ dependencies = [
  "dirs",
  "image",
  "invoice-collect",
+ "invoice-concur",
+ "invoice-delivery-contract",
  "invoice-grouping",
  "invoice-parse",
  "invoice-store",
@@ -2419,6 +2421,27 @@ dependencies = [
  "url",
  "zeroize",
  "zip 0.6.6",
+]
+
+[[package]]
+name = "invoice-concur"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "invoice-delivery-contract",
+ "rusqlite",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "invoice-delivery-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

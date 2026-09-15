@@ -102,6 +102,18 @@ try {
         "version.json",
         "manifest.json",
         "SHA256SUMS.txt",
+        "concur-browser/node.exe",
+        "concur-browser/NODE-LICENSE.txt",
+        "concur-browser/worker.mjs",
+        "concur-browser/adapter.mjs",
+        "concur-browser/node_modules/playwright-core/package.json",
+        "concur-browser/samples/sample.json",
+        "concur-browser/samples/local-invoice.pdf",
+        "concur-browser/samples/rail-invoice.pdf",
+        "concur-browser/samples/itinerary.pdf",
+        "concur-browser/samples/hotel-invoice.pdf",
+        "concur-browser/samples/water-bill.pdf",
+        "concur-browser/samples/details.pdf",
         "LICENSES/FONTS/FONT-LICENSE-IBM-PLEX.txt",
         "LICENSES/FONTS/FONT-LICENSE-SOURCE-HAN-SANS.txt",
         "LICENSES/OCR/ONNXRuntime-LICENSE.txt",
@@ -134,7 +146,8 @@ try {
             $relative = (Get-ContainedRelativePath -BasePath $extractRoot -ChildPath $_.FullName).Replace('\', '/')
             -not $allowedRootFiles.Contains($relative) -and
                 -not $relative.StartsWith("ocr/", [StringComparison]::OrdinalIgnoreCase) -and
-                -not $relative.StartsWith("LICENSES/", [StringComparison]::OrdinalIgnoreCase)
+                -not $relative.StartsWith("LICENSES/", [StringComparison]::OrdinalIgnoreCase) -and
+                -not $relative.StartsWith("concur-browser/", [StringComparison]::OrdinalIgnoreCase)
         }
     )
     if ($unexpectedFiles.Count -ne 0) {

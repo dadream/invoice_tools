@@ -2,6 +2,7 @@
   import AboutSettings from './AboutSettings.svelte'
   import AccountsSettings from './AccountsSettings.svelte'
   import ConcurCapabilitySettings from './ConcurCapabilitySettings.svelte'
+  import ConcurBrowserPanel from '../../features/concur/ConcurBrowserPanel.svelte'
   import DataSettings from './DataSettings.svelte'
   import GeneralSettings from './GeneralSettings.svelte'
   import GroupingSettings from './GroupingSettings.svelte'
@@ -45,7 +46,8 @@
       {#if activeTab === 'accounts'}
         <AccountsSettings />
       {:else if activeTab === 'concur'}
-        <ConcurCapabilitySettings />
+        <ConcurBrowserPanel />
+        <details style="margin-top: 1.5rem"><summary>高级：官方 API 授权测试（需要企业应用凭据）</summary><ConcurCapabilitySettings /></details>
       {:else if activeTab === 'general'}
         <GeneralSettings />
       {:else if activeTab === 'stations'}

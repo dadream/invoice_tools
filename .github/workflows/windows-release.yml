@@ -46,6 +46,12 @@ jobs:
       - name: Install locked UI dependencies
         run: npm ci --prefix ui
 
+      - name: Install locked Concur browser runtime (no browser download)
+        run: npm ci --prefix sidecars/concur-browser --ignore-scripts
+
+      - name: Test Concur browser adapter on isolated fixtures
+        run: npm test --prefix sidecars/concur-browser
+
       - name: Install locked Rust toolchain components
         shell: pwsh
         run: rustup toolchain install 1.97.1 --component rustfmt --component clippy

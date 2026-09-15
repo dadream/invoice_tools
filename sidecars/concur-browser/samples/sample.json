@@ -1,0 +1,110 @@
+{
+  "batch_id": 0,
+  "snapshot_id": 0,
+  "fingerprint": "synthetic-concur-kit-v1",
+  "name": "Concur功能验证",
+  "expenses": [
+    {
+      "id": 1,
+      "group_id": 1,
+      "group_title": "样例本地费用",
+      "group_kind": "local_month",
+      "fields": {
+        "category_code": "city_transport",
+        "transaction_date": "2026-06-02",
+        "description": "虚构测试费用-请勿提交报销",
+        "counterparty_name": "示例城市交通服务商",
+        "city_name": "北京",
+        "province_name": "北京",
+        "gross_amount": "1.11",
+        "currency_code": "CNY",
+        "payment_method": "",
+        "tax_amount": ""
+      },
+      "documents": [
+        {
+          "id": 1,
+          "role": "main_invoice",
+          "path": "local-invoice.pdf",
+          "name": "local-invoice.pdf",
+          "sha256": "b3eabd49db80fcf1f1c6d02e9658abf39569dd3d0933cf2dd2c67d6fbe163b31"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "group_id": 2,
+      "group_title": "样例上海出差",
+      "group_kind": "business_trip",
+      "fields": {
+        "category_code": "rail",
+        "transaction_date": "2026-06-15",
+        "description": "虚构测试费用-请勿提交报销",
+        "counterparty_name": "示例铁路服务商",
+        "city_name": "北京",
+        "province_name": "北京",
+        "gross_amount": "2.22",
+        "currency_code": "CNY",
+        "payment_method": "",
+        "tax_amount": ""
+      },
+      "documents": [
+        {
+          "id": 2,
+          "role": "main_invoice",
+          "path": "rail-invoice.pdf",
+          "name": "rail-invoice.pdf",
+          "sha256": "011511ac00269970e213e0dc8ae983b9524ef27ea203209fa765cba498649b00"
+        },
+        {
+          "id": 3,
+          "role": "itinerary",
+          "path": "itinerary.pdf",
+          "name": "itinerary.pdf",
+          "sha256": "c434df5ad4214caa2e59a5aa3b02560d200fea98f359eb258c5469a758bc9f15"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "group_id": 2,
+      "group_title": "样例上海出差",
+      "group_kind": "business_trip",
+      "fields": {
+        "category_code": "hotel",
+        "transaction_date": "2026-06-16",
+        "description": "虚构测试费用-请勿提交报销",
+        "counterparty_name": "示例酒店",
+        "city_name": "上海",
+        "province_name": "上海",
+        "gross_amount": "3.33",
+        "currency_code": "CNY",
+        "payment_method": "",
+        "tax_amount": ""
+      },
+      "documents": [
+        {
+          "id": 4,
+          "role": "main_invoice",
+          "path": "hotel-invoice.pdf",
+          "name": "hotel-invoice.pdf",
+          "sha256": "2ac2e6dcb4a450706d6f1b29f3ac97ba478c013c1961cbb2252dc216961eb6dc"
+        },
+        {
+          "id": 5,
+          "role": "supporting",
+          "path": "water-bill.pdf",
+          "name": "water-bill.pdf",
+          "sha256": "aa3098c813adf6f57ff3d691c16c648c576c55eb0e2b5ad0bf01020549e15d1e"
+        },
+        {
+          "id": 6,
+          "role": "detail",
+          "path": "details.pdf",
+          "name": "details.pdf",
+          "sha256": "fd729cd329154d06969b150f7963f8fc31492a45680701a8e35d1c2f0754110c"
+        }
+      ]
+    }
+  ]
+}

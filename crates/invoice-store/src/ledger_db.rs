@@ -7006,6 +7006,27 @@ impl LedgerDb {
         Ok((snapshot, Self::included_snapshot_expenses(&content)))
     }
 
+    /// 目标系统无关的只读出口：返回审核快照内冻结的归组，而非当前可变归组。
+    pub fn get_active_snapshot_grouping(
+        &self,
+        batch_id: i64,
+    ) -> StoreResult<Option<BatchGrouping>> {
+        let snapshot = self
+            .get_active_batch_review_snapshot(batch_id)?
+            .ok_or_else(|| StoreError::Validation("batch has no active review snapshot".into()))?;
+        let content_json: String = self.conn.query_row(
+            "SELECT content_json FROM batch_review_snapshots WHERE id=?1 AND invalidated_at IS NULL",
+            [snapshot.id], |row|row.get(0))?;
+        if format!("{:x}", Sha256::digest(content_json.as_bytes())) != snapshot.content_sha256 {
+            return Err(StoreError::Internal(
+                "review snapshot digest mismatch".into(),
+            ));
+        }
+        let content: ReviewSnapshot =
+            serde_json::from_str(&content_json).map_err(|e| StoreError::Internal(e.to_string()))?;
+        Ok(content.grouping)
+    }
+
     /// 回到可编辑状态。旧快照和交付历史保留，但旧快照不再允许发起新交付。
     pub fn reopen_batch_review(&self, batch_id: i64) -> StoreResult<()> {
         let transaction = self.conn.unchecked_transaction()?;

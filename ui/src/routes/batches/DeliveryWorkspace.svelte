@@ -5,7 +5,7 @@
   import type { Batch, BatchReviewSnapshot, ConcurDraftCapability, DeliveryTask } from '../../lib/types'
   import { formatAmount, formatDate } from '../../lib/types'
   import ConfirmDialog from '../../lib/ConfirmDialog.svelte'
-  import ConcurDeliveryPanel from './ConcurDeliveryPanel.svelte'
+  import ConcurBrowserPanel from '../../features/concur/ConcurBrowserPanel.svelte'
 
   interface Props {
     batchId: number
@@ -286,13 +286,13 @@
           <h3>上传到 Concur</h3>
           <p>按已配置映射创建费用草稿、填写字段并上传发票原件；最终提交仍由用户在 Concur 完成。</p>
           <ul><li>先检查必填字段缺口</li><li>按租户配置映射费用类型</li><li>仅创建草稿，不自动提交</li></ul>
-          <div class:available={concurCapability?.enabled} class="capability"><strong>{concurCapability?.enabled ? '当前环境可执行外部写入' : '当前仅可完成映射与预检'}</strong><span>{concurCapability?.reason ?? '正在检查 Concur 适配器能力…'}</span></div>
+          <div class="capability available"><strong>浏览器填写草稿</strong><span>请先在“设置 → Concur 能力”完成内置样例测试，不需要 Client ID 或密钥。</span></div>
           <button class="primary" type="button" onclick={openConcur}>配置映射并预检</button>
         </article>
       </div>
 
       {#if showConcur}
-        <ConcurDeliveryPanel {batchId} {batch} {snapshot} {onBackToReview} />
+        <ConcurBrowserPanel {batchId} onComplete={refreshTasks} />
       {/if}
 
       {#if tasks.length > 0}

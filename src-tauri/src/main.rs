@@ -197,10 +197,18 @@ fn main() {
     }
 
     let result = tauri::Builder::default()
+        .manage(Mutex::new(
+            commands::concur_browser::BrowserRuntime::default(),
+        ))
         .manage(Mutex::new(app_state))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            commands::concur_browser::get_concur_browser_workspace,
+            commands::concur_browser::concur_browser_control,
+            commands::concur_browser::save_concur_browser_profile,
+            commands::concur_browser::prepare_concur_browser_job,
+            commands::concur_browser::run_concur_browser_step,
             commands::base::greet,
             commands::base::get_version,
             commands::base::health_check,

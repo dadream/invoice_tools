@@ -110,6 +110,24 @@ The `ui` project uses **npm only**. `ui/package.json` declares npm and
 
 ## Product Design Consistency
 
+### Concur browser module
+
+- `sidecars/concur-browser` uses npm with its own committed `package-lock.json`.
+  Only `playwright-core` is installed; never install a browser for product use.
+- Windows builds must stage this module with
+  `scripts/stage-concur-browser.ps1 -Destination target/debug/concur-browser`
+  (or the corresponding release/package directory). This includes the pinned
+  Node runtime, licenses, and the synthetic sample JSON plus six PDFs.
+- Keep the staged browser module under 256 MiB. Never package browser profiles,
+  test source, npm caches, credentials, or user data.
+- Core crates must not depend on `invoice-concur`. Use the neutral
+  `invoice-delivery-contract` DTO and app-shell adapter instead.
+- Browser acceptance uses user-initiated synthetic data from the settings page.
+  Automated tests only use intercepted synthetic pages; never test against a
+  real company account or claim tenant compatibility from fixture tests.
+- After frontend/Rust checks and before launching an updated development build,
+  re-stage the Concur module so the app cannot run an older worker copy.
+
 `docs/product-design-consistency-standards.md` is the authoritative UI and
 interaction consistency standard for current product work. Read the relevant
 sections before changing user-visible pages.
